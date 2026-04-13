@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -11,7 +12,7 @@ import '../../data/repo/auth_repository.dart';
 import 'auth_state.dart';
 
 final authRemoteProvider = Provider((ref) {
-  final dio = ref.watch(dioProvider);
+  final dio = ref.watch(baseDioProvider);
   return AuthRemote( dio: dio, tokenStorage: ref.watch(tokenStorageProvider));
 });
 final authRepositoryProvider = Provider((ref) {
@@ -34,25 +35,20 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     return AuthState.initial();
   }
 
-  Future<void> checkAuth() async {
+  Future<bool> checkAuth() async {
     state = const AsyncValue.loading();
     try {
       final token = await _tokenStorage.readAccessToken();
-      if (token != null && token.isNotEmpty) {
-        try{
-          final user = await _repo.getCurrentUser();
-          state = AsyncValue.data(AuthState.authenticated(user));
-        } catch (e) {
-          await _tokenStorage.clear();
-          state = AsyncValue.data(AuthState.unauthenticated());
-        }
-      } else {
-        await _tokenStorage.clear();
-        state =  AsyncValue.data(AuthState.unauthenticated());
+      if (token == null) {
+        state = AsyncValue.data(AuthState.unauthenticated());
+        return false;
       }
+      state = AsyncValue.data(AuthState.authenticated(null));
+      return true;
     } catch (_) {
       await _tokenStorage.clear();
       state = AsyncValue.data(AuthState.unauthenticated());
+      return false;
     }
   }
 
@@ -60,6 +56,17 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.login(email, password);
+      final cookieJar = ref.read(cookieJarProvider);
+      final uri = Uri.parse('http://10.0.2.2:5000');
+      final cookies = await cookieJar.loadForRequest(uri);
+
+      debugPrint('=== COOKIES SAVED ===');
+      for (final cookie in cookies) {
+        debugPrint('  ${cookie.name} = ${cookie.value}');
+        debugPrint('  httpOnly: ${cookie.httpOnly}');
+        debugPrint('  expires: ${cookie.expires}');
+      }
+      debugPrint('=== TOTAL: ${cookies.length} cookies ===');
       state = AsyncValue.data(AuthState.authenticated(user));
     } catch (e) {
       state = AsyncValue.data(AuthState.failure(e.toString()));
@@ -104,9 +111,18 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   Future<bool> refreshToken() async {
     try {
+      print('Refreshing token...');
       final success = await _repo.refreshToken();
+      print('Token refresh success: $success');
+      if(!success) {
+        await _tokenStorage.clear();
+        state = AsyncValue.data(AuthState.unauthenticated());
+      }
       return success;
     } catch (e) {
+      print('Error refreshing token: $e');
+      await _tokenStorage.clear();
+      state = AsyncValue.data(AuthState.unauthenticated());
       return false;
     }
   }

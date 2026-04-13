@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 
 type JwtPayload = {
-  sub: string;
+  userId: string;
   email: string;
   role: string;
 };
@@ -25,7 +25,7 @@ export const authMiddleware =
       const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
 
       (req as any).user = {
-        id: decoded.sub,
+        id: decoded.userId,
         email: decoded.email,
         role: decoded.role,
       };
@@ -45,3 +45,5 @@ export const authMiddleware =
       });
     }
   };
+
+export const checkAccessToken = authMiddleware();

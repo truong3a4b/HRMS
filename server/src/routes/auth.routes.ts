@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authController } from "../controllers/auth.controller";
+import { checkAccessToken } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
@@ -23,6 +24,8 @@ const verifyOtpSchema = z.object({
 router.post("/register", validate(registerSchema), authController.register);
 router.post("/verify-otp", validate(verifyOtpSchema), authController.verifyOtp);
 router.post("/login", validate(loginSchema), authController.login);
+router.post("/refresh", authController.refresh);
 router.post("/logout", authController.logout);
+router.get("/me", checkAccessToken, authController.getMe);
 
 export default router;

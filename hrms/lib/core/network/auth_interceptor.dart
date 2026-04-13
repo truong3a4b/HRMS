@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 
 abstract class AuthSessionHandler {
   Future<String?> readAccessToken();
+
   Future<bool> refreshToken();
+
   Future<void> logout();
 }
 
@@ -13,10 +15,7 @@ class PendingRequest {
   final RequestOptions requestOptions;
   final Completer<Response<dynamic>> completer;
 
-  PendingRequest({
-    required this.requestOptions,
-    required this.completer,
-  });
+  PendingRequest({required this.requestOptions, required this.completer});
 }
 
 class AuthInterceptor extends QueuedInterceptor {
@@ -28,18 +27,15 @@ class AuthInterceptor extends QueuedInterceptor {
 
   final List<PendingRequest> _pendingRequests = [];
 
-  AuthInterceptor({
-    required this.dio,
-    required this.authSession,
-  });
+  AuthInterceptor({required this.dio, required this.authSession});
 
   bool _shouldSkipAuth(RequestOptions options) {
     if (options.extra['skipAuth'] == true) return true;
 
     final path = options.path;
-    return path.contains('/users/login') ||
-        path.contains('/users/signup') ||
-        path.contains('/users/refresh-token');
+    return path.contains('/auth/login') ||
+        path.contains('/auth/signup') ||
+        path.contains('/auth/refresh');
   }
 
   bool _canRetryRequest(RequestOptions options) {
@@ -60,9 +56,9 @@ class AuthInterceptor extends QueuedInterceptor {
 
   @override
   Future<void> onRequest(
-      RequestOptions options,
-      RequestInterceptorHandler handler,
-      ) async {
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
     try {
       if (!_shouldSkipAuth(options)) {
         final token = await authSession.readAccessToken();
@@ -86,9 +82,9 @@ class AuthInterceptor extends QueuedInterceptor {
 
   @override
   Future<void> onError(
-      DioException err,
-      ErrorInterceptorHandler handler,
-      ) async {
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final requestOptions = err.requestOptions;
     final statusCode = err.response?.statusCode;
 
@@ -117,10 +113,7 @@ class AuthInterceptor extends QueuedInterceptor {
       final completer = Completer<Response<dynamic>>();
 
       _pendingRequests.add(
-        PendingRequest(
-          requestOptions: requestOptions,
-          completer: completer,
-        ),
+        PendingRequest(requestOptions: requestOptions, completer: completer),
       );
 
       try {
@@ -136,7 +129,6 @@ class AuthInterceptor extends QueuedInterceptor {
 
     try {
       final refreshSuccess = await authSession.refreshToken();
-
       if (!refreshSuccess) {
         await _failAllPending(err);
         await _logoutSafely();
@@ -165,7 +157,9 @@ class AuthInterceptor extends QueuedInterceptor {
     }
   }
 
-  Future<void> _retryPendingInParallel(List<PendingRequest> pendingRequests) async {
+  Future<void> _retryPendingInParallel(
+    List<PendingRequest> pendingRequests,
+  ) async {
     await Future.wait(
       pendingRequests.map((pending) async {
         try {
@@ -226,10 +220,7 @@ class AuthInterceptor extends QueuedInterceptor {
       validateStatus: requestOptions.validateStatus,
       sendTimeout: requestOptions.sendTimeout,
       receiveTimeout: requestOptions.receiveTimeout,
-      extra: {
-        ...requestOptions.extra,
-        'retried': true,
-      },
+      extra: {...requestOptions.extra, 'retried': true},
     );
 
     return dio.request<dynamic>(

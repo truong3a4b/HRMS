@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hrms/feature/account/presentation/screens/account_screen.dart';
@@ -14,11 +11,12 @@ import '../../feature/auth/presentation/providers/auth_provider.dart';
 import '../../feature/auth/presentation/screens/login_screen.dart';
 import '../../feature/auth/presentation/screens/register_screen.dart';
 import '../../feature/auth/presentation/screens/splash_screen.dart';
+import '../../feature/employee/presentation/screens/employee_detail_screen.dart';
+import '../../feature/employee/presentation/screens/employee_list_screen.dart';
 import '../widget/main_shell_page.dart';
 import 'auth_router_notifier.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-
   final refreshListenable = ref.watch(authRouterNotifierProvider);
   return GoRouter(
     initialLocation: '/login',
@@ -92,6 +90,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      GoRoute(
+        path: '/employee-list',
+        name: 'employee-list',
+        builder: (context, state) => const EmployeeListScreen(),
+      ),
+      GoRoute(
+        path: '/employee-detail/:employeeId',
+        name: 'employee-detail',
+        builder: (context, state) {
+          final employeeId = state.pathParameters['employeeId']!;
+          return EmployeeDetailScreen(employeeId: employeeId);
+        },
+      ),
     ],
     redirect: (context, state) {
       final authAsync = ref.read(authNotifierProvider);
@@ -102,10 +113,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final goingOtp = location == '/verify-otp';
       final goingSplash = location == '/splash';
 
-      if (authAsync.value == null || authAsync.value?.status == AuthStatus.initial) {
+      if (authAsync.value == null ||
+          authAsync.value?.status == AuthStatus.initial) {
         return goingSplash ? null : '/splash';
       }
-      switch(authAsync.value?.status) {
+      switch (authAsync.value?.status) {
         case AuthStatus.authenticated:
           if (goingLogin || goingRegister || goingOtp || goingSplash) {
             return '/home';
@@ -113,7 +125,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           break;
         case AuthStatus.unauthenticated:
           if (!goingLogin && !goingRegister) {
-            if(goingOtp) {
+            if (goingOtp) {
               return '/register';
             } else {
               return '/login';
@@ -130,4 +142,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
   );
 });
-

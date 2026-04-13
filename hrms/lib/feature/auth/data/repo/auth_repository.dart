@@ -9,10 +9,12 @@ class AuthRepository {
 
 
   Future<User> getCurrentUser() async {
-    return User(id: '123', email: 'truong@gmail.com', role: UserRole.employee);
+    final userdto = await remote.getCurrentUser();
+    final role = mapRole(userdto.role);
+    return User(id: userdto.id, email: userdto.email, role: role);
   }
   Future<bool> refreshToken() async {
-    return true;
+    return await remote.refreshToken();
   }
   Future<User> login(String email, String password) async {
     final result = await remote.login(email, password);

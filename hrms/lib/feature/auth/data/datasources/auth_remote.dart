@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hrms/core/error/app_exception.dart';
 import 'package:hrms/core/utils/token_storage.dart';
+import 'package:hrms/feature/auth/data/models/user_dto.dart';
 
 import '../models/login_response.dart';
 
@@ -30,7 +31,7 @@ class AuthRemote {
       }
     } catch (e) {
       print('AuthRemote login error: $e');
-      throw AppException('Đang nhập thất bại');
+      throw AppException('Đăng nhập thất bại');
     }
   }
 
@@ -80,5 +81,35 @@ class AuthRemote {
     }
   }
 
+  Future<bool> refreshToken() async {
+    try {
+      final response = await dio.post('/auth/refresh');
 
+      if (response.statusCode == 200) {
+        final token = response.data['data']['accessToken'];
+        await tokenStorage.saveAccessToken(token);
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      print('AuthRemote refreshToken error: $e');
+      return false;
+    }
+  }
+
+  Future<UserDto> getCurrentUser() async {
+    try {
+      final response = await dio.get('/auth/me');
+
+      if (response.statusCode == 200) {
+        return UserDto.fromJson(response.data['data']['user']);
+      } else {
+        throw AppException(response.data['message']);
+      }
+    } catch (e) {
+      print('AuthRemote getCurrentUser error: $e');
+      throw AppException('Phiên đăng nhập hết hạn');
+    }
+  }
 }

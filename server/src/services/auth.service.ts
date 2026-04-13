@@ -1,10 +1,156 @@
 import bcrypt from "bcrypt";
-import { randomInt } from "crypto";
+import jwt from "jsonwebtoken";
+import { randomUUID, randomInt } from "crypto";
 import { UserRole } from "../../generated/prisma/client";
 import { sendOtpEmail } from "../config/brevo";
+import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import { ApiError } from "../utils/apiError";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
+
+const refreshTokenSaltRounds = 10;
+
+type TokenPayload = {
+  userId: string;
+  sessionId: string;
+  email: string;
+  role: UserRole;
+};
+
+type AuthUser = {
+  id: string;
+  email: string;
+  role: UserRole;
+};
+
+type TokenMeta = {
+  userAgent?: string;
+  ipAddress?: string;
+};
+
+// Hàm chuyển đổi chuỗi expiresIn thành milliseconds
+const getRefreshTokenExpiresInMs = () => {
+  const value = env.REFRESH_TOKEN_EXPIRES_IN.trim();
+  const match = value.match(/^(\d+)([smhd])?$/i);
+
+  if (!match) {
+    return 7 * 24 * 60 * 60 * 1000;
+  }
+
+  const amount = Number(match[1]);
+  const unit = (match[2] || "s").toLowerCase();
+
+  const unitToMs: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+
+  return amount * unitToMs[unit];
+};
+
+const buildUser = (user: { id: string; email: string; role: UserRole }) => ({
+  id: user.id,
+  email: user.email,
+  role: user.role,
+});
+
+//Hàm xác thực và giải mã payload từ refresh token
+const verifyRefreshTokenPayload = (token: string) => {
+  return jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload;
+};
+
+//Hàm tạo token pair (access token và refresh token) và lưu thông tin phiên vào database
+const createTokenPair = async (
+  user: AuthUser,
+  sessionId: string = randomUUID(),
+  meta: TokenMeta = {},
+) => {
+  const payload: TokenPayload = {
+    userId: user.id,
+    sessionId,
+    email: user.email,
+    role: user.role,
+  };
+
+  const accessToken = generateAccessToken(payload);
+  const refreshToken = generateRefreshToken(payload);
+  const tokenHash = await bcrypt.hash(refreshToken, refreshTokenSaltRounds);
+  const expiresAt = new Date(Date.now() + getRefreshTokenExpiresInMs());
+
+  await prisma.refreshToken.upsert({
+    where: { id: sessionId },
+    update: {
+      tokenHash,
+      userAgent: meta.userAgent,
+      ipAddress: meta.ipAddress,
+      revokedAt: null,
+      expiresAt,
+    },
+    create: {
+      id: sessionId,
+      userId: user.id,
+      tokenHash,
+      userAgent: meta.userAgent,
+      ipAddress: meta.ipAddress,
+      expiresAt,
+    },
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    sessionId,
+  };
+};
+
+// Hàm lấy và xác thực refresh token từ request, sau đó trả về thông tin phiên nếu hợp lệ
+const getValidatedSession = async (token: string) => {
+  let payload: TokenPayload;
+
+  try {
+    payload = verifyRefreshTokenPayload(token);
+  } catch {
+    throw new ApiError(401, "Invalid or expired refresh token");
+  }
+
+  const session = await prisma.refreshToken.findFirst({
+    where: {
+      id: payload.sessionId,
+      userId: payload.userId,
+      revokedAt: null,
+      expiresAt: {
+        gt: new Date(),
+      },
+    },
+    select: {
+      id: true,
+      tokenHash: true,
+      userAgent: true,
+      ipAddress: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+  });
+
+  if (!session) {
+    throw new ApiError(401, "Invalid refresh token");
+  }
+
+  const isTokenValid = await bcrypt.compare(token, session.tokenHash);
+
+  if (!isTokenValid) {
+    throw new ApiError(401, "Invalid refresh token");
+  }
+
+  return session;
+};
 
 export const authService = {
   async register(email: string, password: string) {
@@ -47,7 +193,7 @@ export const authService = {
     };
   },
 
-  async verifyOtp(email: string, otp: string) {
+  async verifyOtp(email: string, otp: string, meta?: TokenMeta) {
     const pendingUser = await prisma.pendingUser.findUnique({
       where: { email },
     });
@@ -83,27 +229,20 @@ export const authService = {
       return createdUser;
     });
 
-    const payload = {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    };
-
-    const accessToken = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken(payload);
+    const { accessToken, refreshToken } = await createTokenPair(
+      buildUser(user),
+      undefined,
+      meta,
+    );
 
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
+      user: buildUser(user),
       accessToken,
       refreshToken,
     };
   },
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, meta?: TokenMeta) {
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
@@ -115,23 +254,83 @@ export const authService = {
       throw new ApiError(401, "Invalid email or password");
     }
 
-    const payload = {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    };
-
-    const accessToken = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken(payload);
+    const { accessToken, refreshToken } = await createTokenPair(
+      buildUser(user),
+      undefined,
+      meta,
+    );
 
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
+      user: buildUser(user),
       accessToken,
       refreshToken,
     };
+  },
+
+  async refreshToken(token: string) {
+    if (!token) {
+      throw new ApiError(401, "Refresh token is required");
+    }
+
+    const session = await getValidatedSession(token);
+
+    const { accessToken, refreshToken } = await createTokenPair(
+      session.user,
+      session.id,
+      {
+        userAgent: session.userAgent ?? undefined,
+        ipAddress: session.ipAddress ?? undefined,
+      },
+    );
+
+    return {
+      user: session.user,
+      accessToken,
+      refreshToken,
+    };
+  },
+
+  async logout(token?: string) {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const payload = verifyRefreshTokenPayload(token);
+
+      await prisma.refreshToken.updateMany({
+        where: {
+          id: payload.sessionId,
+          userId: payload.userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+    } catch {
+      return;
+    }
+  },
+
+  async getMe(userId: string) {
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    return { user };
   },
 };

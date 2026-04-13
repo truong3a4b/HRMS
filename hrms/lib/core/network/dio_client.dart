@@ -1,14 +1,25 @@
-import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:dio_http_formatter/dio_http_formatter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hrms/feature/auth/presentation/providers/auth_provider.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../utils/token_storage.dart';
 import 'auth_interceptor.dart';
+
+final baseDioProvider = Provider<Dio>((ref) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: 'http://192.168.1.136:5000/api',
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      headers: {'Content-Type': 'application/json'},
+    ),
+  );
+  final cookieJar = ref.watch(cookieJarProvider);
+  dio.interceptors.addAll([CookieManager(cookieJar), HttpFormatter()]);
+  return dio;
+});
 
 class RiverpodAuthSessionHandler implements AuthSessionHandler {
   final Future<String?> Function() readToken;
@@ -34,15 +45,12 @@ class RiverpodAuthSessionHandler implements AuthSessionHandler {
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
-      baseUrl: 'http://10.0.2.2:5000/api',
+      baseUrl: 'http://192.168.1.136:5000/api',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: {'Content-Type': 'application/json'},
     ),
   );
-
   final cookieJar = ref.watch(cookieJarProvider);
 
   dio.interceptors.addAll([
@@ -52,8 +60,9 @@ final dioProvider = Provider<Dio>((ref) {
       dio: dio,
       authSession: RiverpodAuthSessionHandler(
         readToken: () => ref.read(tokenStorageProvider).readAccessToken(),
-        onRefreshToken: () => ref.read(authNotifierProvider.notifier).refreshToken(),
-        onLogout: () => ref.read(authNotifierProvider.notifier).autoLogout()
+        onRefreshToken: () =>
+            ref.read(authNotifierProvider.notifier).refreshToken(),
+        onLogout: () => ref.read(authNotifierProvider.notifier).autoLogout(),
       ),
     ),
   ]);

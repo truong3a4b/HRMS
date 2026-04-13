@@ -118,7 +118,7 @@ class MainBottomNav extends StatelessWidget {
                   Text(
                     item.label,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                       height: 1.3,
                       color: selected

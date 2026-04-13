@@ -24,6 +24,53 @@ const parseExpiresToMs = (value: string) => {
   return amount * unitToMs[unit];
 };
 
+const getRefreshTokenFromRequest = (req: Request) => {
+  const bodyToken =
+    typeof req.body?.refreshToken === "string" ? req.body.refreshToken : "";
+
+  if (bodyToken) {
+    return bodyToken;
+  }
+
+  const cookieHeader = req.headers.cookie;
+
+  if (!cookieHeader) {
+    return "";
+  }
+
+  const cookies = Object.fromEntries(
+    cookieHeader.split(";").map((cookie) => {
+      const index = cookie.indexOf("=");
+
+      if (index === -1) {
+        return [cookie.trim(), ""];
+      }
+
+      const key = cookie.slice(0, index).trim();
+      const value = cookie.slice(index + 1).trim();
+
+      return [key, decodeURIComponent(value)];
+    }),
+  );
+
+  return typeof cookies.refreshToken === "string" ? cookies.refreshToken : "";
+};
+
+const getRefreshCookieOptions = () => ({
+  httpOnly: true,
+  secure: env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  maxAge: parseExpiresToMs(env.REFRESH_TOKEN_EXPIRES_IN),
+});
+
+const getTokenMeta = (req: Request) => ({
+  userAgent:
+    typeof req.headers["user-agent"] === "string"
+      ? req.headers["user-agent"]
+      : undefined,
+  ipAddress: req.ip || req.socket.remoteAddress || undefined,
+});
+
 export const authController = {
   async register(req: Request, res: Response, next: NextFunction) {
     try {
@@ -41,14 +88,13 @@ export const authController = {
     try {
       const { email, otp } = req.body;
 
-      const result = await authService.verifyOtp(email, otp);
+      const result = await authService.verifyOtp(email, otp, getTokenMeta(req));
 
-      res.cookie("refreshToken", result.refreshToken, {
-        httpOnly: true,
-        secure: env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: parseExpiresToMs(env.REFRESH_TOKEN_EXPIRES_IN),
-      });
+      res.cookie(
+        "refreshToken",
+        result.refreshToken,
+        getRefreshCookieOptions(),
+      );
 
       const { refreshToken, ...responseData } = result;
 
@@ -62,14 +108,17 @@ export const authController = {
     try {
       const { email, password } = req.body;
 
-      const result = await authService.login(email, password);
+      const result = await authService.login(
+        email,
+        password,
+        getTokenMeta(req),
+      );
 
-      res.cookie("refreshToken", result.refreshToken, {
-        httpOnly: true,
-        secure: env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: parseExpiresToMs(env.REFRESH_TOKEN_EXPIRES_IN),
-      });
+      res.cookie(
+        "refreshToken",
+        result.refreshToken,
+        getRefreshCookieOptions(),
+      );
 
       const { refreshToken, ...responseData } = result;
 
@@ -79,8 +128,37 @@ export const authController = {
     }
   },
 
-  async logout(_req: Request, res: Response, next: NextFunction) {
+  async refresh(req: Request, res: Response, next: NextFunction) {
     try {
+      const refreshToken = getRefreshTokenFromRequest(req);
+
+      const result = await authService.refreshToken(refreshToken);
+
+      res.cookie(
+        "refreshToken",
+        result.refreshToken,
+        getRefreshCookieOptions(),
+      );
+
+      const { refreshToken: _refreshToken, ...responseData } = result;
+
+      return sendResponse(
+        res,
+        200,
+        "Token refreshed successfully",
+        responseData,
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const refreshToken = getRefreshTokenFromRequest(req);
+
+      await authService.logout(refreshToken);
+
       res.clearCookie("refreshToken", {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
@@ -88,6 +166,21 @@ export const authController = {
       });
 
       return sendResponse(res, 200, "Logout successful");
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async getMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = (req as any).user?.id as string | undefined;
+
+      if (!userId) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+
+      const result = await authService.getMe(userId);
+      return sendResponse(res, 200, "User retrieved successfully", result);
     } catch (error) {
       return next(error);
     }

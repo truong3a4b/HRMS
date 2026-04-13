@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class TaskScreen extends ConsumerStatefulWidget {
   const TaskScreen({super.key});
@@ -51,6 +52,9 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                   TaskItemData(
                     icon: 'assets/images/employee_list.png',
                     label: 'Danh sách\nnhân viên',
+                    onTap: () {
+                      context.push('/employee-list');
+                    }
                   ),
                 ],
               ),
@@ -324,7 +328,7 @@ class TaskActionButton extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   height: 1.2,
                   fontWeight: FontWeight.w400,
                   color: Color(0xFF222222),

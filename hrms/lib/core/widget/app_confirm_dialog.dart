@@ -51,6 +51,9 @@ class AppConfirmDialog extends StatelessWidget {
 
             Text(
               message,
+              style: const TextStyle(
+                fontSize: 14,
+              ),
               textAlign: TextAlign.center,
             ),
 

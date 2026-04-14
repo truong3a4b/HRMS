@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hrms/core/widget/app_primary_button.dart';
 import 'package:hrms/feature/auth/presentation/widgets/back_button.dart';
 
 import '../../../../core/widget/app_snackbar.dart';
@@ -9,7 +10,7 @@ import '../../../../core/widget/custom_dialog.dart';
 import '../providers/auth_provider.dart';
 import '../providers/auth_state.dart';
 import '../widgets/logo_section.dart';
-import '../widgets/text_field.dart';
+import '../../../../core/widget/text_field.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -107,7 +108,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     return null; // hợp lệ
   }
+  
+  void handleRegister() async {
+    FocusScope.of(context).unfocus();
 
+    final email = _emailController.text.trim();
+    final password = _passwordController.text
+        .trim();
+    final confirmPassword =
+    _confirmPasswordController.text.trim();
+    final validationMessage = validateEntry(
+      email: email,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+    if (validationMessage != null) {
+      AppSnackbar.showError(
+        context,
+        validationMessage,
+      );
+      return;
+    }
+    await ref
+        .read(authNotifierProvider.notifier)
+        .register(email, password);
+  }
+  
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF0E67B2);
@@ -263,61 +289,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         SizedBox(
                           height: 50,
                           width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: isLoading
-                                ? null
-                                : () async {
-                                    FocusScope.of(context).unfocus();
-
-                                    final email = _emailController.text.trim();
-                                    final password = _passwordController.text
-                                        .trim();
-                                    final confirmPassword =
-                                        _confirmPasswordController.text.trim();
-                                    final validationMessage = validateEntry(
-                                      email: email,
-                                      password: password,
-                                      confirmPassword: confirmPassword,
-                                    );
-                                    if (validationMessage != null) {
-                                      AppSnackbar.showError(
-                                        context,
-                                        validationMessage,
-                                      );
-                                      return;
-                                    }
-                                    await ref
-                                        .read(authNotifierProvider.notifier)
-                                        .register(email, password);
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryBlue,
-                              foregroundColor: Colors.white,
-                              elevation: 3,
-                              shadowColor: Colors.black26,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: isLoading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                : const Text(
-                                    'Tiếp tục',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                          ),
+                          child: AppPrimaryButton(onPressed: handleRegister, text: 'Đăng ký', isLoading: isLoading,)
                         ),
 
                         const SizedBox(height: 22),

@@ -243,7 +243,7 @@ class _InfoSectionCard extends StatelessWidget {
     const cardBorderColor = Color(0xFFE8E8E8);
     const titleColor = Color(0xFF2F2F2F);
     const editBg = Color(0xFFF1F7FB);
-    const primaryColor = Color(0xFF0E6BA8);
+    const primaryColor = Color(0xFF0E67B2);
 
     return Container(
       width: double.infinity,
@@ -262,11 +262,12 @@ class _InfoSectionCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: titleColor,
                   ),
                 ),
               ),
+              //todo: edit action
               Container(
                 width: 44,
                 height: 44,

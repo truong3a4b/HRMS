@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hrms/feature/account/presentation/screens/account_screen.dart';
 import 'package:hrms/feature/auth/presentation/providers/auth_state.dart';
 import 'package:hrms/feature/auth/presentation/screens/verify_otp_screen.dart';
+import 'package:hrms/feature/employee/presentation/screens/add_employee_screen.dart';
 import 'package:hrms/feature/home/presentation/screens/home_screen.dart';
 import 'package:hrms/feature/notification/presentation/screens/notification_screen.dart';
 import 'package:hrms/feature/task/presentation/screens/task-screen.dart';
@@ -103,6 +104,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           return EmployeeDetailScreen(employeeId: employeeId);
         },
       ),
+      GoRoute(
+        path: '/add-employee',
+        name: 'add-employee',
+        builder: (context, state) => const AddEmployeeScreen(),
+      )
     ],
     redirect: (context, state) {
       final authAsync = ref.read(authNotifierProvider);

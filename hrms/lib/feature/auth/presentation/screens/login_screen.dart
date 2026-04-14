@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hrms/core/widget/app_primary_button.dart';
 
 import '../../../../core/widget/app_snackbar.dart';
 import '../../../../core/widget/custom_dialog.dart';
 import '../providers/auth_provider.dart';
 import '../providers/auth_state.dart';
 import '../widgets/logo_section.dart';
-import '../widgets/text_field.dart';
+import '../../../../core/widget/text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +23,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _obscureText = true;
 
   late final ProviderSubscription<AsyncValue<AuthState>> _sub;
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +84,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return null; // hợp lệ
   }
 
+  //ham login
+  void login() async {
+    FocusScope.of(context).unfocus();
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    final validationMessage = validateEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    if (validationMessage != null) {
+      AppSnackbar.showError(context, validationMessage);
+      return;
+    }
+    await ref.read(authNotifierProvider.notifier).login(email, password);
+  }
+
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF0E67B2);
@@ -92,7 +112,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authAsync = ref.watch(authNotifierProvider);
 
     final isLoading = authAsync.isLoading;
-
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -206,69 +225,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     //login button
                                     SizedBox(
                                       height: 50,
-                                      child: ElevatedButton(
-                                        onPressed: isLoading
-                                            ? null
-                                            : () async {
-                                                FocusScope.of(
-                                                  context,
-                                                ).unfocus();
-
-                                                final email = _emailController
-                                                    .text
-                                                    .trim();
-                                                final password =
-                                                    _passwordController.text
-                                                        .trim();
-
-                                                final validationMessage = validateEmailAndPassword(
-                                                  email: email,
-                                                  password: password,
-                                                );
-                                                if (validationMessage != null) {
-                                                  AppSnackbar.showError(
-                                                    context,
-                                                    validationMessage,
-                                                  );
-                                                  return;
-                                                }
-                                                await ref
-                                                    .read(
-                                                      authNotifierProvider
-                                                          .notifier,
-                                                    )
-                                                    .login(email, password);
-                                              },
-                                        style: ElevatedButton.styleFrom(
-                                          elevation: 3,
-                                          shadowColor: Colors.black26,
-                                          backgroundColor: primaryBlue,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                        child: isLoading
-                                            ? const SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Colors.white),
-                                                ),
-                                              )
-                                            : const Text(
-                                                'Đăng nhập',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
+                                      child: AppPrimaryButton(
+                                        onPressed: login,
+                                        isLoading: isLoading,
+                                        text: 'Đăng nhập',
                                       ),
                                     ),
                                     const SizedBox(height: 18),

@@ -24,13 +24,13 @@ class FilterItem {
 class FilterResult {
   final Map<String, dynamic> values;
 
-  const FilterResult(this.values);
+  FilterResult(this.values);
 
   dynamic operator [](String key) => values[key];
 
-  void operator []=(String other, FilterOption value) {}
-
-
+  void operator []=(String key, FilterOption value) {
+    values[key] = value;
+  }
 }
 
 class EmployeeFilterBottomSheet extends StatefulWidget {
@@ -53,7 +53,10 @@ class _EmployeeFilterBottomSheetState extends State<EmployeeFilterBottomSheet> {
     super.initState();
     if(widget.filterResult != null) {
       selectedValues.addAll(widget.filterResult!.values);
+      print("Selected values from filter result:");
+      print(selectedValues);
     } else {
+      print("No filter result provided, initializing with default values.");
       for (var filter in widget.filters) {
         selectedValues[filter.key] = filter.options.first;
       }

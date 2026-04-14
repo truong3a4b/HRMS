@@ -61,6 +61,16 @@ enum Gender {
 }
 
 extension GenderExtension on Gender {
+  String get id{
+    switch (this) {
+      case Gender.MALE:
+        return 'MALE';
+      case Gender.FEMALE:
+        return 'FEMALE';
+      case Gender.OTHER:
+        return 'OTHER';
+    }
+  }
   String get displayName {
     switch (this) {
       case Gender.MALE:

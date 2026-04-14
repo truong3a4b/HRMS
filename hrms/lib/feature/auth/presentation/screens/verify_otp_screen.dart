@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hrms/feature/auth/presentation/widgets/back_button.dart';
 
 import '../../../../core/widget/app_confirm_dialog.dart';
+import '../../../../core/widget/app_primary_button.dart';
 import '../../../../core/widget/app_snackbar.dart';
 import '../providers/auth_provider.dart';
 import '../providers/auth_state.dart';
@@ -89,6 +90,20 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
         ref.read(authNotifierProvider.notifier).resendOtp();
       },
     );
+  }
+
+  void _handleConfirm(String email) async{
+    final otp = _controllers.map((e) => e.text).join();
+    final validationMessage = _validateOtp(otp);
+    if (validationMessage != null) {
+      AppSnackbar.showError(
+        context,
+        validationMessage,
+      );
+      return;
+    }
+    await ref
+        .read(authNotifierProvider.notifier).verifyOtp(email, otp);
   }
   @override
   Widget build(BuildContext context) {
@@ -285,51 +300,17 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
                         const SizedBox(height: 34),
 
+                        //Nút xác thực
                         SizedBox(
                           width: double.infinity,
                           height: 50,
-                          child: ElevatedButton(
-                            onPressed: isLoading ? null : () async{
-                              final otp = _controllers.map((e) => e.text).join();
-                              final validationMessage = _validateOtp(otp);
-                              if (validationMessage != null) {
-                                AppSnackbar.showError(
-                                  context,
-                                  validationMessage,
-                                );
-                                return;
-                              }
+                          child: AppPrimaryButton(
+                            onPressed:() async {
                               final email = authAsync.value?.enteredField?.email ?? '';
-                              await ref
-                                  .read(authNotifierProvider.notifier).verifyOtp(email, otp);
+                              _handleConfirm(email);
                             },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryBlue,
-                              foregroundColor: Colors.white,
-                              elevation: 3,
-                              shadowColor: Colors.black26,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: isLoading
-                                ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                                : const Text(
-                              'Xác thực',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                            isLoading: isLoading,
+                            text: 'Xác thực',
                           ),
                         ),
                       ],

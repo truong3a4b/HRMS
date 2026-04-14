@@ -129,6 +129,7 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
         titleSpacing: 0,
         centerTitle: false,
         actions: [
+          //nut filter
           IconButton(
             onPressed: () async {
               _filterResult =
@@ -151,8 +152,11 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
           ),
         ],
       ),
+      //nut them moi nhan vien
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          context.push('/add-employee');
+        },
         backgroundColor: const Color(0xFF0069B4),
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white, size: 30),
@@ -278,7 +282,7 @@ class EmployeeCard extends StatelessWidget {
                   Text(
                     employee.email,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: Color(0xFF7A7A7A),
                     ),
                   ),
@@ -287,7 +291,7 @@ class EmployeeCard extends StatelessWidget {
                   Text(
                     employee.department ?? '-',
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: Color(0xFF7A7A7A),
                     ),
                   ),
@@ -296,7 +300,7 @@ class EmployeeCard extends StatelessWidget {
                   Text(
                     employee.status?.displayName ?? '-',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: employee.status?.color ?? const Color(0xFF7A7A7A),
                       fontWeight: FontWeight.w500,
                     ),

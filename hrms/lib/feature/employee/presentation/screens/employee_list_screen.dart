@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../../core/widget/search_box.dart';
-import '../../domain/entities/Employee.dart';
+import '../../domain/entities/employee.dart';
+import '../providers/employee_list_provider.dart';
 import '../widgets/employee_filter_bottom_sheet.dart';
 
 class EmployeeListScreen extends ConsumerStatefulWidget {
@@ -14,88 +14,16 @@ class EmployeeListScreen extends ConsumerStatefulWidget {
 }
 
 class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
-
-
-  final List<FilterItem> filters = [
-    FilterItem(
-      key: "position",
-      title: "Chọn chức danh",
-      options: [
-        FilterOption(value: "all", label: "Tất cả chức danh"),
-        FilterOption(value: "manager", label: "Quản lý"),
-        FilterOption(value: "staff", label: "Nhân viên"),
-      ],
-    ),
-    FilterItem(
-      key: "department",
-      title: "Chọn phòng ban",
-      options: [
-        FilterOption(value: "all", label: "Tất cả phòng ban"),
-        FilterOption(value: "accounting", label: "Bộ phận Kế toán"),
-        FilterOption(value: "hr", label: "Bộ phận Nhân sự"),
-        FilterOption(value: "it", label: "Bộ phận IT"),
-      ],
-    ),
-    FilterItem(
-      key: "status",
-      title: "Chọn trạng thái",
-      options: [
-        FilterOption(value: "all", label: "Tất cả trạng thái"),
-        FilterOption(value: "working", label: "Đang làm việc"),
-        FilterOption(value: "on_leave", label: "Đang nghỉ phép"),
-        FilterOption(value: "resigned", label: "Đã nghỉ việc"),
-      ],
-    ),
-  ];
-
-  final List<Employee> employees = [
-    Employee(
-      id: '1',
-      employeeId: "123",
-      name: 'Truongnx',
-      email: 'toriv70767@fpxnet.com',
-      department: '-',
-      status: EmployeeStatus.WORKING,
-      position: 'Nhân viên',
-    ),
-    Employee(
-      id: '2',
-      employeeId: "123",
-      name: '123 -11',
-      email: 'rter@gmail.com',
-      department: 'Bộ phận Kế toán',
-      status: EmployeeStatus.ON_LEAVE,
-      position: 'Nhân viên',
-    ),
-    Employee(
-      id: '3',
-      employeeId: "123",
-      name: 'DEMO - Nhân viên',
-      email: 'toriv70767@hrmdemo.com',
-      department: 'Bộ phận Kế toán',
-      status: EmployeeStatus.ON_LEAVE,
-      position: 'Nhân viên',
-    ),
-    Employee(
-      id: '4',
-      employeeId: "123",
-      name: 'Q323432 - Sdad Đá',
-      email: 'wihey50853@lealking.com',
-      department: 'Bộ phận Kế toán',
-      status: EmployeeStatus.RESIGNED,
-      position: 'Nhân viên',
-    ),
-  ];
-
-  FilterResult _filterResult = FilterResult({});
+  FilterResult _filterResult = FilterResult({
+    'department': FilterOption(value: "all", label: 'Tất cả phòng ban'),
+    'position': FilterOption(value: "all", label: 'Tất cả chức vụ'),
+    'status': FilterOption(value: "all", label: 'Tất cả trạng thái'),
+  });
   final TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    for (var filter in filters) {
-      _filterResult[filter.key] = filter.options.first;
-    }
   }
 
   @override
@@ -106,6 +34,16 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final employeeListAsync = ref.watch(employeeListProvider);
+    final filters = employeeListAsync.value?.filters ?? [];
+    final isLoading = employeeListAsync.isLoading;
+
+    _filterResult = FilterResult({
+      'department': _filterResult['department'] ?? filters.firstWhere((f) => f.key == 'department').options.first,
+      'position': _filterResult['position'] ?? filters.firstWhere((f) => f.key == 'position').options.first,
+      'status': _filterResult['status'] ?? filters.firstWhere((f) => f.key == 'status').options.first,
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F3F3),
       appBar: AppBar(
@@ -131,96 +69,159 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
         actions: [
           //nut filter
           IconButton(
-            onPressed: () async {
-              _filterResult =
-                  await showModalBottomSheet<FilterResult>(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    useRootNavigator: true,
-                    builder: (context) {
-                      return EmployeeFilterBottomSheet(
-                        filters: filters,
-                        filterResult: _filterResult,
-                      );
-                    },
-                  ) ??
-                  _filterResult;
-              setState(() {});
-            },
+            onPressed: isLoading
+                ? null
+                : () async {
+                    _filterResult =
+                        await showModalBottomSheet<FilterResult>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          useRootNavigator: true,
+                          builder: (context) {
+                            return EmployeeFilterBottomSheet(
+                              filters: filters,
+                              filterResult: _filterResult,
+                              onApply: (result) {
+                                Navigator.pop(context, result);
+                                ref
+                                    .read(employeeListProvider.notifier)
+                                    .fetchEmployees(
+                                      filterResult: result,
+                                      name: searchController.text.isEmpty
+                                          ? null
+                                          : searchController.text,
+                                    );
+                              },
+                            );
+                          },
+                        ) ??
+                        _filterResult;
+                    setState(() {});
+                  },
             icon: const Icon(Icons.filter_alt_outlined, color: Colors.black),
           ),
         ],
       ),
       //nut them moi nhan vien
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          context.push('/add-employee');
+        onPressed: () async {
+          final success = await context.push<bool>('/add-employee');
+          if(success == true) {
+            ref.read(employeeListProvider.notifier).refresh(
+              filterResult: _filterResult,
+              name: searchController.text.isEmpty ? null : searchController.text,
+            );
+          }
         },
         backgroundColor: const Color(0xFF0069B4),
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white, size: 30),
       ),
-      body: Column(
-        children: [
-          //search box
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            child: SearchBox(
-              controller: searchController,
-              hintText: 'Tìm kiếm nhân viên',
-            ),
-          ),
+      body: employeeListAsync.when(
+        data: (employeeListState) => _buildContent(context, employeeListState),
+        error: error,
+        loading: loading,
+      ),
+    );
+  }
 
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.only(bottom: 10),
-            //list filter
-            child: SizedBox(
-              height: 42,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                scrollDirection: Axis.horizontal,
-                itemCount: filters.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final filter = filters[index];
-                  return ChoiceChip(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    label: Text(
-                      _filterResult[filter.key]?.label ??
-                          filter.options.first.label,
-                      style: TextStyle(fontSize: 13),
-                    ),
-                    selected: false,
-                    showCheckmark: false,
-                    onSelected: (_) {},
-                    backgroundColor: const Color(0xFFEAEAEA),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide.none,
-                    ),
+  Widget _buildContent(BuildContext context, EmployeeListState state) {
+    return Column(
+      children: [
+        //search box
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: SearchBox(
+            controller: searchController,
+            hintText: 'Tìm kiếm nhân viên',
+            onSearch: (value) {
+              ref.read(employeeListProvider.notifier).fetchEmployees(
+                    filterResult: _filterResult,
+                    name: value.isEmpty ? null : value,
                   );
-                },
-              ),
-            ),
+            },
           ),
-          const SizedBox(height: 10),
-          Expanded(
+        ),
+
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.only(bottom: 10),
+          //list filter
+          child: SizedBox(
+            height: 42,
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              itemCount: employees.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              scrollDirection: Axis.horizontal,
+              itemCount: state.filters.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
-                final employee = employees[index];
-                return EmployeeCard(employee: employee);
+                final filter = state.filters[index];
+                return ChoiceChip(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  label: Text(
+                    _filterResult[filter.key]?.label ??
+                        filter.options.first.label,
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  selected: false,
+                  showCheckmark: false,
+                  onSelected: (_) {},
+                  backgroundColor: const Color(0xFFEAEAEA),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide.none,
+                  ),
+                );
               },
             ),
           ),
-        ],
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await ref
+                  .read(employeeListProvider.notifier)
+                  .refresh(
+                    filterResult: _filterResult,
+                    name: searchController.text.isEmpty
+                        ? null
+                        : searchController.text,
+                  );
+            },
+            child: state.isLoading
+                ? Center(child: CircularProgressIndicator())
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    itemCount: state.employees.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final employee = state.employees[index];
+                      return EmployeeCard(employee: employee);
+                    },
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget error(Object error, StackTrace stackTrace) {
+    final errorMessage = error.toString();
+    print("Error loading employee list: $errorMessage");
+    return Center(
+      child: Text(
+        'Error: $errorMessage',
+        style: const TextStyle(color: Colors.red, fontSize: 14),
+        textAlign: TextAlign.center,
       ),
     );
+  }
+
+  Widget loading() {
+    return const Center(child: CircularProgressIndicator());
   }
 }
 
@@ -289,7 +290,7 @@ class EmployeeCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   // Hiển thị phòng ban, nếu không có sẽ hiển thị dấu "-"
                   Text(
-                    employee.department ?? '-',
+                    employee.department?.name ?? '-',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Color(0xFF7A7A7A),

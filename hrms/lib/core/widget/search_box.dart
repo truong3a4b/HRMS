@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 class SearchBox extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
-  final VoidCallback? onSearch;
+  final Function(String value)? onSearch;
+  final ValueChanged<String>? onChanged;
 
-  const SearchBox({super.key, required this.controller, required this.hintText, this.onSearch});
+
+  const SearchBox({super.key, required this.controller, required this.hintText, this.onSearch, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +20,7 @@ class SearchBox extends StatelessWidget {
       alignment: Alignment.center,
       child: TextField(
         controller: controller,
+        onChanged: onChanged,
         textAlignVertical:TextAlignVertical.center,
         decoration: InputDecoration(
           hintText: hintText,
@@ -26,11 +29,11 @@ class SearchBox extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           suffixIcon: IconButton(
             icon: const Icon(Icons.search, size: 22),
-            onPressed: onSearch,
+            onPressed: onSearch != null ? () => onSearch!(controller.text) : null,
           ),
         ),
         cursorColor: Colors.black,
-        onSubmitted: (_) => onSearch?.call(),
+        onSubmitted: (_) => onSearch?.call(controller.text),
       ),
     );
   }

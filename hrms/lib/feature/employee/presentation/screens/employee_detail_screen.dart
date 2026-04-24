@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hrms/core/utils/time_convert.dart';
 
 import '../../../../core/utils/currency_convert.dart';
-import '../../domain/entities/Employee.dart';
+import '../../domain/entities/employee.dart';
+import '../providers/employee_detail_provider.dart';
 
 class EmployeeDetailScreen extends ConsumerStatefulWidget {
   final String employeeId;
@@ -15,31 +17,14 @@ class EmployeeDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
-  final employeeSample = Employee(
-    id: '1',
-    employeeId: "123",
-    name: 'Truongnx',
-    email: 'truongnguyen31032004@gmail.com',
-    position: 'Nhân viên',
-    department: 'Bộ phận Kế toán',
-    status: EmployeeStatus.WORKING,
-    phone: '0123456789',
-    avatar: 'assets/images/profile.png',
-    dateOfBirth: DateTime(1990, 1, 1),
-    gender: Gender.MALE,
-    address: '123 Đường ABC, Quận XYZ, TP.HCM',
-    hireDate: DateTime(2020, 1, 1),
-    salary: 15000000,
-    bankAccount: '1234567890',
-    bankName: 'Ngân hàng ABC',
 
-  );
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF0E6BA8);
-    const textColor = Color(0xFF2F2F2F);
     const bgColor = Color(0xFFF8FAFC);
+
+    final employeeAsync = ref.watch(employeeDetailProvider(widget.employeeId));
+    
 
     return DefaultTabController(
       length: 2,
@@ -65,103 +50,134 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
             ),
           ],
         ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              //Header
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF3F8FB),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        //avatar
-                        ClipOval(
-                          child: Image.asset(
-                            employeeSample.avatar ?? 'assets/images/profile.png',
-                            width: 60,
-                            height: 60,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 8),
-                              Text(
-                                employeeSample.name,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: textColor,
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${employeeSample.position} | ${employeeSample.department}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF55606D),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const TabBar(
-                      labelColor: primaryColor,
-                      unselectedLabelColor: Color(0xFFAAAAAA),
-                      indicatorColor: primaryColor,
-                      indicatorWeight: 2,
-                      labelStyle: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      unselectedLabelStyle: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      tabs: [
-                        Tab(text: 'Cá nhân'),
-                        Tab(text: 'Công việc'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _PersonalTab(employee: employeeSample,),
-                    _WorkTab(employee: employeeSample,),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        body: employeeAsync.when(data: (employee) => _buildContent(context, employee), error: error, loading: loading),
       ),
     );
   }
+
+  Widget _buildContent(BuildContext context, Employee employee) {
+    const primaryColor = Color(0xFF0E6BA8);
+    const textColor = Color(0xFF2F2F2F);
+
+    return SafeArea(
+      child: Column(
+        children: [
+          //Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF3F8FB),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    //avatar
+                    ClipOval(
+                      child: Image.asset(
+                        employee.avatar ?? 'assets/images/profile.png',
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          Text(
+                            employee.name,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: textColor,
+                              height: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${employee.position?.name} | ${employee.department?.name}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF55606D),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const TabBar(
+                  labelColor: primaryColor,
+                  unselectedLabelColor: Color(0xFFAAAAAA),
+                  indicatorColor: primaryColor,
+                  indicatorWeight: 2,
+                  labelStyle: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  unselectedLabelStyle: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  tabs: [
+                    Tab(text: 'Cá nhân'),
+                    Tab(text: 'Công việc'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _PersonalTab(employee: employee,),
+                _WorkTab(employee: employee,),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget error(Object error, StackTrace stackTrace) {
+    final errorMessage = error.toString();
+    print("Error loading employee list: $errorMessage");
+    return Center(
+      child: Text(
+        '$errorMessage',
+        style: const TextStyle(color: Colors.red, fontSize: 14),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget loading() {
+    return const Center(child: CircularProgressIndicator());
+  }
 }
 
-class _PersonalTab extends StatelessWidget {
+class _PersonalTab extends ConsumerWidget {
   final Employee employee;
   _PersonalTab( {super.key, required this.employee});
 
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final String fullAddress;
+      if(employee.address != null || employee.ward != null || employee.province != null){
+        fullAddress = '${employee.address ?? ''}, ${employee.ward?.name ?? ''}, ${employee.province?.name ?? ''}';
+      } else {
+        fullAddress = '-';
+      }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
@@ -173,20 +189,27 @@ class _PersonalTab extends StatelessWidget {
               _InfoItem(
                 label: 'Email',
                 value: employee.email,
-                trailingIcon: Icons.copy_rounded,
               ),
               _InfoItem(label: 'Số điện thoại', value: employee.phone ?? '-'),
               _InfoItem(label: 'Ngày sinh', value: TimeConvert.convertDateTimeToString(employee.dateOfBirth)),
               _InfoItem(label: 'Giới tính', value: employee.gender?.displayName ?? '-'),
               _InfoItem(
                 label: 'Địa chỉ',
-                value: employee.address ?? '-',
+                value: fullAddress,
               ),
               _InfoItem(
                 label: 'Tài khoản ngân hàng',
-                value: '${employee.bankName ?? ''} - ${employee.bankAccount ?? ''}',
+                value: '${employee.bank?.name ?? ''} - ${employee.bankAccount ?? ''}',
               ),
             ],
+            onEdit: () async {
+              final success = await context.push<bool>('/edit-employee-basic-info/${employee.id}');
+              print('Edit result: $success');
+              if(success == true){
+                print('refresh');
+                ref.invalidate(employeeDetailProvider(employee.id));
+              }
+            }
           ),
           const SizedBox(height: 16),
           _InfoSectionCard(
@@ -217,11 +240,12 @@ class _WorkTab extends StatelessWidget {
             title: 'Thông tin công việc',
             items: [
               _InfoItem(label: 'Mã nhân viên', value: employee.employeeId),
-               _InfoItem(label: 'Phòng ban', value: employee.department ?? '-'),
-               _InfoItem(label: 'Chức vụ', value: employee.position),
+               _InfoItem(label: 'Phòng ban', value: employee.department?.name ?? '-'),
+               _InfoItem(label: 'Chức vụ', value: employee.position?.name ?? '-'),
                _InfoItem(label: 'Ngày vào làm', value: TimeConvert.convertDateTimeToString(employee.hireDate)),
                _InfoItem(label: 'Mức lương', value: CurrencyConvert.convertToCurrency(employee.salary)),
             ],
+
           ),
         ],
       ),
@@ -232,10 +256,12 @@ class _WorkTab extends StatelessWidget {
 class _InfoSectionCard extends StatelessWidget {
   final String title;
   final List<_InfoItem> items;
+  final void Function()? onEdit;
 
   const _InfoSectionCard({
     required this.title,
     required this.items,
+    this.onEdit,
   });
 
   @override
@@ -276,7 +302,7 @@ class _InfoSectionCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: IconButton(
-                  onPressed: () {},
+                  onPressed: onEdit,
                   icon: const Icon(
                     Icons.edit_outlined,
                     color: primaryColor,

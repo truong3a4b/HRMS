@@ -4,12 +4,16 @@ class NormalTextField extends StatefulWidget {
   final TextEditingController controller;
   final String hintText;
   final TextInputType? keyboardType;
+  final bool enabled;
+  final Widget? suffixIcon;
 
   const NormalTextField({
     super.key,
     required this.controller,
     required this.hintText,
     this.keyboardType,
+    this.enabled = true,
+    this.suffixIcon,
   });
 
   @override
@@ -45,6 +49,7 @@ class _NormalTextFieldState extends State<NormalTextField> {
         controller: widget.controller,
         focusNode: _focusNode,
         keyboardType: widget.keyboardType,
+        enabled: widget.enabled,
         style: const TextStyle(fontSize: 15, color: Color(0xFF333333)),
         decoration: InputDecoration(
           labelText: widget.hintText,
@@ -66,12 +71,14 @@ class _NormalTextFieldState extends State<NormalTextField> {
           ),
 
           filled: true,
-          fillColor: Colors.transparent,
+          fillColor: widget.enabled ? Colors.transparent : const Color(0xFFF5F5F5),
 
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,
             vertical: 16,
           ),
+
+          suffixIcon: widget.suffixIcon,
 
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -84,6 +91,10 @@ class _NormalTextFieldState extends State<NormalTextField> {
               color: Color(0xFF0E67B2),
               width: 1.2,
             ),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE0E0E0))
           ),
         ),
       ),

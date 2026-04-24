@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { randomUUID, randomInt } from "crypto";
 import { UserRole } from "../../generated/prisma/client";
+import { PermissionKey } from "../constants/permissions";
 import { sendOtpEmail } from "../config/brevo";
 import { env } from "../config/env";
 import { prisma } from "../config/prisma";
@@ -324,6 +325,26 @@ export const authService = {
         id: true,
         email: true,
         role: true,
+        employee: {
+          select: {
+            id: true,
+            position: {
+              select: {
+                id: true,
+                name: true,
+                permissions: {
+                  select: {
+                    permission: {
+                      select: {
+                        key: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -331,6 +352,25 @@ export const authService = {
       throw new ApiError(404, "User not found");
     }
 
-    return { user };
+    const permissions: PermissionKey[] =
+      user.employee?.position?.permissions.map(
+        (item) => item.permission.key as PermissionKey,
+      ) ?? [];
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        employeeId: user.employee?.id,
+        position: user.employee?.position
+          ? {
+              id: user.employee.position.id,
+              name: user.employee.position.name,
+            }
+          : null,
+        permissions,
+      },
+    };
   },
 };

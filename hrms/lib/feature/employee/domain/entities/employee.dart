@@ -1,22 +1,31 @@
 import 'dart:ui';
 
+import 'package:hrms/core/service/bank/bank.dart';
+import 'package:hrms/feature/department/domain/entities/department.dart';
+
+import '../../../../core/service/address/Ward.dart';
+import '../../../../core/service/address/provine_summary.dart';
+import '../../../position/domain/position.dart';
+
 class Employee {
   final String id;
   final String employeeId;
   final String name;
   final String email;
   final String? phone;
-  final String position;
+  final Position? position;
   final String? avatar;
-  final String? department;
+  final Department? department;
   final EmployeeStatus? status;
   final DateTime? dateOfBirth;
   final Gender? gender;
   final String? address;
+  final ProvinceSummary? province;
+  final Ward? ward;
   final DateTime? hireDate;
   final double? salary;
   final String? bankAccount;
-  final String? bankName;
+  final Bank? bank;
   final String? maritalStatus;
   final String? nationality;
   final String? religion;
@@ -31,17 +40,19 @@ class Employee {
     required this.name,
     required this.email,
     this.phone,
-    required this.position,
+    this.position,
     this.avatar,
     this.department,
     this.status,
     this.dateOfBirth,
     this.gender,
     this.address,
+    this.province,
+    this.ward,
     this.hireDate,
     this.salary,
     this.bankAccount,
-    this.bankName,
+    this.bank,
     this.maritalStatus,
     this.nationality,
     this.religion,
@@ -49,9 +60,7 @@ class Employee {
     this.identityCardIssueDate,
     this.frontIdentityCardImage,
     this.backIdentityCardImage,
-
   });
-
 }
 
 enum Gender {

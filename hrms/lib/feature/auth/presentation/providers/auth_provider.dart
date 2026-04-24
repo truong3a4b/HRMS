@@ -13,7 +13,7 @@ import 'auth_state.dart';
 
 final authRemoteProvider = Provider((ref) {
   final dio = ref.watch(baseDioProvider);
-  return AuthRemote( dio: dio, tokenStorage: ref.watch(tokenStorageProvider));
+  return AuthRemote( dio: dio, tokenStorage: ref.read(tokenStorageProvider));
 });
 final authRepositoryProvider = Provider((ref) {
   final remote = ref.watch(authRemoteProvider);
@@ -30,8 +30,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   late final TokenStorage _tokenStorage;
   @override
   FutureOr<AuthState> build() async {
-    _repo = ref.watch(authRepositoryProvider);
-    _tokenStorage = ref.watch(tokenStorageProvider);
+    _repo = ref.read(authRepositoryProvider);
+    _tokenStorage = ref.read(tokenStorageProvider);
     return AuthState.initial();
   }
 
@@ -56,17 +56,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.login(email, password);
-      final cookieJar = ref.read(cookieJarProvider);
-      final uri = Uri.parse('http://10.0.2.2:5000');
-      final cookies = await cookieJar.loadForRequest(uri);
 
-      debugPrint('=== COOKIES SAVED ===');
-      for (final cookie in cookies) {
-        debugPrint('  ${cookie.name} = ${cookie.value}');
-        debugPrint('  httpOnly: ${cookie.httpOnly}');
-        debugPrint('  expires: ${cookie.expires}');
-      }
-      debugPrint('=== TOTAL: ${cookies.length} cookies ===');
       state = AsyncValue.data(AuthState.authenticated(user));
     } catch (e) {
       state = AsyncValue.data(AuthState.failure(e.toString()));

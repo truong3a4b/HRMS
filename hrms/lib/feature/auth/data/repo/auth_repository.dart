@@ -9,44 +9,29 @@ class AuthRepository {
 
 
   Future<User> getCurrentUser() async {
-    final userdto = await remote.getCurrentUser();
-    final role = mapRole(userdto.role);
-    return User(id: userdto.id, email: userdto.email, role: role);
+    final userDto = await remote.getCurrentUser();
+    final role = userDto.role.toUserRole();
+    return User(id: userDto.id, email: userDto.email, role: role);
   }
   Future<bool> refreshToken() async {
     return await remote.refreshToken();
   }
   Future<User> login(String email, String password) async {
-    final result = await remote.login(email, password);
-    final role = mapRole(result.data.user.role);
-    return User(id: result.data.user.id, email: result.data.user.email, role: role);
+    final userDto = await remote.login(email, password);
+    final role = userDto.role.toUserRole();
+    return User(id: userDto.id, email: userDto.email, role: role);
   }
 
-  UserRole mapRole(String role) {
-    switch (role) {
-      case 'ADMIN':
-        return UserRole.admin;
-      case 'HR':
-        return UserRole.hr;
-      case 'MANAGER':
-        return UserRole.manager;
-      case 'EMPLOYEE':
-        return UserRole.employee;
-      case 'CANDIDATE':
-        return UserRole.candidate;
-      default:
-        throw AppException('Vai trò không hợp lệ');
-    }
-  }
+
 
   Future<void> register(String email, String password) async {
     await remote.register(email, password);
   }
 
   Future<User> verifyOtp(String email, String otp) async {
-    final result = await remote.verifyOtp(email, otp);
-    final role = mapRole(result.data.user.role);
-    return User(id: result.data.user.id, email: result.data.user.email, role: role);
+    final userDto = await remote.verifyOtp(email, otp);
+    final role = userDto.role.toUserRole();
+    return User(id: userDto.id, email: userDto.email, role: role);
   }
 
   Future<void> logout() async {

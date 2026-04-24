@@ -12,6 +12,7 @@ import '../../feature/auth/presentation/providers/auth_provider.dart';
 import '../../feature/auth/presentation/screens/login_screen.dart';
 import '../../feature/auth/presentation/screens/register_screen.dart';
 import '../../feature/auth/presentation/screens/splash_screen.dart';
+import '../../feature/employee/presentation/screens/edit_employee_basic_info_screen.dart';
 import '../../feature/employee/presentation/screens/employee_detail_screen.dart';
 import '../../feature/employee/presentation/screens/employee_list_screen.dart';
 import '../widget/main_shell_page.dart';
@@ -108,7 +109,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/add-employee',
         name: 'add-employee',
         builder: (context, state) => const AddEmployeeScreen(),
-      )
+      ),
+      GoRoute(
+        path: '/edit-employee-basic-info/:employeeId',
+        name: 'edit-employee-basic-info',
+        builder: (context, state) {
+          final employeeId = state.pathParameters['employeeId']!;
+          return EditEmployeeBasicInfoScreen(employeeId: employeeId);
+        },
+      ),
     ],
     redirect: (context, state) {
       final authAsync = ref.read(authNotifierProvider);

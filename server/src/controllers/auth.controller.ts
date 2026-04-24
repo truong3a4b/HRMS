@@ -173,7 +173,7 @@ export const authController = {
 
   async getMe(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = (req as any).user?.id as string | undefined;
+      const userId = req.user?.id;
 
       if (!userId) {
         return sendResponse(res, 401, "Unauthorized");

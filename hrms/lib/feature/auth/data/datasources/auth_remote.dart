@@ -1,11 +1,12 @@
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hrms/core/error/app_exception.dart';
 import 'package:hrms/core/utils/token_storage.dart';
 import 'package:hrms/feature/auth/data/models/user_dto.dart';
 
-import '../models/login_response.dart';
+import '../../../../core/share/models/app_response.dart';
 
 
 class AuthRemote {
@@ -15,7 +16,7 @@ class AuthRemote {
   AuthRemote({required this.dio, required this.tokenStorage});
 
 
-  Future<LoginResponse> login(String email, String password) async {
+  Future<UserDto> login(String email, String password) async {
     try {
       final response = await dio.post('/auth/login', data: {
         'email': email,
@@ -23,9 +24,14 @@ class AuthRemote {
       });
 
       if (response.statusCode == 200) {
-        final token = response.data['data']['accessToken'];
+        final appResponse = AppResponse.fromJson(response.data);
+        final token = appResponse.data['accessToken'];
         await tokenStorage.saveAccessToken(token);
-        return LoginResponse.fromJson(response.data);
+        if(appResponse.data['user'] == null) {
+          throw AppException('Dữ liệu người dùng không hợp lệ');
+        }
+        final userDto = UserDto.fromJson(appResponse.data['user']);
+        return userDto;
       } else {
         throw AppException(response.data['message']);
       }
@@ -51,7 +57,7 @@ class AuthRemote {
     }
   }
 
-  Future<LoginResponse> verifyOtp(String email, String otp) async {
+  Future<UserDto> verifyOtp(String email, String otp) async {
     try {
       final response = await dio.post('/auth/verify-otp', data: {
         'email': email,
@@ -59,9 +65,15 @@ class AuthRemote {
       });
 
       if (response.statusCode == 200) {
-        final token = response.data['data']['accessToken'];
+        final appResponse = AppResponse.fromJson(response.data);
+        final token = appResponse.data['accessToken'];
         await tokenStorage.saveAccessToken(token);
-        return LoginResponse.fromJson(response.data);
+        if(response.data['user'] == null) {
+          throw AppException('Dữ liệu người dùng không hợp lệ');
+        }
+        final userDto = UserDto.fromJson(appResponse.data['user']);
+        return userDto;
+
       } else {
         throw AppException(response.data['message']);
       }
@@ -86,14 +98,16 @@ class AuthRemote {
       final response = await dio.post('/auth/refresh');
 
       if (response.statusCode == 200) {
-        final token = response.data['data']['accessToken'];
+        final appResponse = AppResponse.fromJson(response.data);
+        final token = appResponse.data['accessToken'];
         await tokenStorage.saveAccessToken(token);
         return true;
       } else {
+        debugPrint ('AuthRemote refreshToken failed: ${response.data['message']}');
         return false;
       }
     } catch (e) {
-      print('AuthRemote refreshToken error: $e');
+      debugPrint('AuthRemote refreshToken error: $e');
       return false;
     }
   }
@@ -108,7 +122,7 @@ class AuthRemote {
         throw AppException(response.data['message']);
       }
     } catch (e) {
-      print('AuthRemote getCurrentUser error: $e');
+      debugPrint('AuthRemote getCurrentUser error: $e');
       throw AppException('Phiên đăng nhập hết hạn');
     }
   }

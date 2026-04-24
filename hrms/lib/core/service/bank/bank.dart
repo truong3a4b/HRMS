@@ -1,8 +1,8 @@
-class Department {
+class Bank {
   final String id;
   final String name;
 
-  Department({
+  Bank({
     required this.id,
     required this.name,
   });

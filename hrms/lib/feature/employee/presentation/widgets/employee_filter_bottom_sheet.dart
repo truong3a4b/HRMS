@@ -36,8 +36,9 @@ class FilterResult {
 class EmployeeFilterBottomSheet extends StatefulWidget {
   List<FilterItem> filters;
   FilterResult? filterResult;
+  final void Function(FilterResult)? onApply;
 
-  EmployeeFilterBottomSheet({super.key, required this.filters, this.filterResult});
+  EmployeeFilterBottomSheet({super.key, required this.filters, this.filterResult, this.onApply});
 
   @override
   State<EmployeeFilterBottomSheet> createState() =>
@@ -53,10 +54,7 @@ class _EmployeeFilterBottomSheetState extends State<EmployeeFilterBottomSheet> {
     super.initState();
     if(widget.filterResult != null) {
       selectedValues.addAll(widget.filterResult!.values);
-      print("Selected values from filter result:");
-      print(selectedValues);
     } else {
-      print("No filter result provided, initializing with default values.");
       for (var filter in widget.filters) {
         selectedValues[filter.key] = filter.options.first;
       }
@@ -161,7 +159,7 @@ class _EmployeeFilterBottomSheetState extends State<EmployeeFilterBottomSheet> {
 
   // apply filter and return result to previous screen
   void _applyFilter() {
-    Navigator.pop(context, FilterResult(selectedValues));
+    widget.onApply?.call(FilterResult(selectedValues));
   }
 
   @override

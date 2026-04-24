@@ -19,6 +19,7 @@ Future<void> main() async {
   );
   runApp(
     ProviderScope(
+      retry: (retryCount, error) => null,
       overrides: [cookieJarProvider.overrideWithValue(persistCookieJar)],
       child: const MyApp(),
     ),

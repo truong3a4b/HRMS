@@ -36,3 +36,21 @@ extension UserRoleMapper on String {
     }
   }
 }
+
+extension UserRoleExtension on UserRole {
+  String get toDisplayString {
+    switch (this) {
+      case UserRole.admin:
+        return 'Quản trị viên';
+      case UserRole.hr:
+        return 'Nhân sự';
+      case UserRole.manager:
+        return 'Quản lý';
+      case UserRole.employee:
+        return 'Nhân viên';
+      case UserRole.candidate:
+        return 'Ứng viên';
+    }
+  }
+
+}

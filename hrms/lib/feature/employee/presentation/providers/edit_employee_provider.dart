@@ -1,47 +1,55 @@
 
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:hrms/feature/department/presentation/providers/department_list_provider.dart';
 import 'package:hrms/feature/employee/domain/entities/basic_info_request.dart';
 import 'package:hrms/feature/employee/domain/entities/employee.dart';
+import 'package:hrms/feature/position/presentation/providers/positionListProvider.dart';
 
+import '../../../../core/error/app_exception.dart';
 import '../../../../core/service/address/Province.dart';
-import '../../../../core/service/address/address_repo.dart';
+
+import '../../../../core/service/address/province_provider.dart';
 import '../../../../core/service/bank/bank.dart';
-import '../../../../core/service/bank/bank_repo.dart';
-import '../../../department/data/repo/department_repository.dart';
+import '../../../../core/service/bank/bank_provider.dart';
+
 import '../../../department/domain/entities/department.dart';
-import '../../../position/data/repo/position_repository.dart';
+
 import '../../../position/domain/position.dart';
 import '../../data/repo/employee_repository.dart';
+import '../../domain/entities/job_request.dart';
 
 final editEmployeeProvider =
-StateNotifierProvider.family<EditEmployeeNotifier, EditEmployeeState, String >((ref, employeeId) {
-   final EmployeeRepository _employeeRepo = ref.read(employeeRepositoryProvider);
-   final PositionRepository _positionRepo = ref.read(positionRepositoryProvider);
-   final DepartmentRepository _departmentRepo = ref.read(departmentRepositoryProvider);
-   final BankRepo _bankRepo = ref.read(bankRepoProvider);
-  final AddressRepo _addressRepo = ref.read(addressRepoProvider);
-  return EditEmployeeNotifier(employeeId, _employeeRepo, _positionRepo, _departmentRepo, _bankRepo, _addressRepo);
+StateNotifierProvider.autoDispose.family<EditEmployeeNotifier, EditEmployeeState, String >((ref, employeeId) {
+  final EmployeeRepository employeeRepo = ref.read(employeeRepositoryProvider);
+  return EditEmployeeNotifier(
+    ref: ref,
+    employeeId: employeeId,
+    employeeRepo: employeeRepo,
+  );
 });
 
 class EditEmployeeNotifier extends StateNotifier<EditEmployeeState> {
-  final EmployeeRepository _employeeRepo;
-  final PositionRepository _positionRepo;
-  final DepartmentRepository _departmentRepo;
-  final BankRepo _bankRepo;
-  final AddressRepo _addressRepo;
+  final Ref ref;
+  final EmployeeRepository employeeRepo;
   final String employeeId;
-  EditEmployeeNotifier( this.employeeId, this._employeeRepo, this._positionRepo, this._departmentRepo, this._bankRepo, this._addressRepo) : super(EditEmployeeState());
+  EditEmployeeNotifier( {
+    required this.ref,
+    required this.employeeId,
+    required this.employeeRepo,
+  }) : super(EditEmployeeState());
 
 
   Future<void> initialize() async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final result = await Future.wait([
-        _employeeRepo.getEmployeeById(employeeId),
-        _positionRepo.getPositions(),
-        _departmentRepo.getDepartments(),
-        _bankRepo.getBanks(),
-        _addressRepo.getProvinces(),
+        employeeRepo.getEmployeeById(employeeId),
+        ref.read(positionListProvider.future),
+        ref.read(departmentListProvider.future),
+        ref.read(bankProvider.future),
+        ref.read(provinceProvider.future),
       ]);
 
       final employee = result[0] as Employee;
@@ -58,22 +66,53 @@ class EditEmployeeNotifier extends StateNotifier<EditEmployeeState> {
         provinces: provinces,
         isLoading: false,
       );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+    } on AppException catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.message);
+    }
+    catch (e, st) {
+      debugPrint('EditEmployeeNotifier initialize error: $e\n$st');
+      state = state.copyWith(isLoading: false, errorMessage: "Lỗi không xác định");
     }
   }
 
 
   Future<bool> updateEmployeeBasicInfo(BasicInfoRequest request) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    state = state.copyWith(isSubmitting: true, errorMessage: null, isSuccess: false,);
     try {
-      final result = await _employeeRepo.updateEmployeeBasicInfo(request);
+      final result = await employeeRepo.updateEmployeeBasicInfo(request);
       state = state.copyWith(isSubmitting: false, isSuccess: result);
       return result;
-    } catch (e) {
-      state = state.copyWith(isSubmitting: false, errorMessage: e.toString());
+    } on AppException catch (e) {
+      state = state.copyWith(isSubmitting: false, errorMessage: e.message);
       return false;
     }
+    catch (e, st) {
+      debugPrint('EditEmployeeNotifier updateEmployeeBasicInfo error: $e\n$st');
+      state = state.copyWith(isSubmitting: false, errorMessage: "Lỗi không xác định");
+      return false;
+    }
+  }
+
+  Future<bool> updateEmployeeJobInfo(JobRequest request) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null, isSuccess: false,);
+    try {
+      final result = await employeeRepo.updateEmployeeJobInfo(request);
+      state = state.copyWith(isSubmitting: false, isSuccess: result);
+      return result;
+    } on AppException catch (e) {
+      state = state.copyWith(isSubmitting: false, errorMessage: e.message);
+      return false;
+    }
+    catch (e, st) {
+      debugPrint('EditEmployeeNotifier UpdateJobInfo error: $e\n$st');
+      state = state.copyWith(isSubmitting: false, errorMessage: "Lỗi không xác định");
+      return false;
+    }
+  }
+
+
+  void clearError() {
+    state = state.copyWith(errorMessage: null);
   }
 }
 
@@ -123,7 +162,7 @@ class EditEmployeeState {
       banks: banks ?? this.banks,
       provinces: provinces ?? this.provinces,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: errorMessage,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       isSuccess: isSuccess ?? this.isSuccess,
     );

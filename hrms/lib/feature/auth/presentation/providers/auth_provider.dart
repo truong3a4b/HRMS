@@ -1,33 +1,34 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:hrms/feature/account/presentation/providers/profile_provider.dart';
+import 'package:hrms/feature/auth/presentation/providers/user_provider.dart';
 
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/utils/token_storage.dart';
+import '../../../account/presentation/providers/permission_provider.dart';
 import '../../data/datasources/auth_remote.dart';
 import '../../data/repo/auth_repository.dart';
 import 'auth_state.dart';
 
 final authRemoteProvider = Provider((ref) {
   final dio = ref.watch(baseDioProvider);
-  return AuthRemote( dio: dio, tokenStorage: ref.read(tokenStorageProvider));
+  return AuthRemote(dio: dio, tokenStorage: ref.read(tokenStorageProvider));
 });
 final authRepositoryProvider = Provider((ref) {
   final remote = ref.watch(authRemoteProvider);
   return AuthRepository(remote);
 });
 
-final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, AuthState>((
-    ) {
+final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(() {
   return AuthNotifier();
 });
 
 class AuthNotifier extends AsyncNotifier<AuthState> {
-  late final AuthRepository _repo ;
+  late final AuthRepository _repo;
+
   late final TokenStorage _tokenStorage;
+
   @override
   FutureOr<AuthState> build() async {
     _repo = ref.read(authRepositoryProvider);
@@ -43,7 +44,15 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         state = AsyncValue.data(AuthState.unauthenticated());
         return false;
       }
-      state = AsyncValue.data(AuthState.authenticated(null));
+      final user = await ref.watch(userProvider.future);
+
+      //fetch user info to validate token
+      await Future.wait([
+        ref.watch(profileProvider.future),
+        ref.watch(permissionProvider.future),
+      ]);
+
+      state = AsyncValue.data(AuthState.authenticated(user));
       return true;
     } catch (_) {
       await _tokenStorage.clear();
@@ -65,7 +74,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   Future<void> register(String email, String password) async {
     state = const AsyncValue.loading();
-    final enteredField = EnteredField(email: email, password: password, comfirmPassword: password);
+    final enteredField = EnteredField(
+      email: email,
+      password: password,
+      comfirmPassword: password,
+    );
     try {
       await _repo.register(email, password);
       state = AsyncValue.data(AuthState.otpRequired(enteredField));
@@ -74,20 +87,26 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     }
   }
 
-  Future<void> verifyOtp(String email, String otp) async{
+  Future<void> verifyOtp(String email, String otp) async {
     print('Verifying OTP for email: $email with OTP: $otp');
     state = const AsyncValue.loading();
 
-    try{
+    try {
       final user = await _repo.verifyOtp(email, otp);
       state = AsyncValue.data(AuthState.authenticated(user));
-    } catch(e){
+    } catch (e) {
       final enteredField = state.value?.enteredField;
-      state = AsyncValue.data(AuthState(status: AuthStatus.otpRequired, message: e.toString(), enteredField: enteredField));
+      state = AsyncValue.data(
+        AuthState(
+          status: AuthStatus.otpRequired,
+          message: e.toString(),
+          enteredField: enteredField,
+        ),
+      );
     }
   }
 
-  Future<void> resendOtp() async{
+  Future<void> resendOtp() async {
     state = const AsyncValue.loading();
     final enteredField = state.value?.enteredField;
     try {
@@ -95,7 +114,13 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       state = AsyncValue.data(AuthState.otpRequired(enteredField));
     } catch (e) {
       final enteredField = state.value?.enteredField;
-      state = AsyncValue.data(AuthState(status: AuthStatus.otpRequired, message: e.toString(), enteredField: enteredField));
+      state = AsyncValue.data(
+        AuthState(
+          status: AuthStatus.otpRequired,
+          message: e.toString(),
+          enteredField: enteredField,
+        ),
+      );
     }
   }
 
@@ -104,7 +129,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       print('Refreshing token...');
       final success = await _repo.refreshToken();
       print('Token refresh success: $success');
-      if(!success) {
+      if (!success) {
         await _tokenStorage.clear();
         state = AsyncValue.data(AuthState.unauthenticated());
       }
@@ -116,6 +141,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       return false;
     }
   }
+
   Future<void> autoLogout() async {
     await _tokenStorage.clear();
     state = AsyncValue.data(AuthState.unauthenticated());
@@ -123,7 +149,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   Future<void> closeDialog() async {
     // This method can be used to reset any error messages or states after showing a dialog
-    if (state.value?.status == AuthStatus.unauthenticated && state.value?.message != null) {
+    if (state.value?.status == AuthStatus.unauthenticated &&
+        state.value?.message != null) {
       state = AsyncValue.data(AuthState.unauthenticated());
     }
   }
@@ -141,6 +168,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   Future<void> otpToRegister() async {
     final enteredField = state.value?.enteredField;
-    state = AsyncValue.data(AuthState(status: AuthStatus.unauthenticated, enteredField: enteredField));
+    state = AsyncValue.data(
+      AuthState(status: AuthStatus.unauthenticated, enteredField: enteredField),
+    );
   }
 }

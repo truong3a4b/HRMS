@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class CustomDialog extends StatelessWidget{
   final String type;
   final String message;
-  late final Widget icon;
+
   final VoidCallback? onClose;
 
 
@@ -13,19 +13,34 @@ class CustomDialog extends StatelessWidget{
     required this.type,
     required this.message,
     this.onClose,
-  }){
+  });
+
+  Widget get icon {
     switch (type) {
       case 'success':
-        this.icon = Icon(CupertinoIcons.check_mark_circled_solid, color: CupertinoColors.activeGreen, size: 42,);
-        break;
+        return const Icon(
+          CupertinoIcons.check_mark_circled_solid,
+          color: CupertinoColors.activeGreen,
+          size: 42,
+        );
       case 'error':
-        this.icon = Icon(CupertinoIcons.clear_circled_solid, color: CupertinoColors.systemRed,size: 42,);
-        break;
+        return const Icon(
+          CupertinoIcons.clear_circled_solid,
+          color: CupertinoColors.systemRed,
+          size: 42,
+        );
       case 'warning':
-        this.icon = Icon(Icons.warning_amber_rounded, color: CupertinoColors.systemYellow, size: 42,);
-        break;
+        return const Icon(
+          Icons.warning_amber_rounded,
+          color: CupertinoColors.systemYellow,
+          size: 42,
+        );
       default:
-        this.icon = Icon(Icons.info_outline, size: 42, color: CupertinoColors.activeBlue,);
+        return const Icon(
+          Icons.info_outline,
+          size: 42,
+          color: CupertinoColors.activeBlue,
+        );
     }
   }
 
@@ -43,8 +58,9 @@ class CustomDialog extends StatelessWidget{
       actions: [
         TextButton(
           onPressed: () {
-            onClose?.call();
             Navigator.of(context).pop();
+            onClose?.call();
+
           },
           child: Text(
               "Đóng",

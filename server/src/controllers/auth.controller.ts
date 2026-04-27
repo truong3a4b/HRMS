@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { UserRole } from "../../generated/prisma/client";
 import { env } from "../config/env";
 import { authService } from "../services/auth.service";
 import { sendResponse } from "../utils/response";
@@ -181,6 +182,25 @@ export const authController = {
 
       const result = await authService.getMe(userId);
       return sendResponse(res, 200, "User retrieved successfully", result);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async getMyPermissions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+
+      if (!user) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+
+      return sendResponse(res, 200, "Permissions retrieved successfully", {
+        userId: user.id,
+        role: user.role,
+        isAdmin: user.role === UserRole.ADMIN,
+        permissions: user.permissions,
+      });
     } catch (error) {
       return next(error);
     }

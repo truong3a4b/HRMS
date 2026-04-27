@@ -20,10 +20,22 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
     'status': FilterOption(value: "all", label: 'Tất cả trạng thái'),
   });
   final TextEditingController searchController = TextEditingController();
+  late final ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        debugPrint('Scrolled to bottom, loading more employees...');
+        ref.read(employeeListProvider.notifier).loadMore(
+          filterResult: _filterResult,
+          name: searchController.text,
+        );
+      }
+    });
   }
 
   @override
@@ -67,40 +79,39 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
         titleSpacing: 0,
         centerTitle: false,
         actions: [
-          //nut filter
           IconButton(
             onPressed: isLoading
                 ? null
                 : () async {
-                    _filterResult =
-                        await showModalBottomSheet<FilterResult>(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          useRootNavigator: true,
-                          builder: (context) {
-                            return EmployeeFilterBottomSheet(
-                              filters: filters,
-                              filterResult: _filterResult,
-                              onApply: (result) {
-                                Navigator.pop(context, result);
-                                ref
-                                    .read(employeeListProvider.notifier)
-                                    .fetchEmployees(
-                                      filterResult: result,
-                                      name: searchController.text.isEmpty
-                                          ? null
-                                          : searchController.text,
-                                    );
-                              },
-                            );
-                          },
-                        ) ??
-                        _filterResult;
-                    setState(() {});
-                  },
+              _filterResult =
+                  await showModalBottomSheet<FilterResult>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    useRootNavigator: true,
+                    builder: (context) {
+                      return EmployeeFilterBottomSheet(
+                        filters: filters,
+                        filterResult: _filterResult,
+                        onApply: (result) {
+                          Navigator.pop(context, result);
+                          ref
+                              .read(employeeListProvider.notifier)
+                              .fetchEmployees(
+                            filterResult: result,
+                            name: searchController.text.isEmpty
+                                ? null
+                                : searchController.text,
+                          );
+                        },
+                      );
+                    },
+                  ) ??
+                      _filterResult;
+              setState(() {});
+            },
             icon: const Icon(Icons.filter_alt_outlined, color: Colors.black),
-          ),
+          )
         ],
       ),
       //nut them moi nhan vien
@@ -195,9 +206,21 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
                 ? Center(child: CircularProgressIndicator())
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    itemCount: state.employees.length,
+                    itemCount: state.employees.length+1,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
+                      if(index == state.employees.length) {
+                        if(state.isLoadingMore) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        } else {
+                          return SizedBox(
+                            height: 100,
+                          );
+                        }
+                      }
                       final employee = state.employees[index];
                       return EmployeeCard(employee: employee);
                     },
@@ -213,7 +236,7 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen> {
     print("Error loading employee list: $errorMessage");
     return Center(
       child: Text(
-        'Error: $errorMessage',
+        errorMessage,
         style: const TextStyle(color: Colors.red, fontSize: 14),
         textAlign: TextAlign.center,
       ),
@@ -288,9 +311,9 @@ class EmployeeCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  // Hiển thị phòng ban, nếu không có sẽ hiển thị dấu "-"
+                  // Hiển thị chức vụ và phòng ban, nếu không có sẽ hiển thị dấu "-"
                   Text(
-                    employee.department?.name ?? '-',
+                    '${employee.position?.name ?? '-'} | ${employee.department?.name ?? '-'}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Color(0xFF7A7A7A),

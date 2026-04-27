@@ -7,11 +7,8 @@ part 'app_response.g.dart';
 @freezed
 abstract class AppResponse with _$AppResponse {
   const factory AppResponse({
-    @JsonKey(name: "success")
     required bool success,
-    @JsonKey(name: "message")
     required String message,
-    @JsonKey(name: "data")
     required Map<String, dynamic> data,
   }) = _AppResponse;
 

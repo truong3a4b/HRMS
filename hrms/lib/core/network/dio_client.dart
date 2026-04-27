@@ -17,7 +17,13 @@ final baseDioProvider = Provider<Dio>((ref) {
     ),
   );
   final cookieJar = ref.watch(cookieJarProvider);
-  dio.interceptors.addAll([CookieManager(cookieJar), HttpFormatter()]);
+  dio.interceptors.addAll([
+    CookieManager(cookieJar),
+    HttpFormatter(),
+    AccessTokenInterceptor(
+      readToken: () => ref.read(tokenStorageProvider).readAccessToken(),
+    ),
+  ]);
   return dio;
 });
 
@@ -69,3 +75,23 @@ final dioProvider = Provider<Dio>((ref) {
 
   return dio;
 });
+
+class AccessTokenInterceptor extends Interceptor {
+  final Future<String?> Function() readToken;
+
+  AccessTokenInterceptor({required this.readToken});
+
+  @override
+  void onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    final token = await readToken();
+
+    if (token != null) {
+      options.headers['Authorization'] = 'Bearer $token';
+    }
+
+    handler.next(options);
+  }
+}

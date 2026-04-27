@@ -13,6 +13,11 @@ type EmployeeListFilters = {
   status?: EmployeeStatus;
 };
 
+type LookupValue = {
+  id: string;
+  name: string;
+};
+
 type CreateEmployeeInput = {
   name: string;
   email: string;
@@ -21,10 +26,10 @@ type CreateEmployeeInput = {
   dateOfBirth?: Date;
   gender?: "MALE" | "FEMALE" | "OTHER";
   address?: string;
-  provinceCode?: string;
-  wardCode?: string;
+  province?: LookupValue;
+  ward?: LookupValue;
   bankAccount?: string;
-  bankCode?: string;
+  bank?: LookupValue;
   departmentId: string;
   positionId: string;
   hireDate: Date;
@@ -38,10 +43,10 @@ type UpdateEmployeeBasicInput = {
   dateOfBirth?: Date;
   gender?: "MALE" | "FEMALE" | "OTHER";
   address?: string;
-  provinceCode?: string;
-  wardCode?: string;
+  province?: LookupValue;
+  ward?: LookupValue;
   bankAccount?: string;
-  bankCode?: string;
+  bank?: LookupValue;
 };
 
 type UpdateEmployeeAdditionalInput = {
@@ -158,17 +163,30 @@ export const employeeService = {
 
     if (filters.status) {
       conditions.push({ status: filters.status });
+    } else {
+      conditions.push({
+        status: {
+          not: EmployeeStatus.RESIGNED,
+        },
+      });
     }
 
     const where: Prisma.EmployeeWhereInput =
       conditions.length > 0 ? { AND: conditions } : {};
 
+    const isFetchAll = limit === -1;
+    const normalizedPage = isFetchAll ? 1 : page;
+
     const [items, total] = await Promise.all([
       prisma.employee.findMany({
         where,
         include: employeeInclude,
-        skip: (page - 1) * limit,
-        take: limit,
+        ...(isFetchAll
+          ? {}
+          : {
+              skip: (normalizedPage - 1) * limit,
+              take: limit,
+            }),
         orderBy: { createdAt: "desc" },
       }),
       prisma.employee.count({ where }),
@@ -177,10 +195,10 @@ export const employeeService = {
     return {
       items,
       meta: {
-        page,
+        page: normalizedPage,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: isFetchAll ? 1 : Math.ceil(total / limit),
       },
     };
   },
@@ -189,6 +207,13 @@ export const employeeService = {
   async getById(id: string) {
     return prisma.employee.findUnique({
       where: { id },
+      include: employeeInclude,
+    });
+  },
+
+  async getByUserId(userId: string) {
+    return prisma.employee.findUnique({
+      where: { userId },
       include: employeeInclude,
     });
   },

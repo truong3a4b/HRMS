@@ -5,17 +5,7 @@ import { env } from "../src/config/env";
 //npx prisma db seed
 
 async function main() {
-  // 1. Tạo department đầu tiên
-  const department = await prisma.department.upsert({
-    where: { code: "HR" },
-    update: {},
-    create: {
-      name: "Phòng nhân sự",
-      code: "HR",
-    },
-  });
-
-  // 2. Tạo position đầu tiên
+  // 1. Tạo position đầu tiên
   const position = await prisma.position.upsert({
     where: { code: "HR_STAFF" },
     update: {},
@@ -86,19 +76,8 @@ async function main() {
   // 5. Hash password
   const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);
 
-  // 6. Tạo user admin
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@hrms.com" },
-    update: {},
-    create: {
-      email: "admin@hrms.com",
-      password: passwordHash,
-      role: UserRole.ADMIN,
-    },
-  });
-
-  // Gán vị trí giám đốc cho admin
-  await prisma.employee.upsert({
+  // 6. Tạo employee admin trước để có managerId cho department
+  const adminEmployee = await prisma.employee.upsert({
     where: { employeeId: "ADMIN001" },
     update: {},
     create: {
@@ -110,7 +89,39 @@ async function main() {
     },
   });
 
-  // 7. Tạo employee đầu tiên
+  // 7. Tạo department đầu tiên với trưởng phòng bắt buộc
+  const department = await prisma.department.upsert({
+    where: { code: "HR" },
+    update: {
+      managerId: adminEmployee.id,
+    },
+    create: {
+      name: "Phòng nhân sự",
+      code: "HR",
+      managerId: adminEmployee.id,
+    },
+  });
+
+  await prisma.employee.update({
+    where: { id: adminEmployee.id },
+    data: { departmentId: department.id },
+  });
+
+  // 8. Tạo user admin
+  const admin = await prisma.user.upsert({
+    where: { email: "admin@hrms.com" },
+    update: {},
+    create: {
+      email: "admin@hrms.com",
+      password: passwordHash,
+      role: UserRole.ADMIN,
+      employee: {
+        connect: { id: adminEmployee.id },
+      },
+    },
+  });
+
+  // 9. Tạo employee đầu tiên
   const employee = await prisma.employee.upsert({
     where: { employeeId: "EMP001" },
     update: {},
@@ -143,7 +154,7 @@ async function main() {
     });
   }
 
-  // 8. Tạo user cho employee
+  // 10. Tạo user cho employee
   const employeeUser = await prisma.user.upsert({
     where: { email: "employee@hrms.com" },
     update: {},
@@ -156,6 +167,9 @@ async function main() {
       },
     },
   });
+
+  void admin;
+  void employeeUser;
 
   console.log("Seed thành công!");
 }

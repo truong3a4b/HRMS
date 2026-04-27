@@ -17,10 +17,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   void initState() {
     super.initState();
     Future.microtask(() async {
-      final res =  await ref.read(authNotifierProvider.notifier).checkAuth();
-      if(res){
-        ref.read(profileProvider.notifier).fetchProfile();
-      }
+      await ref.read(authNotifierProvider.notifier).checkAuth();
     });
   }
 

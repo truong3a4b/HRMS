@@ -27,5 +27,10 @@ router.post("/login", validate(loginSchema), authController.login);
 router.post("/refresh", authController.refresh);
 router.post("/logout", authController.logout);
 router.get("/me", checkAccessToken, authController.getMe);
+router.get(
+  "/my-permissions",
+  checkAccessToken,
+  authController.getMyPermissions,
+);
 
 export default router;

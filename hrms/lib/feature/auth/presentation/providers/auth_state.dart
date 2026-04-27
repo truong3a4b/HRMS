@@ -27,7 +27,7 @@ class AuthState {
     return AuthState(status: AuthStatus.initial);
   }
 
-  factory AuthState.authenticated(User? user) {
+  factory AuthState.authenticated(User user) {
     return AuthState(status: AuthStatus.authenticated, user: user);
   }
 

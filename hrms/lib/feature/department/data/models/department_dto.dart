@@ -8,8 +8,10 @@ abstract class DepartmentDto with _$DepartmentDto {
   const factory DepartmentDto({
     required String id,
     required String name,
-    required String code,
+    String? code,
     String? description,
+   Map<String,dynamic>? manager,
+     int? employeeCount,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) = _DepartmentDto;

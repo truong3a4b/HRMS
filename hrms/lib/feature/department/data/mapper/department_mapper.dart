@@ -1,3 +1,4 @@
+import '../../../employee/domain/entities/employee.dart';
 import '../../domain/entities/department.dart';
 import '../models/department_dto.dart';
 
@@ -8,6 +9,13 @@ extension DepartmentMapper on DepartmentDto {
       name: name,
       code: code,
       description: description,
+      manager: manager != null ? Employee(
+        id: manager!['id'],
+        name: manager!['name'],
+        email: manager!['email'],
+        employeeId: manager!['employeeId'],
+      ) : null,
+      employeeCount: employeeCount,
     );
   }
 }

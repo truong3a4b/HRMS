@@ -1,33 +1,27 @@
-import 'package:hrms/feature/account/data/datasources/profile_remote.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hrms/feature/account/data/datasources/account_remote.dart';
+import 'package:hrms/feature/employee/domain/entities/employee.dart';
+import 'package:hrms/feature/position/domain/position.dart';
 
-import '../../../../core/error/app_exception.dart';
-import '../../../auth/domain/entities/user.dart';
+import '../../../employee/data/mapper/employee_mapper.dart';
 
-class ProfileRepository {
-  final ProfileRemote remote;
+class AccountRepo {
+  final AccountRemote remote;
 
-  ProfileRepository(this.remote);
+  AccountRepo(this.remote);
 
-  Future<User> fetchProfile() async {
-    final userdto = await remote.fetchProfile();
-    final role = mapRole(userdto.role);
-    return User(id: userdto.id, email: userdto.email, role: role);
+  Future<Employee> fetchProfile() async {
+    final result = await remote.fetchProfile();
+    return result.toEntity();
   }
 
-  UserRole mapRole(String role) {
-    switch (role) {
-      case 'ADMIN':
-        return UserRole.admin;
-      case 'HR':
-        return UserRole.hr;
-      case 'MANAGER':
-        return UserRole.manager;
-      case 'EMPLOYEE':
-        return UserRole.employee;
-      case 'CANDIDATE':
-        return UserRole.candidate;
-      default:
-        throw AppException('Vai trò không hợp lệ');
-    }
+  Future<Set<Permission>> fetchPermissions() async {
+    final keys = await remote.fetchPermissions();
+    return keys.map((key) => PermissionKeyX.fromString(key)).whereType<Permission>().toSet();
   }
 }
+
+final accountRepoProvider = Provider((ref) {
+  final remote = ref.watch(accountRemoteProvider);
+  return AccountRepo(remote);
+});

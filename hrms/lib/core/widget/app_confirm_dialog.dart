@@ -102,26 +102,3 @@ class AppConfirmDialog extends StatelessWidget {
   }
 }
 
-Future<void> showAppConfirmDialog({
-  required BuildContext context,
-  required WidgetRef ref,
-  required String title,
-  required String message,
-  required VoidCallback onConfirm,
-}) async {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      final isLoading = ref.watch(authNotifierProvider).isLoading;
-
-      return AppConfirmDialog(
-        title: title,
-        message: message,
-        isLoading: isLoading,
-        onCancel: () => Navigator.pop(context),
-        onConfirm: onConfirm,
-      );
-    },
-  );
-}

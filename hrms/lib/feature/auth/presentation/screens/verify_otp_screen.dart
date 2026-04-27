@@ -28,18 +28,20 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
     _controllers = List.generate(6, (_) => TextEditingController());
     _focusNodes = List.generate(6, (_) => FocusNode());
     ref.listenManual<AsyncValue<AuthState>>(authNotifierProvider, (
-        previous,
-        next,
-        ) {
+      previous,
+      next,
+    ) {
       next.whenOrNull(
         data: (state) {
-          if (state.status == AuthStatus.otpRequired &&
-              state.message != null) {
-              AppSnackbar.showError(context, state.message!);
+          if (state.status == AuthStatus.otpRequired && state.message != null) {
+            AppSnackbar.showError(context, state.message!);
           }
         },
         error: (error, stackTrace) {
-          AppSnackbar.showError(context, 'Xác thực thất bại. Vui lòng thử lại.');
+          AppSnackbar.showError(
+            context,
+            'Xác thực thất bại. Vui lòng thử lại.',
+          );
         },
       );
     });
@@ -74,40 +76,45 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
   }
 
   String? _validateOtp(String otp) {
-
     if (otp.length < 6) {
       return 'Vui lòng nhập đủ 6 chữ số';
     }
     return null;
   }
+
   void _handleResendOtp(String email) {
-    showAppConfirmDialog(
+    final isLoading = ref.watch(authNotifierProvider).isLoading;
+    showDialog(
       context: context,
-      ref: ref,
-      title: 'Gửi lại mã xác thực',
-      message: 'Chúng tôi sẽ gửi lại mã xác thực đến địa chỉ email $email. Vui lòng truy cập email để lấy mã xác thực',
-      onConfirm: () {
-        ref.read(authNotifierProvider.notifier).resendOtp();
+      barrierDismissible: false,
+      builder: (context) {
+        return AppConfirmDialog(
+          title: 'Gửi lại mã xác thực',
+          message:
+              'Chúng tôi sẽ gửi lại mã xác thực đến địa chỉ email $email. Vui lòng truy cập email để lấy mã xác thực',
+          isLoading: isLoading,
+          onCancel: () => Navigator.pop(context),
+          onConfirm: () {
+            ref.read(authNotifierProvider.notifier).resendOtp();
+            context.pop();
+          },
+        );
       },
     );
   }
 
-  void _handleConfirm(String email) async{
+  void _handleConfirm(String email) async {
     final otp = _controllers.map((e) => e.text).join();
     final validationMessage = _validateOtp(otp);
     if (validationMessage != null) {
-      AppSnackbar.showError(
-        context,
-        validationMessage,
-      );
+      AppSnackbar.showError(context, validationMessage);
       return;
     }
-    await ref
-        .read(authNotifierProvider.notifier).verifyOtp(email, otp);
+    await ref.read(authNotifierProvider.notifier).verifyOtp(email, otp);
   }
+
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF156FB8);
     const pageBackground = Color(0xFFF5F5F5);
 
     final authAsync = ref.watch(authNotifierProvider);
@@ -154,7 +161,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                     final canPop = context.canPop();
                     if (canPop) {
                       context.pop();
-                    }else{
+                    } else {
                       ref.read(authNotifierProvider.notifier).otpToRegister();
                     }
                   },
@@ -213,7 +220,9 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                                   text: 'Mã xác thực được gửi về email ',
                                 ),
                                 TextSpan(
-                                  text: authAsync.value?.enteredField?.email ?? '',
+                                  text:
+                                      authAsync.value?.enteredField?.email ??
+                                      '',
                                   style: const TextStyle(
                                     color: Color(0xFF005BAA),
                                     fontWeight: FontWeight.w700,
@@ -282,7 +291,9 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                         Center(
                           child: TextButton(
                             onPressed: () {
-                              _handleResendOtp(authAsync.value?.enteredField?.email ?? '');
+                              _handleResendOtp(
+                                authAsync.value?.enteredField?.email ?? '',
+                              );
                             },
                             style: TextButton.styleFrom(
                               foregroundColor: const Color(0xFF005BAA),
@@ -305,8 +316,9 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                           width: double.infinity,
                           height: 50,
                           child: AppPrimaryButton(
-                            onPressed:() async {
-                              final email = authAsync.value?.enteredField?.email ?? '';
+                            onPressed: () async {
+                              final email =
+                                  authAsync.value?.enteredField?.email ?? '';
                               _handleConfirm(email);
                             },
                             isLoading: isLoading,

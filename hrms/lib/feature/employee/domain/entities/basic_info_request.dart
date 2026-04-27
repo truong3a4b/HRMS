@@ -1,3 +1,8 @@
+import 'package:hrms/core/service/address/Ward.dart';
+import 'package:hrms/core/service/address/provine_summary.dart';
+
+import '../../../../core/service/bank/bank.dart';
+
 class BasicInfoRequest {
   final String id;
   final String? name;
@@ -6,10 +11,10 @@ class BasicInfoRequest {
   final DateTime? dateOfBirth;
   final String? gender;
   final String? address;
-  final int? provinceId;
-  final int? wardId;
+  final ProvinceSummary? province;
+  final Ward? ward;
   final String? bankAccount;
-  final String? bankName;
+  final Bank? bank;
 
   BasicInfoRequest({
     required this.id,
@@ -19,10 +24,35 @@ class BasicInfoRequest {
     this.dateOfBirth,
     this.gender,
     this.address,
-    this.provinceId,
-    this.wardId,
+    this.province,
+    this.ward,
     this.bankAccount,
-    this.bankName,
+    this.bank,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'phone': phone,
+      'avatar': avatar,
+      'dateOfBirth': dateOfBirth?.toIso8601String(),
+      'gender': gender,
+      'address': address,
+      'province': province != null ? {
+        'id': province!.maTinhBNV,
+        'name': province!.name,
+      } : null,
+      'ward': ward != null ? {
+        'id': ward!.code,
+        'name': ward!.name,
+      } : null,
+      'bankAccount': bankAccount,
+      'bank': bank != null ? {
+        'id': bank!.id,
+        'name': bank!.name,
+      } : null,
+    };
+  }
 
 }

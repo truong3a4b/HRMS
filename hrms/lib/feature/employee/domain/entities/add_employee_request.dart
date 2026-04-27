@@ -1,51 +1,62 @@
+import 'package:hrms/core/service/address/Ward.dart';
+import 'package:hrms/core/service/address/provine_summary.dart';
+
+import '../../../../core/service/bank/bank.dart';
+
 class AddEmployeeRequest {
   final String name;
   final String email;
   final String? phone;
-  final String? position;
+  final String? positionId;
   final String? avatar;
-  final String? department;
-  final String? status;
+  final String? departmentId;
   final DateTime? dateOfBirth;
   final String? gender;
   final String? address;
-  final int? provinceId;
-  final int? wardId;
+  final ProvinceSummary? province;
+  final Ward? ward;
   final DateTime? hireDate;
   final double? salary;
   final String? bankAccount;
-  final String? bankName;
-  final String? maritalStatus;
-  final String? nationality;
-  final String? religion;
-  final String? identityCardNumber;
-  final DateTime? identityCardIssueDate;
-  final String? frontIdentityCardImage;
-  final String? backIdentityCardImage;
+  final Bank? bank;
 
   AddEmployeeRequest({
     required this.name,
     required this.email,
     this.phone,
-    this.position,
+    this.positionId,
     this.avatar,
-    this.department,
-    this.status,
+    this.departmentId,
     this.dateOfBirth,
     this.gender,
     this.address,
-    this.provinceId,
-    this.wardId,
+    this.province,
+    this.ward,
     this.hireDate,
     this.salary,
     this.bankAccount,
-    this.bankName,
-    this.maritalStatus,
-    this.nationality,
-    this.religion,
-    this.identityCardNumber,
-    this.identityCardIssueDate,
-    this.frontIdentityCardImage,
-    this.backIdentityCardImage,
+    this.bank,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'positionId': positionId,
+      'avatar': avatar,
+      'departmentId': departmentId,
+      'dateOfBirth': dateOfBirth?.toIso8601String(),
+      'gender': gender,
+      'address': address,
+      'province': province != null
+          ? {'id': province!.maTinhBNV, 'name': province!.name}
+          : null,
+      'ward': ward != null ? {'id': ward!.code, 'name': ward!.name} : null,
+      'hireDate': hireDate?.toIso8601String(),
+      'salary': salary,
+      'bankAccount': bankAccount,
+      'bank': bank != null ? {'id': bank!.id, 'name': bank!.name} : null,
+    };
+  }
 }

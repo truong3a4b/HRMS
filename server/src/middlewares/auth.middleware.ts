@@ -30,6 +30,7 @@ export const authMiddleware =
       }
 
       const token = authHeader.split(" ")[1];
+
       const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
 
       let permissions: PermissionKey[] = [];

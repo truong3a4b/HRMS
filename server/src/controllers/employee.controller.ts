@@ -15,7 +15,13 @@ const emptyToUndefined = (value: unknown) => {
 
 const getAllEmployeesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  limit: z.coerce
+    .number()
+    .int()
+    .refine((value) => value === -1 || (value >= 1 && value <= 100), {
+      message: "limit must be -1 (all) or between 1 and 100",
+    })
+    .default(10),
   search: z.string().default(""),
   departmentId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   positionId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
@@ -57,6 +63,36 @@ export const employeeController = {
       }
 
       return sendResponse(res, 200, "Employee fetched successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.id;
+      console.log("User ID from token:", userId);
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized");
+      }
+
+      const result = req.user?.employeeId
+        ? await employeeService.getById(req.user.employeeId)
+        : await employeeService.getByUserId(userId);
+
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee account not found",
+        });
+      }
+
+      return sendResponse(
+        res,
+        200,
+        "Your employee profile fetched successfully",
+        result,
+      );
     } catch (error) {
       next(error);
     }

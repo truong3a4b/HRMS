@@ -34,8 +34,8 @@ class FilterResult {
 }
 
 class EmployeeFilterBottomSheet extends StatefulWidget {
-  List<FilterItem> filters;
-  FilterResult? filterResult;
+  final List<FilterItem> filters;
+  final FilterResult? filterResult;
   final void Function(FilterResult)? onApply;
 
   EmployeeFilterBottomSheet({super.key, required this.filters, this.filterResult, this.onApply});

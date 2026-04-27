@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repo/employee_repository.dart';
 import '../../domain/entities/employee.dart';
 
-final employeeDetailProvider = FutureProvider.family<Employee, String>((
+final employeeDetailProvider = FutureProvider.autoDispose.family<Employee, String>((
   ref,
   employeeId,
 ) {

@@ -12,6 +12,7 @@ export const errorMiddleware = (
     return res.status(400).json({
       success: false,
       message: "Validation error",
+      errorCode: "VALIDATION_ERROR",
       errors: err.flatten(),
     });
   }
@@ -20,6 +21,7 @@ export const errorMiddleware = (
     return res.status(err.statusCode).json({
       success: false,
       message: err.message,
+      errorCode: err.errorCode,
     });
   }
 

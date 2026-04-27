@@ -4,11 +4,15 @@ import 'package:hrms/feature/position/domain/position.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/service/address/Province.dart';
+import '../../../../core/service/address/province_provider.dart';
 import '../../../../core/service/bank/bank.dart';
+import '../../../../core/service/bank/bank_provider.dart';
 import '../../../../core/service/bank/bank_repo.dart';
 import '../../../department/data/repo/department_repository.dart';
 import '../../../department/domain/entities/department.dart';
+import '../../../department/presentation/providers/department_list_provider.dart';
 import '../../../position/data/repo/position_repository.dart';
+import '../../../position/presentation/providers/positionListProvider.dart';
 import '../../data/repo/employee_repository.dart';
 import '../../domain/entities/add_employee_request.dart';
 import '../../domain/entities/employee.dart';
@@ -20,25 +24,17 @@ final addEmployeeProvider =
 
 class AddEmployeeNotifier extends AsyncNotifier<AddEmployeeState> {
   late final EmployeeRepository _employeeRepo;
-  late final PositionRepository _positionRepo;
-  late final DepartmentRepository _departmentRepo;
-  late final BankRepo _bankRepo;
-  late final AddressRepo _addressRepo;
 
   @override
   Future<AddEmployeeState> build() async {
     _employeeRepo = ref.read(employeeRepositoryProvider);
-    _positionRepo = ref.read(positionRepositoryProvider);
-    _departmentRepo = ref.read(departmentRepositoryProvider);
-    _bankRepo = ref.read(bankRepoProvider);
-    _addressRepo = ref.read(addressRepoProvider);
 
     try {
       final result = await Future.wait([
-        _positionRepo.getPositions(),
-        _departmentRepo.getDepartments(),
-        _bankRepo.getBanks(),
-        _addressRepo.getProvinces(),
+        ref.watch(positionListProvider.future),
+        ref.watch(departmentListProvider.future),
+        ref.watch(bankProvider.future),
+        ref.watch(provinceProvider.future),
       ]);
 
       final positions = result[0] as List<Position>;
@@ -61,11 +57,23 @@ class AddEmployeeNotifier extends AsyncNotifier<AddEmployeeState> {
     state = AsyncValue.data(
       state.value!.copyWith(isLoading: true, errorMessage: null),
     );
-    state = await AsyncValue.guard(() async {
-      final result = await _employeeRepo.addEmployee(request);
-      return state.value!.copyWith(isLoading: false, isSuccess: result);
-    });
+    try{
+      final success = await _employeeRepo.addEmployee(request);
+      state = AsyncValue.data(
+        state.value!.copyWith(isLoading: false, isSuccess: success),
+      );
+    } catch (e) {
+      state = AsyncValue.data(
+        state.value!.copyWith(isLoading: false, errorMessage: e.toString()),
+      );
+    }
     return state.value?.isSuccess ?? false;
+  }
+
+  void closeDialog() {
+    state = AsyncValue.data(
+      state.value!.copyWith(isSuccess: false, errorMessage: null),
+    );
   }
 }
 

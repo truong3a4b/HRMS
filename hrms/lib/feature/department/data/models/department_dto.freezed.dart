@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$DepartmentDto {
 
- String get id; String get name; String get code; String? get description; DateTime? get createdAt; DateTime? get updatedAt;
+ String get id; String get name; String? get code; String? get description; Map<String, dynamic>? get manager; int? get employeeCount; DateTime? get createdAt; DateTime? get updatedAt;
 /// Create a copy of DepartmentDto
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $DepartmentDtoCopyWith<DepartmentDto> get copyWith => _$DepartmentDtoCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DepartmentDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DepartmentDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other.manager, manager)&&(identical(other.employeeCount, employeeCount) || other.employeeCount == employeeCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,code,description,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,code,description,const DeepCollectionEquality().hash(manager),employeeCount,createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'DepartmentDto(id: $id, name: $name, code: $code, description: $description, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'DepartmentDto(id: $id, name: $name, code: $code, description: $description, manager: $manager, employeeCount: $employeeCount, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $DepartmentDtoCopyWith<$Res>  {
   factory $DepartmentDtoCopyWith(DepartmentDto value, $Res Function(DepartmentDto) _then) = _$DepartmentDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String code, String? description, DateTime? createdAt, DateTime? updatedAt
+ String id, String name, String? code, String? description, Map<String, dynamic>? manager, int? employeeCount, DateTime? createdAt, DateTime? updatedAt
 });
 
 
@@ -65,13 +65,15 @@ class _$DepartmentDtoCopyWithImpl<$Res>
 
 /// Create a copy of DepartmentDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? code = null,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? manager = freezed,Object? employeeCount = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
-as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,code: freezed == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
+as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String?,manager: freezed == manager ? _self.manager : manager // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,employeeCount: freezed == employeeCount ? _self.employeeCount : employeeCount // ignore: cast_nullable_to_non_nullable
+as int?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
@@ -158,10 +160,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  Map<String, dynamic>? manager,  int? employeeCount,  DateTime? createdAt,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DepartmentDto() when $default != null:
-return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.code,_that.description,_that.manager,_that.employeeCount,_that.createdAt,_that.updatedAt);case _:
   return orElse();
 
 }
@@ -179,10 +181,10 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  Map<String, dynamic>? manager,  int? employeeCount,  DateTime? createdAt,  DateTime? updatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _DepartmentDto():
-return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.code,_that.description,_that.manager,_that.employeeCount,_that.createdAt,_that.updatedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -199,10 +201,10 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? code,  String? description,  Map<String, dynamic>? manager,  int? employeeCount,  DateTime? createdAt,  DateTime? updatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _DepartmentDto() when $default != null:
-return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.code,_that.description,_that.manager,_that.employeeCount,_that.createdAt,_that.updatedAt);case _:
   return null;
 
 }
@@ -214,13 +216,23 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 @JsonSerializable()
 
 class _DepartmentDto implements DepartmentDto {
-  const _DepartmentDto({required this.id, required this.name, required this.code, this.description, this.createdAt, this.updatedAt});
+  const _DepartmentDto({required this.id, required this.name, this.code, this.description, final  Map<String, dynamic>? manager, this.employeeCount, this.createdAt, this.updatedAt}): _manager = manager;
   factory _DepartmentDto.fromJson(Map<String, dynamic> json) => _$DepartmentDtoFromJson(json);
 
 @override final  String id;
 @override final  String name;
-@override final  String code;
+@override final  String? code;
 @override final  String? description;
+ final  Map<String, dynamic>? _manager;
+@override Map<String, dynamic>? get manager {
+  final value = _manager;
+  if (value == null) return null;
+  if (_manager is EqualUnmodifiableMapView) return _manager;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(value);
+}
+
+@override final  int? employeeCount;
 @override final  DateTime? createdAt;
 @override final  DateTime? updatedAt;
 
@@ -237,16 +249,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DepartmentDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DepartmentDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other._manager, _manager)&&(identical(other.employeeCount, employeeCount) || other.employeeCount == employeeCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,code,description,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,code,description,const DeepCollectionEquality().hash(_manager),employeeCount,createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'DepartmentDto(id: $id, name: $name, code: $code, description: $description, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'DepartmentDto(id: $id, name: $name, code: $code, description: $description, manager: $manager, employeeCount: $employeeCount, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -257,7 +269,7 @@ abstract mixin class _$DepartmentDtoCopyWith<$Res> implements $DepartmentDtoCopy
   factory _$DepartmentDtoCopyWith(_DepartmentDto value, $Res Function(_DepartmentDto) _then) = __$DepartmentDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String code, String? description, DateTime? createdAt, DateTime? updatedAt
+ String id, String name, String? code, String? description, Map<String, dynamic>? manager, int? employeeCount, DateTime? createdAt, DateTime? updatedAt
 });
 
 
@@ -274,13 +286,15 @@ class __$DepartmentDtoCopyWithImpl<$Res>
 
 /// Create a copy of DepartmentDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? code = null,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? manager = freezed,Object? employeeCount = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
   return _then(_DepartmentDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
-as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,code: freezed == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
+as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String?,manager: freezed == manager ? _self._manager : manager // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,employeeCount: freezed == employeeCount ? _self.employeeCount : employeeCount // ignore: cast_nullable_to_non_nullable
+as int?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));

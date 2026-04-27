@@ -24,7 +24,9 @@ _EmployeeDto _$EmployeeDtoFromJson(Map<String, dynamic> json) => _EmployeeDto(
       : DateTime.parse(json['hireDate'] as String),
   salary: json['salary'] as String?,
   bankAccount: json['bankAccount'] as String?,
-  bankCode: json['bankCode'] as String?,
+  bank: json['bank'] == null
+      ? null
+      : BaseOptionDto.fromJson(json['bank'] as Map<String, dynamic>),
   maritalStatus: json['maritalStatus'] as String?,
   nationality: json['nationality'] as String?,
   religion: json['religion'] as String?,
@@ -34,8 +36,12 @@ _EmployeeDto _$EmployeeDtoFromJson(Map<String, dynamic> json) => _EmployeeDto(
       : DateTime.parse(json['identityCardIssueDate'] as String),
   frontIdentityCardImage: json['frontIdentityCardImage'] as String?,
   backIdentityCardImage: json['backIdentityCardImage'] as String?,
-  provinceCode: json['provinceCode'] as String?,
-  wardCode: json['wardCode'] as String?,
+  province: json['province'] == null
+      ? null
+      : BaseOptionDto.fromJson(json['province'] as Map<String, dynamic>),
+  ward: json['ward'] == null
+      ? null
+      : BaseOptionDto.fromJson(json['ward'] as Map<String, dynamic>),
   userId: json['userId'] as String?,
   departmentId: json['departmentId'] as String?,
   positionId: json['positionId'] as String?,
@@ -72,7 +78,7 @@ Map<String, dynamic> _$EmployeeDtoToJson(
   'hireDate': instance.hireDate?.toIso8601String(),
   'salary': instance.salary,
   'bankAccount': instance.bankAccount,
-  'bankCode': instance.bankCode,
+  'bank': instance.bank,
   'maritalStatus': instance.maritalStatus,
   'nationality': instance.nationality,
   'religion': instance.religion,
@@ -80,8 +86,8 @@ Map<String, dynamic> _$EmployeeDtoToJson(
   'identityCardIssueDate': instance.identityCardIssueDate?.toIso8601String(),
   'frontIdentityCardImage': instance.frontIdentityCardImage,
   'backIdentityCardImage': instance.backIdentityCardImage,
-  'provinceCode': instance.provinceCode,
-  'wardCode': instance.wardCode,
+  'province': instance.province,
+  'ward': instance.ward,
   'userId': instance.userId,
   'departmentId': instance.departmentId,
   'positionId': instance.positionId,

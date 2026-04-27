@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hrms/core/service/address/provine_summary.dart';
 import 'package:hrms/core/widget/app_snackbar.dart';
 
 import '../../../../core/service/address/Province.dart';
@@ -10,6 +11,7 @@ import '../../../../core/utils/time_convert.dart';
 import '../../../../core/widget/app_back_button.dart';
 import '../../../../core/widget/app_primary_button.dart';
 import '../../../../core/service/bank/bank.dart';
+import '../../../../core/widget/custom_dialog.dart';
 import '../../domain/entities/basic_info_request.dart';
 import '../../domain/entities/employee.dart';
 import '../providers/edit_employee_provider.dart';
@@ -61,6 +63,15 @@ class _EditEmployeeBasicInfoScreenState
       // Lấy state SAU KHI initialize xong
       final state = ref.read(editEmployeeProvider(widget.employeeId));
       _fillForm(state);
+    });
+
+    ref.listenManual<EditEmployeeState>(editEmployeeProvider(widget.employeeId), (previous, next) {
+
+
+      if(next.errorMessage != null && previous?.errorMessage != next.errorMessage){
+        showErrorDialog(next.errorMessage!);
+      }
+
     });
   }
 
@@ -121,11 +132,11 @@ class _EditEmployeeBasicInfoScreenState
       }
     }
     if(bankAccountController.text.trim().isNotEmpty && selectedBank == null){
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn ngân hàng')),
-      );
+      AppSnackbar.showError(context, 'Vui lòng chọn ngân hàng');
       return false;
     }
+
+
     return true;
   }
 
@@ -137,21 +148,44 @@ class _EditEmployeeBasicInfoScreenState
         name: nameController.text.trim(),
         dateOfBirth: selectedDate!,
         gender: selectedGender?.id,
-        provinceId: selectedProvince?.maTinhBNV,
-        wardId: selectedWard?.code,
+        province: selectedProvince != null ? ProvinceSummary(
+          maTinhBNV: selectedProvince!.maTinhBNV,
+          name: selectedProvince!.name,
+        ) : null,
+        ward: selectedWard != null ? Ward(
+          code: selectedWard!.code,
+          name: selectedWard!.name,
+        ) : null,
         address: addressController.text.trim(),
         bankAccount: bankAccountController.text.trim(),
-        bankName: selectedBank?.id,
+        bank: selectedBank != null ? Bank(
+          id: selectedBank!.id,
+          name: selectedBank!.name,
+        ) : null,
     );
 
     final success = await ref.read(editEmployeeProvider(widget.employeeId).notifier).updateEmployeeBasicInfo(request);
     if(!mounted) return;
-    if(success){
+    if(success == true){
       AppSnackbar.showSuccess(context, 'Cập nhật thông tin thành công');
       context.pop(true);
     } else {
       AppSnackbar.showError(context, 'Cập nhật thông tin thất bại');
     }
+  }
+  void showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return CustomDialog(
+          message: message,
+          type: "error",
+          onClose: () {
+            ref.read(editEmployeeProvider(widget.employeeId).notifier).clearError();
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -226,9 +260,6 @@ class _EditEmployeeBasicInfoScreenState
   Widget _buildBody(EditEmployeeState state){
     if(state.isLoading ){
       return loading();
-    }
-    if(state.errorMessage != null){
-      return error(state.errorMessage!);
     }
     if(state.employee == null){
       return const Text('Không có dữ liệu');

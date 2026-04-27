@@ -2,7 +2,7 @@
 import 'package:hrms/core/service/address/Ward.dart';
 
 class Province {
-  final int maTinhBNV;
+  final String maTinhBNV;
   final String maTinhTMS;
   final String name;
   final List<Ward> wards;
@@ -17,7 +17,7 @@ class Province {
 
   factory Province.fromJson(Map<String, dynamic> json) {
     return Province(
-      maTinhBNV: json['matinhBNV'],
+      maTinhBNV: json['matinhBNV'].toString(),
       maTinhTMS: json['matinhTMS'],
       name: json['tentinhmoi'],
       wards: (json['phuongxa'] as List)

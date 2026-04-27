@@ -1,5 +1,5 @@
 class ProvinceSummary {
-  final int maTinhBNV;
+  final String maTinhBNV;
   final String name;
 
   ProvinceSummary({

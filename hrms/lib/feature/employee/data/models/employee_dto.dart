@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../auth/data/models/user_dto.dart';
 import '../../../department/data/models/department_dto.dart';
 import '../../../position/data/models/position_dto.dart';
+import 'base_option_dto.dart';
 
 
 part 'employee_dto.freezed.dart';
@@ -27,7 +28,7 @@ abstract class EmployeeDto with _$EmployeeDto {
 
     String? salary,
     String? bankAccount,
-    String? bankCode,
+    BaseOptionDto? bank,
 
     String? maritalStatus,
     String? nationality,
@@ -39,8 +40,8 @@ abstract class EmployeeDto with _$EmployeeDto {
     String? frontIdentityCardImage,
     String? backIdentityCardImage,
 
-    String? provinceCode,
-    String? wardCode,
+    BaseOptionDto? province,
+    BaseOptionDto? ward,
 
     String? userId,
     String? departmentId,

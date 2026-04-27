@@ -1,6 +1,9 @@
 import 'package:hrms/feature/employee/data/models/employee_dto.dart';
 import 'package:hrms/feature/employee/domain/entities/employee.dart';
 
+import '../../../../core/service/address/Ward.dart';
+import '../../../../core/service/address/provine_summary.dart';
+import '../../../../core/service/bank/bank.dart';
 import '../../../department/data/mapper/department_mapper.dart';
 import '../../../position/data/mapper/posittion_mapper.dart';
 
@@ -32,9 +35,11 @@ extension EmployeeMapper on EmployeeDto {
 
       // Nếu provinceCode, wardCode, bankCode chỉ là String code
       // thì chưa map được sang object đầy đủ nếu chưa có danh sách Province/Ward/Bank.
-      province: null,
-      ward: null,
-      bank: null,
+      province: province != null
+          ? ProvinceSummary(maTinhBNV: province!.id, name: province!.name)
+          : null,
+      ward: ward != null ? Ward(code: ward!.id, name: ward!.name) : null,
+      bank: bank != null ? Bank(id: bank!.id, name: bank!.name) : null,
     );
   }
 }

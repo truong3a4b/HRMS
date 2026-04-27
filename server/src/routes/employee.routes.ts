@@ -33,36 +33,74 @@ const nullableDateSchema = z.preprocess(
   z.coerce.date().nullable().optional(),
 );
 
+const lookupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+});
+
+const optionalLookupSchema = z.preprocess(
+  emptyToUndefined,
+  lookupSchema.optional(),
+);
+const optionalPhoneSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().min(8, "Số điện thoại phải có ít nhất 8 ký tự").optional(),
+);
+const optionalAvatarSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().url("Avatar phải là URL hợp lệ").optional(),
+);
+const optionalAddressSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
+);
+const optionalStringSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().optional(),
+);
+const optionalUrlSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().url().optional(),
+);
+const optionalMin2StringSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().min(2).optional(),
+);
+const optionalMin6StringSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().min(6).optional(),
+);
+
 const createEmployeeSchema = z.object({
   name: z.string().min(2, "Tên phải có ít nhất 2 ký tự"),
   email: z.string().email("Email không hợp lệ"),
-  phone: z.string().min(8, "Số điện thoại phải có ít nhất 8 ký tự").optional(),
-  avatar: z.string().url("Avatar phải là URL hợp lệ").optional(),
+  phone: optionalPhoneSchema,
+  avatar: optionalAvatarSchema,
   dateOfBirth: optionalDateSchema,
   gender: z.nativeEnum(Gender).optional(),
-  address: z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
-  provinceCode: z.string().optional(),
-  wardCode: z.string().optional(),
-  bankAccount: z.string().optional(),
-  bankCode: z.string().optional(),
+  address: optionalAddressSchema,
+  province: optionalLookupSchema,
+  ward: optionalLookupSchema,
+  bankAccount: optionalStringSchema,
+  bank: optionalLookupSchema,
   departmentId: z.string().uuid("departmentId không hợp lệ"),
   positionId: z.string().uuid("positionId không hợp lệ"),
   hireDate: z.coerce.date(),
-  salary: z.number().nullable(),
+  salary: z.number().nonnegative("Lương phải là số không âm"),
 });
 
 const updateBasicSchema = z
   .object({
-    name: z.string().min(2).optional(),
-    phone: z.string().min(8).optional(),
-    avatar: z.string().url().optional(),
+    name: optionalMin2StringSchema,
+    phone: optionalPhoneSchema,
+    avatar: optionalUrlSchema,
     dateOfBirth: optionalDateSchema,
     gender: z.nativeEnum(Gender).optional(),
-    address: z.string().min(3).optional(),
-    provinceCode: z.string().optional(),
-    wardCode: z.string().optional(),
-    bankAccount: z.string().optional(),
-    bankCode: z.string().optional(),
+    address: optionalAddressSchema,
+    province: optionalLookupSchema,
+    ward: optionalLookupSchema,
+    bankAccount: optionalStringSchema,
+    bank: optionalLookupSchema,
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field is required",
@@ -70,13 +108,13 @@ const updateBasicSchema = z
 
 const updateAdditionalSchema = z
   .object({
-    maritalStatus: z.string().min(2).optional(),
-    nationality: z.string().min(2).optional(),
-    religion: z.string().min(2).optional(),
-    identityCardNumber: z.string().min(6).optional(),
+    maritalStatus: optionalMin2StringSchema,
+    nationality: optionalMin2StringSchema,
+    religion: optionalMin2StringSchema,
+    identityCardNumber: optionalMin6StringSchema,
     identityCardIssueDate: optionalDateSchema,
-    frontIdentityCardImage: z.string().url().optional(),
-    backIdentityCardImage: z.string().url().optional(),
+    frontIdentityCardImage: optionalUrlSchema,
+    backIdentityCardImage: optionalUrlSchema,
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field is required",
@@ -115,6 +153,7 @@ router.get(
   permissionMiddleware(PERMISSIONS.EMPLOYEE_VIEW_LIST),
   employeeController.getAll,
 );
+router.get("/me", authMiddleware(), employeeController.getMe);
 router.get(
   "/:id",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
@@ -129,7 +168,7 @@ router.get(
 );
 router.patch(
   "/me/basic",
-  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  authMiddleware(UserRole.EMPLOYEE),
   permissionMiddleware(
     PERMISSIONS.EMPLOYEE_UPDATE_BASIC,
     PERMISSIONS.EMPLOYEE_UPDATE_SELF_BASIC,
@@ -139,7 +178,7 @@ router.patch(
 );
 router.patch(
   "/me/additional",
-  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  authMiddleware(UserRole.EMPLOYEE),
   permissionMiddleware(
     PERMISSIONS.EMPLOYEE_UPDATE_ADDITIONAL,
     PERMISSIONS.EMPLOYEE_UPDATE_SELF_ADDITIONAL,

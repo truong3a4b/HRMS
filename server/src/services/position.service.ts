@@ -37,13 +37,6 @@ export const positionService = {
     await ensurePermissionCatalog();
 
     return prisma.position.findMany({
-      include: {
-        permissions: {
-          include: {
-            permission: true,
-          },
-        },
-      },
       orderBy: { createdAt: "desc" },
     });
   },

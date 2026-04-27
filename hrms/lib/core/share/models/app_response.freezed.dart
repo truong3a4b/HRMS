@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AppResponse {
 
-@JsonKey(name: "success") bool get success;@JsonKey(name: "message") String get message;@JsonKey(name: "data") Map<String, dynamic> get data;
+ bool get success; String get message; Map<String, dynamic> get data;
 /// Create a copy of AppResponse
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $AppResponseCopyWith<$Res>  {
   factory $AppResponseCopyWith(AppResponse value, $Res Function(AppResponse) _then) = _$AppResponseCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: "success") bool success,@JsonKey(name: "message") String message,@JsonKey(name: "data") Map<String, dynamic> data
+ bool success, String message, Map<String, dynamic> data
 });
 
 
@@ -155,7 +155,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: "success")  bool success, @JsonKey(name: "message")  String message, @JsonKey(name: "data")  Map<String, dynamic> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool success,  String message,  Map<String, dynamic> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppResponse() when $default != null:
 return $default(_that.success,_that.message,_that.data);case _:
@@ -176,7 +176,7 @@ return $default(_that.success,_that.message,_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: "success")  bool success, @JsonKey(name: "message")  String message, @JsonKey(name: "data")  Map<String, dynamic> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool success,  String message,  Map<String, dynamic> data)  $default,) {final _that = this;
 switch (_that) {
 case _AppResponse():
 return $default(_that.success,_that.message,_that.data);case _:
@@ -196,7 +196,7 @@ return $default(_that.success,_that.message,_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: "success")  bool success, @JsonKey(name: "message")  String message, @JsonKey(name: "data")  Map<String, dynamic> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool success,  String message,  Map<String, dynamic> data)?  $default,) {final _that = this;
 switch (_that) {
 case _AppResponse() when $default != null:
 return $default(_that.success,_that.message,_that.data);case _:
@@ -211,13 +211,13 @@ return $default(_that.success,_that.message,_that.data);case _:
 @JsonSerializable()
 
 class _AppResponse implements AppResponse {
-  const _AppResponse({@JsonKey(name: "success") required this.success, @JsonKey(name: "message") required this.message, @JsonKey(name: "data") required final  Map<String, dynamic> data}): _data = data;
+  const _AppResponse({required this.success, required this.message, required final  Map<String, dynamic> data}): _data = data;
   factory _AppResponse.fromJson(Map<String, dynamic> json) => _$AppResponseFromJson(json);
 
-@override@JsonKey(name: "success") final  bool success;
-@override@JsonKey(name: "message") final  String message;
+@override final  bool success;
+@override final  String message;
  final  Map<String, dynamic> _data;
-@override@JsonKey(name: "data") Map<String, dynamic> get data {
+@override Map<String, dynamic> get data {
   if (_data is EqualUnmodifiableMapView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableMapView(_data);
@@ -257,7 +257,7 @@ abstract mixin class _$AppResponseCopyWith<$Res> implements $AppResponseCopyWith
   factory _$AppResponseCopyWith(_AppResponse value, $Res Function(_AppResponse) _then) = __$AppResponseCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: "success") bool success,@JsonKey(name: "message") String message,@JsonKey(name: "data") Map<String, dynamic> data
+ bool success, String message, Map<String, dynamic> data
 });
 
 

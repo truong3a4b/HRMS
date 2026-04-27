@@ -135,6 +135,9 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                   TaskItemData(
                     icon: 'assets/images/room_setting.png',
                     label: 'Danh sách phòng ban',
+                    onTap: (){
+                      context.push('/department-list');
+                    }
                   ),
                   TaskItemData(
                     icon: 'assets/images/department.png',

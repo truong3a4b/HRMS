@@ -6,6 +6,7 @@ class NormalTextField extends StatefulWidget {
   final TextInputType? keyboardType;
   final bool enabled;
   final Widget? suffixIcon;
+  final int? maxLines;
 
   const NormalTextField({
     super.key,
@@ -14,6 +15,7 @@ class NormalTextField extends StatefulWidget {
     this.keyboardType,
     this.enabled = true,
     this.suffixIcon,
+    this.maxLines = 1,
   });
 
   @override
@@ -51,6 +53,7 @@ class _NormalTextFieldState extends State<NormalTextField> {
         keyboardType: widget.keyboardType,
         enabled: widget.enabled,
         style: const TextStyle(fontSize: 15, color: Color(0xFF333333)),
+        maxLines: widget.maxLines,
         decoration: InputDecoration(
           labelText: widget.hintText,
 

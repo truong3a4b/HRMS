@@ -10,7 +10,9 @@ import 'package:hrms/feature/employee/presentation/widgets/select_field.dart';
 
 import '../../../../core/service/address/Province.dart';
 import '../../../../core/service/address/Ward.dart';
+import '../../../../core/service/address/provine_summary.dart';
 import '../../../../core/service/bank/bank.dart';
+import '../../../../core/widget/custom_dialog.dart';
 import '../../../department/domain/entities/department.dart';
 import '../../../position/domain/position.dart';
 import '../../domain/entities/add_employee_request.dart';
@@ -42,6 +44,34 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
   Bank? selectedBank;
 
   @override
+  void initState() {
+    super.initState();
+    ref.listenManual<AsyncValue<AddEmployeeState>>(addEmployeeProvider, (previous, next) {
+      final previousError = previous?.value?.errorMessage;
+      final currentError = next.value?.errorMessage;
+
+      if (currentError != null && currentError != previousError) {
+        showErrorDialog(currentError);
+      }
+    });
+  }
+
+  void showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return CustomDialog(
+          message: message,
+          type: "error",
+          onClose: () {
+            ref.read(addEmployeeProvider.notifier).closeDialog();
+          },
+        );
+      },
+    );
+  }
+
+  @override
   void dispose() {
     emailController.dispose();
     nameController.dispose();
@@ -58,9 +88,17 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
     final phone = phoneController.text.trim();
     final salaryText = salaryController.text.trim();
 
+    if(email.isEmpty){
+      AppSnackbar.showError(context, 'Vui lòng nhập email');
+      return false;
+    }
 
-    if (email.isEmpty || name.isEmpty || phone.isEmpty || salaryText.isEmpty) {
-      AppSnackbar.showError(context, 'Vui lòng điền đầy đủ thông tin');
+    if(name.isEmpty){
+      AppSnackbar.showError(context, 'Vui lòng nhập họ và tên');
+      return false;
+    }
+    if(phone.isEmpty){
+      AppSnackbar.showError(context, 'Vui lòng nhập số điện thoại');
       return false;
     }
 
@@ -69,9 +107,16 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
       AppSnackbar.showError(context, 'Mức lương không hợp lệ');
       return false;
     }
-
-    if (selectedPosition == null || selectedDepartment == null ) {
-      AppSnackbar.showError(context, 'Vui lòng chọn chức danh và phòng ban');
+    if (selectedPosition == null ) {
+      AppSnackbar.showError(context, 'Vui lòng chọn chức');
+      return false;
+    }
+    if(selectedDepartment == null){
+      AppSnackbar.showError(context, 'Vui lòng chọn phòng ban');
+      return false;
+    }
+    if(selectedStartDate == null){
+      AppSnackbar.showError(context, 'Vui lòng chọn ngày bắt đầu làm việc');
       return false;
     }
 
@@ -79,28 +124,38 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
   }
 
   void _submit() async {
-    if(!_validate()) return;
+    if (!_validate()) return;
     final request = AddEmployeeRequest(
-
       email: emailController.text.trim(),
       name: nameController.text.trim(),
       phone: phoneController.text.trim(),
       dateOfBirth: selectedDate,
-      position: selectedPosition?.id,
-      department: selectedDepartment?.id,
+      positionId: selectedPosition?.id,
+      departmentId: selectedDepartment?.id,
       hireDate: selectedStartDate,
       salary: double.tryParse(salaryController.text.trim()),
       address: addressController.text.trim(),
-      provinceId: selectedProvince?.maTinhBNV,
-      wardId: selectedWard?.code,
+      province: selectedProvince != null
+          ? ProvinceSummary(
+              maTinhBNV: selectedProvince!.maTinhBNV,
+              name: selectedProvince!.name,
+            )
+          : null,
+      ward: selectedWard != null
+          ? Ward(code: selectedWard!.code, name: selectedWard!.name)
+          : null,
       bankAccount: bankAccountController.text.trim(),
-      bankName: selectedBank?.id,
+      bank: selectedBank != null
+          ? Bank(id: selectedBank!.id, name: selectedBank!.name)
+          : null,
       gender: selectedGender?.id,
     );
 
-    final success =  await ref.read(addEmployeeProvider.notifier).addEmployee(request);
+    final success = await ref
+        .read(addEmployeeProvider.notifier)
+        .addEmployee(request);
     if (!mounted) return;
-    if(success) {
+    if (success) {
       AppSnackbar.showSuccess(context, 'Thêm nhân viên thành công');
       context.pop(success);
     } else {
@@ -112,7 +167,6 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
   Widget build(BuildContext context) {
     final addEmployeeAsync = ref.watch(addEmployeeProvider);
     final isLoading = addEmployeeAsync.isLoading;
-
 
     return Scaffold(
       appBar: AppBar(
@@ -239,10 +293,7 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
 
                   const Text(
                     "THÔNG TIN CÔNG VIỆC",
-                    style:  TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 20),
 
@@ -294,10 +345,7 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
 
                   const Text(
                     "ĐỊA CHỈ",
-                    style:  TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 20),
 
@@ -339,10 +387,7 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
                   const SizedBox(height: 28),
                   const Text(
                     "THÔNG TIN NGÂN HÀNG",
-                    style:  TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 20),
 

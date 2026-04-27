@@ -14,7 +14,21 @@ const router = Router();
 const createDepartmentSchema = z.object({
   name: z.string().min(2),
   description: z.string().optional(),
+  managerId: z.string().uuid().nullable().optional(),
 });
+
+const updateDepartmentManagerSchema = z.object({
+  managerId: z.string().uuid().nullable(),
+});
+
+const updateDepartmentBasicSchema = z
+  .object({
+    name: z.string().min(2).optional(),
+    description: z.string().nullable().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "At least one field is required",
+  });
 
 router.get(
   "/",
@@ -22,11 +36,34 @@ router.get(
   permissionMiddleware(PERMISSIONS.DEPARTMENT_VIEW_LIST),
   departmentController.getAll,
 );
+router.get(
+  "/:id",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.DEPARTMENT_VIEW_LIST),
+  departmentController.getById,
+);
 router.post(
   "/",
   authMiddleware(UserRole.ADMIN),
   validate(createDepartmentSchema),
   departmentController.create,
+);
+router.patch(
+  "/:id/manager",
+  authMiddleware(UserRole.ADMIN),
+  validate(updateDepartmentManagerSchema),
+  departmentController.updateManager,
+);
+router.patch(
+  "/:id/basic",
+  authMiddleware(UserRole.ADMIN),
+  validate(updateDepartmentBasicSchema),
+  departmentController.updateBasic,
+);
+router.delete(
+  "/:id",
+  authMiddleware(UserRole.ADMIN),
+  departmentController.remove,
 );
 
 export default router;

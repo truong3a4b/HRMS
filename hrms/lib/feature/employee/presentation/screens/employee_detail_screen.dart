@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hrms/core/utils/time_convert.dart';
+import 'package:hrms/feature/account/presentation/providers/permission_provider.dart';
+import 'package:hrms/feature/auth/presentation/providers/auth_provider.dart';
 
 import '../../../../core/utils/currency_convert.dart';
+import '../../../auth/domain/entities/user.dart';
+import '../../../position/domain/position.dart';
 import '../../domain/entities/employee.dart';
 import '../providers/employee_detail_provider.dart';
 
@@ -13,18 +17,22 @@ class EmployeeDetailScreen extends ConsumerStatefulWidget {
   const EmployeeDetailScreen({super.key, required this.employeeId});
 
   @override
-  ConsumerState<EmployeeDetailScreen> createState() => _EmployeeDetailScreenState();
+  ConsumerState<EmployeeDetailScreen> createState() =>
+      _EmployeeDetailScreenState();
 }
 
 class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
-
-
   @override
   Widget build(BuildContext context) {
     const bgColor = Color(0xFFF8FAFC);
 
     final employeeAsync = ref.watch(employeeDetailProvider(widget.employeeId));
-    
+    final permission = ref.watch(permissionProvider).value!;
+    final user = ref.watch(authNotifierProvider).value!.user;
+
+    final canEditBasicInfo = user?.role == UserRole.admin || permission.contains(Permission.employeeUpdateBasic);
+    final canEditAdditionalInfo = user?.role == UserRole.admin || permission.contains(Permission.employeeUpdateAdditional);
+    final canEditWorkInfo = user?.role == UserRole.admin || permission.contains(Permission.employeeUpdateJob);
 
     return DefaultTabController(
       length: 2,
@@ -43,19 +51,23 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
 
           actions: [
             IconButton(
-              onPressed: ()  {
+              onPressed: () {
                 //todo
               },
               icon: const Icon(Icons.more_vert, color: Colors.black),
             ),
           ],
         ),
-        body: employeeAsync.when(data: (employee) => _buildContent(context, employee), error: error, loading: loading),
+        body: employeeAsync.when(
+          data: (employee) => _buildContent(context, employee, canEditBasicInfo: canEditBasicInfo, canEditAdditionalInfo: canEditAdditionalInfo, canEditWorkInfo: canEditWorkInfo),
+          error: error,
+          loading: loading,
+        ),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, Employee employee) {
+  Widget _buildContent(BuildContext context, Employee employee, {canEditBasicInfo = false, canEditAdditionalInfo = false, canEditWorkInfo = false}) {
     const primaryColor = Color(0xFF0E6BA8);
     const textColor = Color(0xFF2F2F2F);
 
@@ -66,9 +78,7 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF3F8FB),
-            ),
+            decoration: const BoxDecoration(color: Color(0xFFF3F8FB)),
             child: Column(
               children: [
                 Row(
@@ -106,6 +116,8 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
                               color: Color(0xFF55606D),
                               fontWeight: FontWeight.w500,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -137,8 +149,8 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
           Expanded(
             child: TabBarView(
               children: [
-                _PersonalTab(employee: employee,),
-                _WorkTab(employee: employee,),
+                _PersonalTab(employee: employee, canEditBasicInfo: canEditBasicInfo, canEditAdditionalInfo: canEditAdditionalInfo),
+                _WorkTab(employee: employee, canEditWorkInfo: canEditWorkInfo),
               ],
             ),
           ),
@@ -152,7 +164,7 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
     print("Error loading employee list: $errorMessage");
     return Center(
       child: Text(
-        '$errorMessage',
+        errorMessage,
         style: const TextStyle(color: Colors.red, fontSize: 14),
         textAlign: TextAlign.center,
       ),
@@ -166,17 +178,23 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
 
 class _PersonalTab extends ConsumerWidget {
   final Employee employee;
-  _PersonalTab( {super.key, required this.employee});
+  final canEditBasicInfo;
+  final canEditAdditionalInfo;
 
+  _PersonalTab({required this.employee, this.canEditBasicInfo = false, this.canEditAdditionalInfo = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final String fullAddress;
-      if(employee.address != null || employee.ward != null || employee.province != null){
-        fullAddress = '${employee.address ?? ''}, ${employee.ward?.name ?? ''}, ${employee.province?.name ?? ''}';
-      } else {
-        fullAddress = '-';
-      }
+
+    final parts = [
+      employee.address,
+      employee.ward?.name,
+      employee.province?.name,
+    ];
+
+    final fullAddress = parts
+        .where((e) => e != null && e.trim().isNotEmpty)
+        .join(', ');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -186,30 +204,35 @@ class _PersonalTab extends ConsumerWidget {
             title: 'Thông tin cơ bản',
             items: [
               _InfoItem(label: 'Họ tên', value: employee.name),
-              _InfoItem(
-                label: 'Email',
-                value: employee.email,
-              ),
+              _InfoItem(label: 'Email', value: employee.email),
               _InfoItem(label: 'Số điện thoại', value: employee.phone ?? '-'),
-              _InfoItem(label: 'Ngày sinh', value: TimeConvert.convertDateTimeToString(employee.dateOfBirth)),
-              _InfoItem(label: 'Giới tính', value: employee.gender?.displayName ?? '-'),
               _InfoItem(
-                label: 'Địa chỉ',
-                value: fullAddress,
+                label: 'Ngày sinh',
+                value: TimeConvert.convertDateTimeToString(
+                  employee.dateOfBirth,
+                ),
               ),
+              _InfoItem(
+                label: 'Giới tính',
+                value: employee.gender?.displayName ?? '-',
+              ),
+              _InfoItem(label: 'Địa chỉ', value: fullAddress),
               _InfoItem(
                 label: 'Tài khoản ngân hàng',
-                value: '${employee.bank?.name ?? ''} - ${employee.bankAccount ?? ''}',
+                value:
+                    '${employee.bank?.name ?? ''} - ${employee.bankAccount ?? ''}',
               ),
             ],
+            canEdit: canEditBasicInfo,
             onEdit: () async {
-              final success = await context.push<bool>('/edit-employee-basic-info/${employee.id}');
+              final success = await context.push<bool>(
+                '/edit-employee-basic-info/${employee.id}',
+              );
               print('Edit result: $success');
-              if(success == true){
-                print('refresh');
+              if (success == true) {
                 ref.invalidate(employeeDetailProvider(employee.id));
               }
-            }
+            },
           ),
           const SizedBox(height: 16),
           _InfoSectionCard(
@@ -217,8 +240,12 @@ class _PersonalTab extends ConsumerWidget {
             items: [
               _InfoItem(label: 'Dân tộc', value: employee.nationality ?? '-'),
               _InfoItem(label: 'Tôn giáo', value: employee.religion ?? '-'),
-              _InfoItem(label: 'Tình trạng hôn nhân', value: employee.maritalStatus ?? '-'),
+              _InfoItem(
+                label: 'Tình trạng hôn nhân',
+                value: employee.maritalStatus ?? '-',
+              ),
             ],
+            canEdit: canEditAdditionalInfo,
           ),
         ],
       ),
@@ -226,12 +253,15 @@ class _PersonalTab extends ConsumerWidget {
   }
 }
 
-class _WorkTab extends StatelessWidget {
+class _WorkTab extends ConsumerWidget {
   final Employee employee;
-  _WorkTab({super.key, required this.employee});
+  final canEditWorkInfo;
+
+
+  _WorkTab({required this.employee, this.canEditWorkInfo = false});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
@@ -240,12 +270,33 @@ class _WorkTab extends StatelessWidget {
             title: 'Thông tin công việc',
             items: [
               _InfoItem(label: 'Mã nhân viên', value: employee.employeeId),
-               _InfoItem(label: 'Phòng ban', value: employee.department?.name ?? '-'),
-               _InfoItem(label: 'Chức vụ', value: employee.position?.name ?? '-'),
-               _InfoItem(label: 'Ngày vào làm', value: TimeConvert.convertDateTimeToString(employee.hireDate)),
-               _InfoItem(label: 'Mức lương', value: CurrencyConvert.convertToCurrency(employee.salary)),
+              _InfoItem(
+                label: 'Phòng ban',
+                value: employee.department?.name ?? '-',
+              ),
+              _InfoItem(
+                label: 'Chức vụ',
+                value: employee.position?.name ?? '-',
+              ),
+              _InfoItem(
+                label: 'Ngày vào làm',
+                value: TimeConvert.convertDateTimeToString(employee.hireDate),
+              ),
+              _InfoItem(
+                label: 'Mức lương',
+                value: CurrencyConvert.convertToCurrency(employee.salary),
+              ),
             ],
-
+            canEdit: canEditWorkInfo,
+            onEdit: () async {
+              final success = await context.push<bool>(
+                '/edit-employee-job/${employee.id}',
+              );
+              print('Edit job result: $success');
+              if (success == true) {
+                ref.invalidate(employeeDetailProvider(employee.id));
+              }
+            },
           ),
         ],
       ),
@@ -256,11 +307,13 @@ class _WorkTab extends StatelessWidget {
 class _InfoSectionCard extends StatelessWidget {
   final String title;
   final List<_InfoItem> items;
+  final bool canEdit;
   final void Function()? onEdit;
 
   const _InfoSectionCard({
     required this.title,
     required this.items,
+    this.canEdit = false,
     this.onEdit,
   });
 
@@ -293,7 +346,6 @@ class _InfoSectionCard extends StatelessWidget {
                   ),
                 ),
               ),
-              //todo: edit action
               Container(
                 width: 44,
                 height: 44,
@@ -301,14 +353,14 @@ class _InfoSectionCard extends StatelessWidget {
                   color: editBg,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: IconButton(
+                child: canEdit ? IconButton(
                   onPressed: onEdit,
                   icon: const Icon(
                     Icons.edit_outlined,
                     color: primaryColor,
                     size: 22,
                   ),
-                ),
+                ) : const SizedBox(),
               ),
             ],
           ),
@@ -399,4 +451,3 @@ class _InfoItem {
     this.trailingIcon,
   });
 }
-

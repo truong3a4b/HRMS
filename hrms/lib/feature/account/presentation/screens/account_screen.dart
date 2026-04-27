@@ -12,14 +12,23 @@ class AccountScreen extends ConsumerStatefulWidget {
 }
 
 class _AccountScreenState extends ConsumerState<AccountScreen> {
+
   void _handleLogout() {
-    showAppConfirmDialog(
+    final isLoading = ref.watch(authNotifierProvider).isLoading;
+    showDialog(
       context: context,
-      ref: ref,
-      title: 'Thông báo',
-      message: 'Bạn có chắc chắn muốn đăng xuất không?',
-      onConfirm: () {
-        ref.read(authNotifierProvider.notifier).logout();
+      barrierDismissible: false,
+      builder: (context) {
+
+        return AppConfirmDialog(
+          title: 'Thông báo',
+          message: 'Bạn có chắc chắn muốn đăng xuất không?',
+          isLoading: isLoading,
+          onCancel: () => Navigator.pop(context),
+          onConfirm: () {
+            ref.read(authNotifierProvider.notifier).logout();
+          },
+        );
       },
     );
   }

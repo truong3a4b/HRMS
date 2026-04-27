@@ -30,7 +30,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void initState(){
     super.initState();
-    final enteredField = ref.read(authNotifierProvider.notifier).state.value?.enteredField;
+    final state = ref.read(authNotifierProvider);
+    final enteredField = state.value?.enteredField;
 
     _emailController = TextEditingController(text: enteredField?.email);
     _passwordController = TextEditingController(text: enteredField?.password);
@@ -136,7 +137,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF0E67B2);
     const lightBackground = Color(0xFFF4F4F4);
     const dividerGray = Color(0xFFD9D9D9);
 

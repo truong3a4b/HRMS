@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hrms/feature/position/data/datasources/position_remote.dart';
+import 'package:hrms/feature/position/data/mapper/posittion_mapper.dart';
 import 'package:hrms/feature/position/domain/position.dart';
 
 class PositionRepository {
@@ -8,13 +9,8 @@ class PositionRepository {
   PositionRepository(this.remote);
 
   Future<List<Position>> getPositions() async {
-    await Future.delayed(const Duration(seconds: 2));
-    final List<Position> positions = [
-      Position(id: '1', name: 'Nhân viên'),
-      Position(id: '2', name: 'Trưởng phòng'),
-      Position(id: '3', name: 'Giám đốc'),
-    ];
-    return positions;
+    final dtos = await remote.getPositions();
+    return dtos.map((dto) => dto.toEntity()).toList();
   }
 }
 

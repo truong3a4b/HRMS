@@ -1,5 +1,11 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../auth/domain/entities/user.dart';
+import '../../../position/domain/position.dart';
+import '../providers/home_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -11,9 +17,33 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
+    final asyncValue = ref.watch(homeProvider);
     return Scaffold(
       backgroundColor: Color(0xFFFAFAFA),
-      body: Stack(
+      body: asyncValue.when(
+        data: _buildContent,
+        error: error,
+        loading: loading,
+      ),
+    );
+  }
+
+  Widget _buildContent(HomeState state) {
+    final showCheckInCard = state.role == UserRole.employee;
+    final showPendingCard =
+        state.role == UserRole.admin ||
+        state.permission?.containsAll({
+              Permission.canApproveLeave,
+              Permission.canApproveOvertime,
+            }) ==
+            true;
+    final showFeatureSection = state.role == UserRole.employee;
+    final showTodayTaskSection = state.role == UserRole.employee;
+    final showTodaySummary = state.role == UserRole.admin;
+    final isDay = DateTime.now().hour >= 6 && DateTime.now().hour < 18;
+    return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      child: Stack(
         children: [
           SizedBox(
             height: 300,
@@ -22,13 +52,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               fit: StackFit.expand,
               children: [
                 Image.asset(
-                  'assets/images/home_background_night.jpg',
+                  isDay ? 'assets/images/home_background_day.jpg' :'assets/images/home_background_night.jpg',
                   fit: BoxFit.cover,
                 ),
-
-                // Gradient làm mờ dần phía dưới ảnh
                 Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -37,28 +65,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         Color(0xB3FBFBFB),
                         Colors.white,
                       ],
-                      stops: const [0.6, 0.85, 1],
+                      stops: [0.6, 0.85, 1],
                     ),
                   ),
                 ),
               ],
             ),
           ),
+
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const GreetingSection(),
+                  GreetingSection(
+                    name: state.me?.name ?? '',
+                    position: state.me?.position?.name,
+                    role: state.role ?? UserRole.employee,
+                  ),
                   const SizedBox(height: 20),
-                  const CheckInCard(),
-                  const SizedBox(height: 16),
-                  HomeFeatureSection(),
-                  const SizedBox(height: 24),
-                  const HomeQuestionSection(),
 
+                  if (showCheckInCard) ...[
+                    const CheckInCard(),
+                    const SizedBox(height: 16),
+                  ],
+
+                  if (showFeatureSection) ...[
+                    HomeFeatureSection(),
+                    const SizedBox(height: 24),
+                  ],
+
+                  if (showPendingCard) ...[
+                    const PendingCard(),
+                    const SizedBox(height: 24),
+                  ],
+
+                  if (showTodayTaskSection) ...[
+                    const HomeQuestionSection(),
+                    const SizedBox(height: 24),
+                  ],
+
+                  if (showTodaySummary) ...[
+                    TodaySummary(),
+                    const SizedBox(height: 24),
+                  ],
                 ],
               ),
             ),
@@ -67,14 +118,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
+
+  Widget error(Object error, StackTrace stackTrace) {
+    final errorMessage = error.toString();
+    print("Error home: $errorMessage");
+    debugPrintStack(stackTrace: stackTrace);
+    return Center(
+      child: Text(
+        errorMessage,
+        style: const TextStyle(color: Colors.red, fontSize: 14),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget loading() {
+    return const Center(child: CircularProgressIndicator());
+  }
 }
 
 class GreetingSection extends StatelessWidget {
-  const GreetingSection({super.key});
+  final String name;
+  final String avatarUrl;
+  final String? position;
+  final UserRole role;
+  final bool isDay;
+  const GreetingSection({super.key, required this.name, this.position, required this.role, this.avatarUrl = 'assets/images/profile.png', this.isDay = true});
 
   @override
   Widget build(BuildContext context) {
-    final isDay = DateTime.now().hour >= 6 && DateTime.now().hour < 18;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -105,7 +178,7 @@ class GreetingSection extends StatelessWidget {
               ),
               child: ClipOval(
                 child: Image.asset(
-                  'assets/images/profile.png',
+                  avatarUrl,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -114,8 +187,8 @@ class GreetingSection extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Nguyễn Xuân Trưởng',
+                 Text(
+                  name,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -139,9 +212,9 @@ class GreetingSection extends StatelessWidget {
                     color: Color(0xA8D5D5D6),
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: const Text(
-                    'Nhân viên kỹ thuật',
-                    style: TextStyle(
+                  child: Text(
+                    position ?? role.toDisplayString,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -281,7 +354,9 @@ class HomeFeatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: (MediaQuery.of(context).size.width - 18 * 3) / 2, //  chia 2 card / hàng
+      width:
+          (MediaQuery.of(context).size.width - 18 * 3) /
+          2, //  chia 2 card / hàng
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -430,6 +505,213 @@ class HomeQuestionSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class PendingCard extends StatelessWidget {
+  const PendingCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Color(0x6BE5ECF4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Color(0x91EDECEC)),
+          ),
+          child: InkWell(
+            onTap: () {
+              //todo: xử lý khi bấm vào yêu cầu chờ duyệt
+              print("Yêu cầu chờ duyệt clicked");
+            },
+            child: Container(
+              width: double.infinity,
+              height: 60,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: Color(0xFFFFFFFF),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Image.asset(
+                        'assets/images/validation.png',
+                        width: 34,
+                        height: 34,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Không có yêu cầu chờ duyệt',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TodaySummary extends StatelessWidget {
+  const TodaySummary({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const gap = 12.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Hôm nay',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            TextButton(
+              onPressed: () {
+                print("Xem thêm công việc hôm nay clicked");
+              },
+              child: const Text(
+                'Xem thêm',
+                style: TextStyle(fontSize: 14, color: Colors.blue),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: gap,
+          crossAxisSpacing: gap,
+          childAspectRatio: 2.25,
+          children: const [
+            _StatCard(
+              value: '3',
+              label: 'Đi muộn',
+              color: Color(0xFFFFF4E5),
+              icon: Icons.timelapse
+            ),
+            _StatCard(
+              value: '1',
+              label: 'Về sớm',
+              color: Color(0xFFE5F9F4),
+              icon: Icons.run_circle,
+            ),
+            _StatCard(
+              value: '1',
+              label: 'Quên check-in',
+              color: Color(0xFFE9EDCE),
+              icon: Icons.input,
+            ),
+            _StatCard(
+              value: '1',
+              label: 'Quên check-out',
+              color: Color(0xFFF8F0E1),
+              icon: Icons.output,
+            ),
+            _StatCard(
+              value: '1',
+              label: 'Nghỉ phép',
+              color: Color(0xFFECE1FB),
+              icon: Icons.beach_access,
+            ),
+            _StatCard(
+              value: '1',
+              label: 'Nghỉ không phép',
+              color: Color(0xFFF8CFCF),
+              icon: Icons.do_not_disturb_on_outlined,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+class _StatCard extends StatelessWidget {
+  final String value;
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  const _StatCard({
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Icon(
+              icon,
+              size: 36,
+              color: Color(0x2C888888)
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

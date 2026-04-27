@@ -10,14 +10,10 @@ class ProfileRemote {
 
   Future<UserDto> fetchProfile() async {
     try {
-      final response = await dio.get('/auth/me');
+      final response = await dio.get('/employees/me');
 
-      if (response.statusCode == 200) {
-        return UserDto.fromJson(response.data['data']['user']);
-      } else {
-        throw AppException(response.data['message']);
-      }
-    } catch (e) {
+      return UserDto.fromJson(response.data['data']);
+    } on DioException catch (e) {
       print('Profile Remote getCurrentUser error: $e');
       throw AppException('Phiên đăng nhập hết hạn');
     }

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hrms/core/service/address/address_repo.dart';
-import 'package:hrms/feature/position/domain/position.dart';
+import 'package:hrms/feature/position/domain/entities/position.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/service/address/Province.dart';

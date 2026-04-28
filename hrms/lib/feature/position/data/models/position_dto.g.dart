@@ -9,7 +9,7 @@ part of 'position_dto.dart';
 _PositionDto _$PositionDtoFromJson(Map<String, dynamic> json) => _PositionDto(
   id: json['id'] as String,
   name: json['name'] as String,
-  code: json['code'] as String,
+  code: json['code'] as String?,
   description: json['description'] as String?,
   createdAt: json['createdAt'] == null
       ? null

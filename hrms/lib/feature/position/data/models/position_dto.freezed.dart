@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PositionDto {
 
- String get id; String get name; String get code; String? get description; DateTime? get createdAt; DateTime? get updatedAt;
+ String get id; String get name; String? get code; String? get description; DateTime? get createdAt; DateTime? get updatedAt;
 /// Create a copy of PositionDto
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $PositionDtoCopyWith<$Res>  {
   factory $PositionDtoCopyWith(PositionDto value, $Res Function(PositionDto) _then) = _$PositionDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String code, String? description, DateTime? createdAt, DateTime? updatedAt
+ String id, String name, String? code, String? description, DateTime? createdAt, DateTime? updatedAt
 });
 
 
@@ -65,12 +65,12 @@ class _$PositionDtoCopyWithImpl<$Res>
 
 /// Create a copy of PositionDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? code = null,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
-as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,code: freezed == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
+as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
@@ -158,7 +158,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PositionDto() when $default != null:
 return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
@@ -179,7 +179,7 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _PositionDto():
 return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
@@ -199,7 +199,7 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _PositionDto() when $default != null:
 return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
@@ -214,12 +214,12 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 @JsonSerializable()
 
 class _PositionDto implements PositionDto {
-  const _PositionDto({required this.id, required this.name, required this.code, this.description, this.createdAt, this.updatedAt});
+  const _PositionDto({required this.id, required this.name, this.code, this.description, this.createdAt, this.updatedAt});
   factory _PositionDto.fromJson(Map<String, dynamic> json) => _$PositionDtoFromJson(json);
 
 @override final  String id;
 @override final  String name;
-@override final  String code;
+@override final  String? code;
 @override final  String? description;
 @override final  DateTime? createdAt;
 @override final  DateTime? updatedAt;
@@ -257,7 +257,7 @@ abstract mixin class _$PositionDtoCopyWith<$Res> implements $PositionDtoCopyWith
   factory _$PositionDtoCopyWith(_PositionDto value, $Res Function(_PositionDto) _then) = __$PositionDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String code, String? description, DateTime? createdAt, DateTime? updatedAt
+ String id, String name, String? code, String? description, DateTime? createdAt, DateTime? updatedAt
 });
 
 
@@ -274,12 +274,12 @@ class __$PositionDtoCopyWithImpl<$Res>
 
 /// Create a copy of PositionDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? code = null,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
   return _then(_PositionDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
-as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,code: freezed == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
+as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,

@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hrms/core/service/address/provine_summary.dart';
 import 'package:hrms/core/widget/app_snackbar.dart';
 import 'package:hrms/feature/employee/domain/entities/job_request.dart';
-import 'package:hrms/feature/position/domain/position.dart';
+import 'package:hrms/feature/position/domain/entities/position.dart';
 
 import '../../../../core/service/address/Province.dart';
 import '../../../../core/service/address/Ward.dart';

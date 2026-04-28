@@ -16,7 +16,7 @@ import '../../../../core/service/bank/bank_provider.dart';
 
 import '../../../department/domain/entities/department.dart';
 
-import '../../../position/domain/position.dart';
+import '../../../position/domain/entities/position.dart';
 import '../../data/repo/employee_repository.dart';
 import '../../domain/entities/job_request.dart';
 

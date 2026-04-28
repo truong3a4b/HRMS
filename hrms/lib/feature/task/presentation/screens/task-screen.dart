@@ -172,6 +172,9 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                   TaskItemData(
                     icon: 'assets/images/postion_setting.png',
                     label: 'Chức danh',
+                    onTap: (){
+                      context.push('/position-list');
+                    }
                   ),
                   TaskItemData(
                     icon: 'assets/images/people_time.png',

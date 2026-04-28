@@ -168,21 +168,13 @@ router.get(
 );
 router.patch(
   "/me/basic",
-  authMiddleware(UserRole.EMPLOYEE),
-  permissionMiddleware(
-    PERMISSIONS.EMPLOYEE_UPDATE_BASIC,
-    PERMISSIONS.EMPLOYEE_UPDATE_SELF_BASIC,
-  ),
+  authMiddleware(),
   validate(updateBasicSchema),
   employeeController.updateMyBasic,
 );
 router.patch(
   "/me/additional",
-  authMiddleware(UserRole.EMPLOYEE),
-  permissionMiddleware(
-    PERMISSIONS.EMPLOYEE_UPDATE_ADDITIONAL,
-    PERMISSIONS.EMPLOYEE_UPDATE_SELF_ADDITIONAL,
-  ),
+  authMiddleware(),
   validate(updateAdditionalSchema),
   employeeController.updateMyAdditional,
 );

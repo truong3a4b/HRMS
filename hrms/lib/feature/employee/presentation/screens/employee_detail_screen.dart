@@ -7,7 +7,7 @@ import 'package:hrms/feature/auth/presentation/providers/auth_provider.dart';
 
 import '../../../../core/utils/currency_convert.dart';
 import '../../../auth/domain/entities/user.dart';
-import '../../../position/domain/position.dart';
+import '../../../position/domain/entities/position.dart';
 import '../../domain/entities/employee.dart';
 import '../providers/employee_detail_provider.dart';
 

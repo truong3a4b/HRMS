@@ -6,7 +6,7 @@ import 'package:hrms/feature/employee/domain/entities/employee.dart';
 
 import '../../../account/presentation/providers/permission_provider.dart';
 import '../../../auth/domain/entities/user.dart';
-import '../../../position/domain/position.dart';
+import '../../../position/domain/entities/position.dart';
 
 final homeProvider = AsyncNotifierProvider<HomeNotifier, HomeState>(
   () => HomeNotifier(),

@@ -5,7 +5,7 @@ import 'package:hrms/feature/department/domain/entities/department.dart';
 
 import '../../../../core/service/address/Ward.dart';
 import '../../../../core/service/address/provine_summary.dart';
-import '../../../position/domain/position.dart';
+import '../../../position/domain/entities/position.dart';
 
 class Employee {
   final String id;

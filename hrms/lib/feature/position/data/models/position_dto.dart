@@ -8,7 +8,7 @@ abstract class PositionDto with _$PositionDto {
   const factory PositionDto({
     required String id,
     required String name,
-    required String code,
+    String? code,
     String? description,
     DateTime? createdAt,
     DateTime? updatedAt,

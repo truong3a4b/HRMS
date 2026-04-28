@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../position/domain/position.dart';
+import '../../../position/domain/entities/position.dart';
 import '../../data/repo/account_repo.dart';
 
 final permissionProvider = FutureProvider<Set<Permission>>((ref) async {

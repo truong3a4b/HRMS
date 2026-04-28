@@ -18,6 +18,13 @@ const createPositionSchema = z.object({
   permissionKeys: z.array(z.nativeEnum(PERMISSIONS)).min(1),
 });
 
+const updatePositionSchema = z.object({
+  name: z.string().min(2).optional(),
+  code: z.string().min(2).optional(),
+  description: z.string().optional(),
+  permissionKeys: z.array(z.nativeEnum(PERMISSIONS)).optional(),
+});
+
 router.get(
   "/",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
@@ -28,6 +35,25 @@ router.get(
   "/permissions",
   authMiddleware(UserRole.ADMIN),
   positionController.getPermissionCatalog,
+);
+router.get(
+  "/:id",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.POSITION_VIEW_LIST),
+  positionController.getById,
+);
+router.put(
+  "/:id",
+  authMiddleware(UserRole.ADMIN),
+  permissionMiddleware(PERMISSIONS.POSITION_CREATE),
+  validate(updatePositionSchema),
+  positionController.update,
+);
+router.delete(
+  "/:id",
+  authMiddleware(UserRole.ADMIN),
+  permissionMiddleware(PERMISSIONS.POSITION_DELETE),
+  positionController.delete,
 );
 router.post(
   "/",

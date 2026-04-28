@@ -144,13 +144,21 @@ export const employeeController = {
 
   async updateMyBasic(req: Request, res: Response, next: NextFunction) {
     try {
-      const employeeId = req.user?.employeeId;
+      const userId = req.user?.id;
 
-      if (!employeeId) {
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized");
+      }
+
+      const me = req.user?.employeeId
+        ? await employeeService.getById(req.user.employeeId)
+        : await employeeService.getByUserId(userId);
+
+      if (!me) {
         throw new ApiError(403, "Employee account not found");
       }
 
-      const result = await employeeService.updateBasic(employeeId, req.body);
+      const result = await employeeService.updateBasic(me.id, req.body);
       return sendResponse(
         res,
         200,
@@ -181,16 +189,21 @@ export const employeeController = {
 
   async updateMyAdditional(req: Request, res: Response, next: NextFunction) {
     try {
-      const employeeId = req.user?.employeeId;
+      const userId = req.user?.id;
 
-      if (!employeeId) {
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized");
+      }
+
+      const me = req.user?.employeeId
+        ? await employeeService.getById(req.user.employeeId)
+        : await employeeService.getByUserId(userId);
+
+      if (!me) {
         throw new ApiError(403, "Employee account not found");
       }
 
-      const result = await employeeService.updateAdditional(
-        employeeId,
-        req.body,
-      );
+      const result = await employeeService.updateAdditional(me.id, req.body);
       return sendResponse(
         res,
         200,

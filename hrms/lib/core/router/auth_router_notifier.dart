@@ -24,35 +24,38 @@ class AuthRouterNotifier extends AsyncNotifier<void> implements Listenable {
   String? redirect(BuildContext context, GoRouterState state) {
     final authAsync = ref.read(authNotifierProvider);
     final location = state.matchedLocation;
+    final goingLogin = location == '/login';
+    final goingRegister = location == '/register';
+    final goingOtp = location == '/verify-otp';
+    final goingSplash = location == '/splash';
 
-    final isAuthRoute = const {
-      AppRoutes.login,
-      AppRoutes.register,
-      AppRoutes.splash,
-    }.contains(location);
-    final isOtpRoute = location == AppRoutes.verifyOtp;
-
-    // Chưa có auth value → về splash
     if (authAsync.value == null ||
         authAsync.value?.status == AuthStatus.initial) {
-      return location == AppRoutes.splash ? null : AppRoutes.splash;
+      return goingSplash ? null : '/splash';
     }
-
-    return switch (authAsync.value?.status) {
-    // Đã đăng nhập → không cho vào auth/otp screens
-      AuthStatus.authenticated =>
-      (isAuthRoute || isOtpRoute) ? AppRoutes.home : null,
-
-    // Chưa đăng nhập → chỉ được ở login/register
-      AuthStatus.unauthenticated => isOtpRoute
-          ? AppRoutes.register
-          : (isAuthRoute ? null : AppRoutes.login),
-
-    // Đang chờ OTP → phải ở verify-otp
-      AuthStatus.otpRequired => isOtpRoute ? null : AppRoutes.verifyOtp,
-
-      _ => null,
-    };
+    switch (authAsync.value?.status) {
+      case AuthStatus.authenticated:
+        if (goingLogin || goingRegister || goingOtp || goingSplash) {
+          return '/home';
+        }
+        break;
+      case AuthStatus.unauthenticated:
+        if (!goingLogin && !goingRegister) {
+          if (goingOtp) {
+            return '/register';
+          } else {
+            return '/login';
+          }
+        }
+        break;
+      case AuthStatus.otpRequired:
+        if (!goingOtp && !goingSplash) {
+          return '/verify-otp';
+        }
+        break;
+      default:
+    }
+    return null;
   }
 
   @override

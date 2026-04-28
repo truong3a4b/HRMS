@@ -29,4 +29,10 @@ abstract class AppRoutes {
   static String departmentDetail(String id) => '/department-detail/$id';
   static String editDepartmentBasicInfo(String id) =>
       '/edit-department-basic-info/$id';
+
+  //position routes
+  static const positionList = '/position-list';
+  static const addPosition = '/add-position';
+  static String updatePosition(String id) => '/update-position/$id';
+
 }

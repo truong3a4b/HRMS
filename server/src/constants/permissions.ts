@@ -1,5 +1,6 @@
 export const PERMISSIONS = {
   POSITION_CREATE: "POSITION_CREATE",
+  POSITION_DELETE: "POSITION_DELETE",
   POSITION_VIEW_LIST: "POSITION_VIEW_LIST",
   DEPARTMENT_VIEW_LIST: "DEPARTMENT_VIEW_LIST",
   EMPLOYEE_VIEW_LIST: "EMPLOYEE_VIEW_LIST",
@@ -23,6 +24,11 @@ export const PERMISSION_DEFINITIONS: Array<{
     key: PERMISSIONS.POSITION_CREATE,
     name: "Create Position",
     description: "Create a position and attach permissions.",
+  },
+  {
+    key: PERMISSIONS.POSITION_DELETE,
+    name: "Delete Position",
+    description: "Delete a position if no employees are assigned to it.",
   },
   {
     key: PERMISSIONS.POSITION_VIEW_LIST,

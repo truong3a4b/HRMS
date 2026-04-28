@@ -14,7 +14,7 @@ import '../../../../core/service/address/provine_summary.dart';
 import '../../../../core/service/bank/bank.dart';
 import '../../../../core/widget/custom_dialog.dart';
 import '../../../department/domain/entities/department.dart';
-import '../../../position/domain/position.dart';
+import '../../../position/domain/entities/position.dart';
 import '../../domain/entities/add_employee_request.dart';
 import '../providers/add_employee_provider.dart';
 import '../widgets/date_picker_field.dart';

@@ -36,6 +36,25 @@ type CreateEmployeeInput = {
   salary: number;
 };
 
+type CreateEmployeeFromCandidateInput = {
+  candidateId: string;
+  userId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  dateOfBirth?: Date;
+  address?: string;
+  province?: LookupValue;
+  ward?: LookupValue;
+  bankAccount?: string;
+  bank?: LookupValue;
+  departmentId: string;
+  positionId: string;
+  hireDate: Date;
+  salary: number;
+};
+
 type UpdateEmployeeBasicInput = {
   name?: string;
   phone?: string;
@@ -276,6 +295,86 @@ export const employeeService = {
       console.error("Failed to send email:", error);
       throw new ApiError(500, "Failed to send account email to employee");
     }
+
+    return result.employee;
+  },
+
+  async createFromCandidate(data: CreateEmployeeFromCandidateInput) {
+    await ensureDepartmentExists(data.departmentId);
+    await ensurePositionExists(data.positionId);
+
+    const existingCandidate = await prisma.candidate.findUnique({
+      where: { id: data.candidateId },
+      select: { id: true },
+    });
+
+    if (!existingCandidate) {
+      throw new ApiError(404, "Candidate not found");
+    }
+
+    const existingEmployee = await prisma.employee.findFirst({
+      where: {
+        OR: [{ candidateId: data.candidateId }, { userId: data.userId }],
+      },
+      select: { id: true },
+    });
+
+    if (existingEmployee) {
+      throw new ApiError(400, "Employee already exists for this candidate");
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: data.userId },
+        data: {
+          role: UserRole.EMPLOYEE,
+        },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        },
+      });
+
+      const employeeId = await generateEmployeeId();
+
+      const employee = await tx.employee.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          avatar: data.avatar,
+          dateOfBirth: data.dateOfBirth,
+          address: data.address,
+          province: data.province,
+          ward: data.ward,
+          bankAccount: data.bankAccount,
+          bank: data.bank,
+          departmentId: data.departmentId,
+          positionId: data.positionId,
+          hireDate: data.hireDate,
+          salary: data.salary,
+          employeeId,
+          userId: data.userId,
+          candidateId: data.candidateId,
+        },
+        include: employeeInclude,
+      });
+
+      await tx.employeeJobHistory.create({
+        data: {
+          employeeId: employee.id,
+          departmentId: employee.departmentId,
+          positionId: employee.positionId,
+          hireDate: employee.hireDate,
+          salary: employee.salary,
+          status: employee.status,
+          effectiveFrom: employee.hireDate ?? new Date(),
+        },
+      });
+
+      return { user, employee };
+    });
 
     return result.employee;
   },

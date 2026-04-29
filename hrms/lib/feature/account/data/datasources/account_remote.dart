@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hrms/feature/recruitment/data/models/candidate_dto.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/network/dio_client.dart';
@@ -10,14 +11,25 @@ class AccountRemote {
 
   AccountRemote({required this.dio});
 
-  Future<EmployeeDto> fetchProfile() async {
+  Future<EmployeeDto> fetchEmployeeProfile() async {
     try {
       final response = await dio.get('/employees/me');
 
       return EmployeeDto.fromJson(response.data['data']);
     } on DioException catch (e) {
       print('Profile Remote getCurrentUser error: $e');
-      throw AppException('Phiên đăng nhập hết hạn');
+      throw AppException('Lỗi tải thông tin cá nhân');
+    }
+  }
+
+  Future<CandidateDto> fetchCandidateProfile() async {
+    try {
+      final response = await dio.get('/recruitment/profile');
+
+      return CandidateDto.fromJson(response.data['data']);
+    } on DioException catch (e) {
+      print('Profile Remote getCurrentUser error: $e');
+      throw AppException('Lỗi tải thông tin cá nhân');
     }
   }
 

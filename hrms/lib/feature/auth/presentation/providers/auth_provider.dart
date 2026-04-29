@@ -7,8 +7,11 @@ import 'package:hrms/feature/auth/presentation/providers/user_provider.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/utils/token_storage.dart';
 import '../../../account/presentation/providers/permission_provider.dart';
+import '../../../department/presentation/providers/department_list_provider.dart';
+import '../../../position/presentation/providers/positionListProvider.dart';
 import '../../data/datasources/auth_remote.dart';
 import '../../data/repo/auth_repository.dart';
+import '../../domain/entities/user.dart';
 import 'auth_state.dart';
 
 final authRemoteProvider = Provider((ref) {
@@ -65,7 +68,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.login(email, password);
-
+      ref.invalidate(userProvider);
+      ref.invalidate(profileProvider);
+      ref.invalidate(permissionProvider);
+      ref.invalidate(departmentListProvider);
+      ref.invalidate(positionListProvider);
       state = AsyncValue.data(AuthState.authenticated(user));
     } catch (e) {
       state = AsyncValue.data(AuthState.failure(e.toString()));

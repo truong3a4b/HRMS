@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { prisma } from "../src/config/prisma";
 import { UserRole } from "../generated/prisma/client";
 import { env } from "../src/config/env";
+import { PERMISSIONS } from "../src/constants/permissions";
 //npx prisma db seed
 
 async function main() {
@@ -26,36 +27,95 @@ async function main() {
   });
 
   // 3. Tạo permission
-  const viewEmployee = await prisma.permission.upsert({
-    where: { key: "PERMISSIONS.POSITION_VIEW_LIST" },
-    update: {},
-    create: {
-      key: "PERMISSIONS.POSITION_VIEW_LIST",
-      name: "Xem vị trí công việc",
-    },
-  });
+  const permissions = await Promise.all([
+    prisma.permission.upsert({
+      where: { key: PERMISSIONS.POSITION_VIEW_LIST },
+      update: {},
+      create: {
+        key: PERMISSIONS.POSITION_VIEW_LIST,
+        name: "Xem vị trí công việc",
+      },
+    }),
+    prisma.permission.upsert({
+      where: { key: PERMISSIONS.POSITION_CREATE },
+      update: {},
+      create: {
+        key: PERMISSIONS.POSITION_CREATE,
+        name: "Tạo vị trí công việc",
+      },
+    }),
+    prisma.permission.upsert({
+      where: { key: PERMISSIONS.RECRUITMENT_VIEW_JOB },
+      update: {},
+      create: {
+        key: PERMISSIONS.RECRUITMENT_VIEW_JOB,
+        name: "Xem tin tuyển dụng",
+      },
+    }),
+    prisma.permission.upsert({
+      where: { key: PERMISSIONS.RECRUITMENT_MANAGE_JOB },
+      update: {},
+      create: {
+        key: PERMISSIONS.RECRUITMENT_MANAGE_JOB,
+        name: "Quản lý tin tuyển dụng",
+      },
+    }),
+    prisma.permission.upsert({
+      where: { key: PERMISSIONS.RECRUITMENT_CREATE_JOB },
+      update: {},
+      create: {
+        key: PERMISSIONS.RECRUITMENT_CREATE_JOB,
+        name: "Tạo tin tuyển dụng",
+      },
+    }),
+    prisma.permission.upsert({
+      where: { key: PERMISSIONS.RECRUITMENT_UPDATE_JOB },
+      update: {},
+      create: {
+        key: PERMISSIONS.RECRUITMENT_UPDATE_JOB,
+        name: "Cập nhật tin tuyển dụng",
+      },
+    }),
+    prisma.permission.upsert({
+      where: { key: PERMISSIONS.RECRUITMENT_CLOSE_JOB },
+      update: {},
+      create: {
+        key: PERMISSIONS.RECRUITMENT_CLOSE_JOB,
+        name: "Đóng tin tuyển dụng",
+      },
+    }),
+  ]);
 
-  const createEmployee = await prisma.permission.upsert({
-    where: { key: "PERMISSIONS.POSITION_CREATE" },
-    update: {},
-    create: {
-      key: "PERMISSIONS.POSITION_CREATE",
-      name: "Tạo vị trí công việc",
-    },
-  });
+  const viewEmployee = permissions.find(
+    (permission) => permission.key === PERMISSIONS.POSITION_VIEW_LIST,
+  );
+
+  const createEmployee = permissions.find(
+    (permission) => permission.key === PERMISSIONS.POSITION_CREATE,
+  );
+
+  const recruitmentJobPermissions = permissions.filter((permission) =>
+    [
+      PERMISSIONS.RECRUITMENT_VIEW_JOB,
+      PERMISSIONS.RECRUITMENT_MANAGE_JOB,
+      PERMISSIONS.RECRUITMENT_CREATE_JOB,
+      PERMISSIONS.RECRUITMENT_UPDATE_JOB,
+      PERMISSIONS.RECRUITMENT_CLOSE_JOB,
+    ].includes(permission.key as any),
+  );
 
   // 4. Gán permission cho position
   await prisma.positionPermission.upsert({
     where: {
       positionId_permissionId: {
         positionId: position.id,
-        permissionId: viewEmployee.id,
+        permissionId: viewEmployee?.id as string,
       },
     },
     update: {},
     create: {
       positionId: position.id,
-      permissionId: viewEmployee.id,
+      permissionId: viewEmployee?.id as string,
     },
   });
 
@@ -63,15 +123,31 @@ async function main() {
     where: {
       positionId_permissionId: {
         positionId: position.id,
-        permissionId: createEmployee.id,
+        permissionId: createEmployee?.id as string,
       },
     },
     update: {},
     create: {
       positionId: position.id,
-      permissionId: createEmployee.id,
+      permissionId: createEmployee?.id as string,
     },
   });
+
+  for (const permission of recruitmentJobPermissions) {
+    await prisma.positionPermission.upsert({
+      where: {
+        positionId_permissionId: {
+          positionId: position.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        positionId: position.id,
+        permissionId: permission.id,
+      },
+    });
+  }
 
   // 5. Hash password
   const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);

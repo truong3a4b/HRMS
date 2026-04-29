@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hrms/core/router/account_routes.dart';
 import 'package:hrms/core/router/posititon_routes.dart';
+import 'package:hrms/core/router/recruitment_routes.dart';
 import 'package:hrms/core/router/shell_route.dart';
 
 import 'app_routes.dart';
@@ -22,7 +24,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       shellRoute,
       ...employeeRoutes,
       ...departmentRoutes,
-      ...positionRoutes
+      ...positionRoutes,
+      ...accountRoutes,
+      ...recruitmentRoutes,
     ],
   );
 });

@@ -4,6 +4,7 @@ import 'package:hrms/feature/account/presentation/providers/profile_provider.dar
 import 'package:hrms/feature/auth/presentation/providers/auth_provider.dart';
 import 'package:hrms/feature/employee/domain/entities/employee.dart';
 
+import '../../../account/domain/entities/profile.dart';
 import '../../../account/presentation/providers/permission_provider.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../position/domain/entities/position.dart';
@@ -24,10 +25,10 @@ class HomeNotifier extends AsyncNotifier<HomeState> {
     for (int attempt = 0; attempt < maxRetry; attempt++) {
       try {
         final result = await Future.wait([
-          ref.read(profileProvider.future),
-          ref.read(permissionProvider.future),
+          ref.watch(profileProvider.future),
+          ref.watch(permissionProvider.future),
         ]);
-        final me = result[0] as Employee;
+        final me = result[0] as Profile;
         final permission = result[1] as Set<Permission>;
         final user = ref.watch(authNotifierProvider).value?.user;
 
@@ -58,7 +59,7 @@ class HomeNotifier extends AsyncNotifier<HomeState> {
 class HomeState {
   final String? welcomeMessage;
   final DateTime? currentDate;
-  final Employee? me;
+  final Profile? me;
   final UserRole? role;
   final Set<Permission>? permission;
 
@@ -67,7 +68,7 @@ class HomeState {
   HomeState copyWith({
     String? welcomeMessage,
     DateTime? currentDate,
-    Employee? me,
+    Profile? me,
     UserRole? role,
     Set<Permission>? permission,
   }) {

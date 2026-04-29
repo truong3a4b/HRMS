@@ -46,13 +46,13 @@ class _NormalTextFieldState extends State<NormalTextField> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 54,
       child: TextField(
         controller: widget.controller,
         focusNode: _focusNode,
         keyboardType: widget.keyboardType,
         enabled: widget.enabled,
         style: const TextStyle(fontSize: 15, color: Color(0xFF333333)),
+        minLines: 1,
         maxLines: widget.maxLines,
         decoration: InputDecoration(
           labelText: widget.hintText,

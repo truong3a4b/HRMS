@@ -5,61 +5,45 @@ import 'package:hrms/feature/department/domain/entities/department.dart';
 
 import '../../../../core/service/address/Ward.dart';
 import '../../../../core/service/address/provine_summary.dart';
+import '../../../account/domain/entities/profile.dart';
 import '../../../position/domain/entities/position.dart';
 
-class Employee {
-  final String id;
+class Employee extends Profile {
   final String employeeId;
-  final String name;
-  final String email;
-  final String? phone;
   final Position? position;
-  final String? avatar;
   final Department? department;
   final EmployeeStatus? status;
-  final DateTime? dateOfBirth;
-  final Gender? gender;
-  final String? address;
-  final ProvinceSummary? province;
-  final Ward? ward;
   final DateTime? hireDate;
   final double? salary;
   final String? bankAccount;
   final Bank? bank;
-  final String? maritalStatus;
-  final String? nationality;
-  final String? religion;
-  final String? identityCardNumber;
-  final DateTime? identityCardIssueDate;
-  final String? frontIdentityCardImage;
-  final String? backIdentityCardImage;
 
   Employee({
-    required this.id,
+    required super.id,
     required this.employeeId,
-    required this.name,
-    required this.email,
-    this.phone,
+    required super.name,
+    required super.email,
+    super.phone,
+    super.avatar,
+    super.dateOfBirth,
+    super.gender,
+    super.address,
+    super.province,
+    super.ward,
+    super.maritalStatus,
+    super.nationality,
+    super.religion,
+    super.identityCardNumber,
+    super.identityCardIssueDate,
+    super.frontIdentityCardImage,
+    super.backIdentityCardImage,
     this.position,
-    this.avatar,
     this.department,
     this.status,
-    this.dateOfBirth,
-    this.gender,
-    this.address,
-    this.province,
-    this.ward,
     this.hireDate,
     this.salary,
     this.bankAccount,
     this.bank,
-    this.maritalStatus,
-    this.nationality,
-    this.religion,
-    this.identityCardNumber,
-    this.identityCardIssueDate,
-    this.frontIdentityCardImage,
-    this.backIdentityCardImage,
   });
 }
 

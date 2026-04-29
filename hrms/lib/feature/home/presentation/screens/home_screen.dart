@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/domain/entities/user.dart';
+import '../../../employee/domain/entities/employee.dart';
 import '../../../position/domain/entities/position.dart';
 import '../providers/home_provider.dart';
 
@@ -31,16 +32,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildContent(HomeState state) {
     final showCheckInCard = state.role == UserRole.employee;
     final showPendingCard =
-        state.role == UserRole.admin ||
-        state.permission?.containsAll({
-              Permission.canApproveLeave,
-              Permission.canApproveOvertime,
-            }) ==
-            true;
+        state.role == UserRole.admin;
     final showFeatureSection = state.role == UserRole.employee;
     final showTodayTaskSection = state.role == UserRole.employee;
     final showTodaySummary = state.role == UserRole.admin;
     final isDay = DateTime.now().hour >= 6 && DateTime.now().hour < 18;
+    String position = 'Ứng viên';
+    if(state.me is Employee){
+      position = (state.me as Employee).position?.name ?? ' ';
+    }
+
     return SingleChildScrollView(
       physics: const ClampingScrollPhysics(),
       child: Stack(
@@ -81,7 +82,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   GreetingSection(
                     name: state.me?.name ?? '',
-                    position: state.me?.position?.name,
+                    position: position,
                     role: state.role ?? UserRole.employee,
                   ),
                   const SizedBox(height: 20),

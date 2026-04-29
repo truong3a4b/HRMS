@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/widget/app_confirm_dialog.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -35,6 +37,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(profileProvider).value;
+
     final items = <SettingItemData>[
       const SettingItemData(
         icon: Icons.lock_outline,
@@ -60,9 +64,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           children: [
             const SizedBox(height: 6),
             _ProfileHeader(
-              name: 'Nguyễn Xuân Trưởng',
+              name: profile != null ? profile.name : 'Người dùng',
               subtitle: 'Chỉnh sửa thông tin cá nhân',
-              onTap: () {},
+              onTap: () {
+                context.push('/profile');
+              },
             ),
             const Divider(height: 1, color: Color(0xFFEAEAEA)),
             Expanded(

@@ -214,6 +214,16 @@ export const authService = {
     const user = await prisma.$transaction(async (tx) => {
       const existingUser = await tx.user.findUnique({ where: { email } });
       if (existingUser) {
+        await tx.candidate.upsert({
+          where: { userId: existingUser.id },
+          update: {
+            email: existingUser.email,
+          },
+          create: {
+            userId: existingUser.id,
+            email: existingUser.email,
+          },
+        });
         await tx.pendingUser.delete({ where: { email } });
         return existingUser;
       }
@@ -223,6 +233,13 @@ export const authService = {
           email: pendingUser.email,
           password: pendingUser.password,
           role: UserRole.CANDIDATE,
+        },
+      });
+
+      await tx.candidate.create({
+        data: {
+          userId: createdUser.id,
+          email: createdUser.email,
         },
       });
 

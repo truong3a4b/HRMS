@@ -18,7 +18,7 @@ import '../../domain/entities/add_employee_request.dart';
 import '../../domain/entities/employee.dart';
 
 final addEmployeeProvider =
-    AsyncNotifierProvider<AddEmployeeNotifier, AddEmployeeState>(() {
+    AsyncNotifierProvider.autoDispose<AddEmployeeNotifier, AddEmployeeState>(() {
       return AddEmployeeNotifier();
     });
 

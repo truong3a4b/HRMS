@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../feature/auth/presentation/providers/auth_provider.dart';
 import '../../feature/auth/presentation/providers/auth_state.dart';
-import 'app_routes.dart';
 
 final authRouterNotifierProvider =
 AsyncNotifierProvider<AuthRouterNotifier, void>(AuthRouterNotifier.new);

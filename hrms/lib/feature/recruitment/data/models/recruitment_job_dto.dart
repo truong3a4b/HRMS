@@ -11,12 +11,12 @@ abstract class RecruitmentJobDto with _$RecruitmentJobDto {
   const factory RecruitmentJobDto({
     required String id,
     required String title,
-    required String description,
-    required String requirements,
-    required String benefits,
+    String? description,
+    String? requirements,
+    String? benefits,
     String? salaryMin,
     String? salaryMax,
-    required int quantity,
+    int? quantity,
     DateTime? deadline,
     required String status,
     String? positionId,
@@ -25,6 +25,7 @@ abstract class RecruitmentJobDto with _$RecruitmentJobDto {
     DepartmentDto? department,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? applied,
   }) = _RecruitmentJobDto;
 
   factory RecruitmentJobDto.fromJson(Map<String, dynamic> json) =>

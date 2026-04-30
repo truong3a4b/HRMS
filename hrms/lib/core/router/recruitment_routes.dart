@@ -1,8 +1,9 @@
 import 'package:go_router/go_router.dart';
+import 'package:hrms/feature/recruitment/presentation/screens/job_application_list_screen.dart';
+
 import '../../feature/recruitment/presentation/screens/add_recruitment_job_screen.dart';
 import '../../feature/recruitment/presentation/screens/recruitment_job_detail_screen.dart';
 import '../../feature/recruitment/presentation/screens/recruitment_job_list_screen.dart';
-
 
 final recruitmentRoutes = <RouteBase>[
   GoRoute(
@@ -10,11 +11,26 @@ final recruitmentRoutes = <RouteBase>[
     name: 'recruitment-job-list',
     builder: (context, state) => const RecruitmentJobListScreen(),
   ),
-  GoRoute(path: '/add-recruitment-job', name: 'add-recruitment-job', builder: (context, state) {
-    return const AddRecruitmentJobScreen();
-  }),
-  GoRoute(path: '/recruitment-job-detail/:id', name: 'recruitment-job-detail', builder: (context, state) {
-    final id = state.pathParameters['id']!;
-    return RecruitmentJobDetailScreen(jobId: id,);
-  }),
+  GoRoute(
+    path: '/add-recruitment-job',
+    name: 'add-recruitment-job',
+    builder: (context, state) {
+      return const AddRecruitmentJobScreen();
+    },
+  ),
+  GoRoute(
+    path: '/recruitment-job-detail/:id',
+    name: 'recruitment-job-detail',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return RecruitmentJobDetailScreen(jobId: id);
+    },
+  ),
+  GoRoute(
+    path: '/job-application-list',
+    name: 'job-application-list',
+    builder: (context, state) {
+      return JobApplicationListScreen();
+    },
+  ),
 ];

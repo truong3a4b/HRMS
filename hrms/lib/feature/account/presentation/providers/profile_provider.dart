@@ -4,7 +4,7 @@ import 'package:hrms/core/error/app_exception.dart';
 import 'package:hrms/feature/account/domain/entities/profile.dart';
 import 'package:hrms/feature/auth/domain/entities/user.dart';
 import 'package:hrms/feature/auth/presentation/providers/user_provider.dart';
-import 'package:hrms/feature/employee/domain/entities/employee.dart';
+
 
 import '../../data/repo/account_repo.dart';
 

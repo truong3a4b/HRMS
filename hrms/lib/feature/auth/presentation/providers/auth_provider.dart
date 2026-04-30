@@ -11,7 +11,6 @@ import '../../../department/presentation/providers/department_list_provider.dart
 import '../../../position/presentation/providers/positionListProvider.dart';
 import '../../data/datasources/auth_remote.dart';
 import '../../data/repo/auth_repository.dart';
-import '../../domain/entities/user.dart';
 import 'auth_state.dart';
 
 final authRemoteProvider = Provider((ref) {
@@ -100,6 +99,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
     try {
       final user = await _repo.verifyOtp(email, otp);
+      ref.invalidate(userProvider);
+      ref.invalidate(profileProvider);
+      ref.invalidate(permissionProvider);
+      ref.invalidate(departmentListProvider);
+      ref.invalidate(positionListProvider);
       state = AsyncValue.data(AuthState.authenticated(user));
     } catch (e) {
       final enteredField = state.value?.enteredField;

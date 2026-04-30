@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/job_application.dart';
 import '../../domain/entities/recruitment_job.dart';
+import '../../domain/entities/apply_job_request.dart';
 import '../../domain/entities/recruitment_job_request.dart';
 import '../datasources/recruitment_remote.dart';
+import '../mapper/job_application_mapper.dart';
 import '../mapper/recruitment_job_mapper.dart';
 
 class RecruitmentRepository {
@@ -42,19 +45,36 @@ class RecruitmentRepository {
       throw Exception('Thiếu id tin tuyển dụng');
     }
 
-    return await remote.updateRecruitmentJob(
-      request.id!,
-      request.toJson(),
-    );
+    return await remote.updateRecruitmentJob(request.id!, request.toJson());
   }
 
   Future<bool> closeRecruitmentJob(String id) async {
     return await remote.closeRecruitmentJob(id);
   }
-  Future<bool> applyJob(String recruitmentJobId) async {
-    return await remote.applyJob({
-      'recruitmentJobId': recruitmentJobId,
-    });
+
+  Future<bool> applyJob(ApplyJobRequest request) async {
+    return await remote.applyJob(request.toJson(), cvFile: request.cvFile);
+  }
+
+  //get applications list
+  Future<List<JobApplication>> fetchApplications({
+    String? status,
+    String? positionId,
+    String? departmentId,
+    String? search,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final dtos = await remote.fetchApplications(
+      status: status,
+      positionId: positionId,
+      departmentId: departmentId,
+      search: search,
+      page: page,
+      limit: limit,
+    );
+
+    return dtos.map((e) => e.toEntity()).toList();
   }
 }
 

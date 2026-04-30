@@ -1,14 +1,7 @@
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hrms/core/service/address/Ward.dart';
 import 'package:hrms/feature/employee/data/mapper/employee_mapper.dart';
 import 'package:hrms/feature/employee/domain/entities/basic_info_request.dart';
-import 'package:hrms/feature/position/domain/entities/position.dart';
-
-import '../../../../core/service/address/provine_summary.dart';
-import '../../../../core/service/bank/bank.dart';
-import '../../../department/domain/entities/department.dart';
 import '../../domain/entities/add_employee_request.dart';
 import '../../domain/entities/employee.dart';
 import '../../domain/entities/job_request.dart';

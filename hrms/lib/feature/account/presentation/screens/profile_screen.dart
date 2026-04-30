@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../employee/domain/entities/employee.dart';
-import '../../../recruitment/domain/entities/candidate.dart';
+import '../../domain/entities/candidate.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/candidate_recruitment_tab.dart';
 import '../widgets/employee_profile_view.dart';
@@ -105,7 +105,7 @@ class _CandidateProfileView extends StatelessWidget {
                     context.push('/edit-candidate-profile');
                   },
                   onEditAdditionalInfo: () {
-                    context.push('/edit-candidate-additional');
+                    context.push('/edit-candidate-profile');
                   },
                 ),
                 CandidateRecruitmentTab(candidate: candidate),

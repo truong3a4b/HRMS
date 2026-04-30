@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import multer from "multer";
 import { ZodError } from "zod";
 import { ApiError } from "../utils/apiError";
 
@@ -22,6 +23,17 @@ export const errorMiddleware = (
       success: false,
       message: err.message,
       errorCode: err.errorCode,
+    });
+  }
+
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      success: false,
+      message:
+        err.code === "LIMIT_FILE_SIZE"
+          ? "CV file must not exceed 5MB"
+          : err.message,
+      errorCode: err.code,
     });
   }
 

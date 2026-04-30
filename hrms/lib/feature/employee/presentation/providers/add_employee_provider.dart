@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hrms/core/service/address/address_repo.dart';
 import 'package:hrms/feature/position/domain/entities/position.dart';
 
 import '../../../../core/error/app_exception.dart';
@@ -7,11 +6,8 @@ import '../../../../core/service/address/Province.dart';
 import '../../../../core/service/address/province_provider.dart';
 import '../../../../core/service/bank/bank.dart';
 import '../../../../core/service/bank/bank_provider.dart';
-import '../../../../core/service/bank/bank_repo.dart';
-import '../../../department/data/repo/department_repository.dart';
 import '../../../department/domain/entities/department.dart';
 import '../../../department/presentation/providers/department_list_provider.dart';
-import '../../../position/data/repo/position_repository.dart';
 import '../../../position/presentation/providers/positionListProvider.dart';
 import '../../data/repo/employee_repository.dart';
 import '../../domain/entities/add_employee_request.dart';

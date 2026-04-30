@@ -1,8 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../feature/auth/presentation/providers/auth_provider.dart';
 
 class AppConfirmDialog extends StatelessWidget {
   final String title;

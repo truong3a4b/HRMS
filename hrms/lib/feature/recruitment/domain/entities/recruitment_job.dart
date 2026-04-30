@@ -14,6 +14,7 @@ class RecruitmentJob {
   final RecruitmentJobStatus status;
   final Position? position;
   final Department? department;
+  final bool isApplied;
 
   RecruitmentJob({
     required this.id,
@@ -28,6 +29,7 @@ class RecruitmentJob {
     required this.status,
     this.position,
     this.department,
+    this.isApplied = false,
   });
 }
 

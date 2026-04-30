@@ -61,13 +61,18 @@ export const recruitmentController = {
           ? req.query.departmentId
           : undefined;
 
-      const result = await recruitmentService.getJobs({
-        page,
-        limit,
-        search,
-        positionId,
-        departmentId,
-      });
+      const userId = req.user?.id;
+
+      const result = await recruitmentService.getJobs(
+        {
+          page,
+          limit,
+          search,
+          positionId,
+          departmentId,
+        },
+        userId,
+      );
 
       return sendResponse(
         res,
@@ -83,7 +88,8 @@ export const recruitmentController = {
   async getJobById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = getParamValue(req.params.id);
-      const result = await recruitmentService.getJobById(id);
+      const userId = req.user?.id;
+      const result = await recruitmentService.getJobById(id, userId);
       return sendResponse(
         res,
         200,

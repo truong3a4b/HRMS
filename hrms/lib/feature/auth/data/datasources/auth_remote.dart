@@ -61,7 +61,7 @@ class AuthRemote {
         final appResponse = AppResponse.fromJson(response.data);
         final token = appResponse.data['accessToken'];
         await tokenStorage.saveAccessToken(token);
-        if (response.data['user'] == null) {
+        if (appResponse.data['user'] == null) {
           throw AppException('Dữ liệu người dùng không hợp lệ');
         }
         final userDto = UserDto.fromJson(appResponse.data['user']);

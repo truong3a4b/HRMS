@@ -37,7 +37,10 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                 items: [
                   TaskItemData(
                     icon: 'assets/images/candidate.png',
-                    label: 'Danh sách ứng viên',
+                    label: 'Danh sách ứng tuyển',
+                    onTap: (){
+                      context.push('/job-application-list');
+                    }
                   ),
                   TaskItemData(
                     icon: 'assets/images/recruitment.png',

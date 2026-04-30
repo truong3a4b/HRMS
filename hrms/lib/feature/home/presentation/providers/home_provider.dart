@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hrms/core/error/app_exception.dart';
 import 'package:hrms/feature/account/presentation/providers/profile_provider.dart';
 import 'package:hrms/feature/auth/presentation/providers/auth_provider.dart';
-import 'package:hrms/feature/employee/domain/entities/employee.dart';
+
 
 import '../../../account/domain/entities/profile.dart';
 import '../../../account/presentation/providers/permission_provider.dart';

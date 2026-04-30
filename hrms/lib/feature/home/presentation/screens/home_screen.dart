@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/domain/entities/user.dart';
 import '../../../employee/domain/entities/employee.dart';
-import '../../../position/domain/entities/position.dart';
 import '../providers/home_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -84,6 +83,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     name: state.me?.name ?? '',
                     position: position,
                     role: state.role ?? UserRole.employee,
+                    isDay: isDay,
                   ),
                   const SizedBox(height: 20),
 

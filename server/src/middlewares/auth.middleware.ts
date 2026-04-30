@@ -90,6 +90,68 @@ export const authMiddleware =
 
 export const checkAccessToken = authMiddleware();
 
+export const optionalAuth = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return next();
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
+
+    let permissions: PermissionKey[] = [];
+    let employeeId: string | undefined;
+
+    if (decoded.role === UserRole.EMPLOYEE) {
+      const employee = await prisma.employee.findUnique({
+        where: { userId: decoded.userId },
+        select: {
+          id: true,
+          position: {
+            select: {
+              permissions: {
+                select: {
+                  permission: {
+                    select: {
+                      key: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      employeeId = employee?.id;
+      permissions =
+        employee?.position?.permissions.map(
+          (item) => item.permission.key as PermissionKey,
+        ) ?? [];
+    }
+
+    req.user = {
+      id: decoded.userId,
+      email: decoded.email,
+      role: decoded.role,
+      employeeId,
+      permissions,
+    };
+
+    next();
+  } catch (error) {
+    // If token invalid, ignore and continue as unauthenticated
+    next();
+  }
+};
+
 export const permissionMiddleware =
   (...permissions: PermissionKey[]) =>
   (req: Request, res: Response, next: NextFunction) => {

@@ -1,16 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/entities/apply_job_request.dart';
 import '../../data/repo/recruitment_repo.dart';
 
 class RecruitmentJobActionNotifier extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}
 
-  Future<bool> applyJob(String jobId) async {
+  Future<bool> applyJob(ApplyJobRequest request) async {
     state = const AsyncValue.loading();
 
     try {
       final repo = ref.read(recruitmentRepositoryProvider);
-      final result = await repo.applyJob(jobId);
+      final result = await repo.applyJob(request);
       state = const AsyncValue.data(null);
       return result;
     } catch (e, st) {
@@ -35,6 +36,6 @@ class RecruitmentJobActionNotifier extends AsyncNotifier<void> {
 }
 
 final recruitmentJobActionProvider =
-AsyncNotifierProvider<RecruitmentJobActionNotifier, void>(
-  RecruitmentJobActionNotifier.new,
-);
+    AsyncNotifierProvider<RecruitmentJobActionNotifier, void>(
+      RecruitmentJobActionNotifier.new,
+    );

@@ -11,6 +11,10 @@ export const env = {
     process.env.BREVO_SENDER_EMAIL || process.env.ADMIN_EMAIL_ADDRESS || "",
   BREVO_SENDER_NAME:
     process.env.BREVO_SENDER_NAME || process.env.ADMIN_EMAIL_NAME || "HRMS",
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
+  CLOUDINARY_CV_FOLDER: process.env.CLOUDINARY_CV_FOLDER || "hrms/cvs",
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "access_secret",
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "refresh_secret",
   ACCESS_TOKEN_EXPIRES_IN: process.env.ACCESS_TOKEN_EXPIRES_IN || "1d",

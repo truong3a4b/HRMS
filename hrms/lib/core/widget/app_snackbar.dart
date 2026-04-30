@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppSnackbar {
   static void showError(BuildContext context, String message) {
+
     _show(context, message, backgroundColor: Colors.red);
   }
 
@@ -17,12 +18,13 @@ class AppSnackbar {
     BuildContext context,
     String message, {
     required Color backgroundColor,
+      ScaffoldMessengerState? messenger,
   }) {
-    final messenger = ScaffoldMessenger.of(context);
+
+    messenger = ScaffoldMessenger.of(context);
 
     messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
+      .showSnackBar(
         SnackBar(
           content: Text(
             message,

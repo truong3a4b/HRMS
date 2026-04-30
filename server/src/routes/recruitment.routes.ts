@@ -11,7 +11,12 @@ import { recruitmentController } from "../controllers/recruitment.controller";
 import {
   authMiddleware,
   permissionMiddleware,
+  optionalAuth,
 } from "../middlewares/auth.middleware";
+import {
+  attachUploadedCvUrl,
+  uploadCv,
+} from "../middlewares/upload.middleware";
 import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
@@ -36,6 +41,11 @@ const optionalUrlSchema = z.preprocess(
   emptyToUndefined,
   z.string().url("URL không hợp lệ").optional(),
 );
+const optionalCvUrlSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().url("CV URL không hợp lệ").optional(),
+);
+
 const optionalPhoneSchema = z.preprocess(
   emptyToUndefined,
   z.string().min(8, "Số điện thoại phải có ít nhất 8 ký tự").optional(),
@@ -51,12 +61,33 @@ const candidateProfileSchema = z
     fullName: z.string().min(2, "Họ tên phải có ít nhất 2 ký tự").optional(),
     phone: optionalPhoneSchema,
     dateOfBirth: optionalDateSchema,
+    gender: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .refine(
+          (value) => ["MALE", "FEMALE", "OTHER"].includes(value),
+          "Giới tính không hợp lệ",
+        )
+        .optional(),
+    ),
     address: z.preprocess(
       emptyToUndefined,
       z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
     ),
     avatar: optionalUrlSchema,
-    cvUrl: optionalUrlSchema,
+    cvUrl: optionalCvUrlSchema,
+    maritalStatus: optionalStringSchema,
+    nationality: optionalStringSchema,
+    religion: optionalStringSchema,
+    bankAccount: optionalStringSchema,
+    bank: z.preprocess(emptyToUndefined, z.unknown().optional()),
+    identityCardNumber: optionalStringSchema,
+    identityCardIssueDate: optionalDateSchema,
+    frontIdentityCardImage: optionalUrlSchema,
+    backIdentityCardImage: optionalUrlSchema,
+    province: z.preprocess(emptyToUndefined, z.unknown().optional()),
+    ward: z.preprocess(emptyToUndefined, z.unknown().optional()),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field is required",
@@ -67,12 +98,33 @@ const applyJobSchema = z.object({
   fullName: z.string().min(2).optional(),
   phone: optionalPhoneSchema,
   dateOfBirth: optionalDateSchema,
+  gender: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .refine(
+        (value) => ["MALE", "FEMALE", "OTHER"].includes(value),
+        "Giới tính không hợp lệ",
+      )
+      .optional(),
+  ),
   address: z.preprocess(
     emptyToUndefined,
     z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
   ),
   avatar: optionalUrlSchema,
-  cvUrl: optionalUrlSchema,
+  cvUrl: optionalCvUrlSchema,
+  maritalStatus: optionalStringSchema,
+  nationality: optionalStringSchema,
+  religion: optionalStringSchema,
+  bankAccount: optionalStringSchema,
+  bank: z.preprocess(emptyToUndefined, z.unknown().optional()),
+  identityCardNumber: optionalStringSchema,
+  identityCardIssueDate: optionalDateSchema,
+  frontIdentityCardImage: optionalUrlSchema,
+  backIdentityCardImage: optionalUrlSchema,
+  province: z.preprocess(emptyToUndefined, z.unknown().optional()),
+  ward: z.preprocess(emptyToUndefined, z.unknown().optional()),
   coverLetter: optionalStringSchema,
   notes: optionalStringSchema,
 });
@@ -248,16 +300,19 @@ router.patch(
   //update thong tin profile cua candidate
   "/profile",
   authMiddleware(UserRole.CANDIDATE),
+  uploadCv,
+  attachUploadedCvUrl,
   validate(candidateProfileSchema),
   recruitmentController.updateMyProfile,
 );
 router.get(
   //lay danh sach job voi pagination, filter, search
   "/jobs",
+  optionalAuth,
   validateRecruitmentJobsQuery,
   recruitmentController.getJobs,
 );
-router.get("/jobs/:id", recruitmentController.getJobById); //lay chi tiet job theo id
+router.get("/jobs/:id", optionalAuth, recruitmentController.getJobById); //lay chi tiet job theo id
 router.post(
   //tao moi job
   "/jobs",
@@ -315,6 +370,8 @@ router.post(
   // ung tuyen vao job
   "/applications",
   authMiddleware(UserRole.CANDIDATE),
+  uploadCv,
+  attachUploadedCvUrl,
   validate(applyJobSchema),
   recruitmentController.applyJob,
 );

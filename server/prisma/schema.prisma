@@ -171,21 +171,38 @@ model RecruitmentJob {
 }
 
 model Candidate {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  fullName    String?
-  email       String   @unique
-  phone       String?
-  dateOfBirth DateTime?
-  address     String?
-  avatar      String?
-  cvUrl       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(uuid())
+  userId                   String   @unique
+  fullName                 String?
+  email                    String   @unique
+  phone                    String?
+  dateOfBirth              DateTime?
+  gender                   Gender?
+  address                  String?
+  avatar                   String?
+  cvUrl                    String?
 
-  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  applications  JobApplication[]
-  employee      Employee?
+  maritalStatus            String?
+  nationality              String?
+  religion                 String?
+
+  bankAccount              String?
+  bank                     Json?
+
+  identityCardNumber       String?
+  identityCardIssueDate    DateTime?
+  frontIdentityCardImage   String?
+  backIdentityCardImage    String?
+
+  province                 Json?
+  ward                     Json?
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user                     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications             JobApplication[]
+  employee                 Employee?
 
   @@index([email])
   @@map("candidates")

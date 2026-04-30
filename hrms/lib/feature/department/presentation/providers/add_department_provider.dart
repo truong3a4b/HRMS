@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hrms/core/error/app_exception.dart';
 
-import '../../../employee/domain/entities/employee.dart';
+
 import '../../data/repo/department_repository.dart';
 import '../../domain/entities/add_department_request.dart';
 

@@ -2,21 +2,15 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hrms/core/service/address/provine_summary.dart';
 import 'package:hrms/core/widget/app_snackbar.dart';
 import 'package:hrms/feature/employee/domain/entities/job_request.dart';
 import 'package:hrms/feature/position/domain/entities/position.dart';
 
-import '../../../../core/service/address/Province.dart';
-import '../../../../core/service/address/Ward.dart';
 import '../../../../core/utils/time_convert.dart';
 import '../../../../core/widget/app_back_button.dart';
 import '../../../../core/widget/app_primary_button.dart';
-import '../../../../core/service/bank/bank.dart';
 import '../../../../core/widget/custom_dialog.dart';
 import '../../../department/domain/entities/department.dart';
-import '../../domain/entities/basic_info_request.dart';
-import '../../domain/entities/employee.dart';
 import '../providers/edit_employee_provider.dart';
 import '../widgets/date_picker_field.dart';
 import '../widgets/normal_text_field.dart';
@@ -75,7 +69,7 @@ class _EditEmployeeBasicInfoScreenState
     final employee = state.employee;
     if (employee == null) return;
 
-    employeeCodeController.text = employee.employeeId ?? '';
+    employeeCodeController.text = employee.employeeId;
     salaryController.text = employee.salary != null ? employee.salary.toString() : '';
 
     setState(() {

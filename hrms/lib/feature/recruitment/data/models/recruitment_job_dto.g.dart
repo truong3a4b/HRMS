@@ -10,12 +10,12 @@ _RecruitmentJobDto _$RecruitmentJobDtoFromJson(Map<String, dynamic> json) =>
     _RecruitmentJobDto(
       id: json['id'] as String,
       title: json['title'] as String,
-      description: json['description'] as String,
-      requirements: json['requirements'] as String,
-      benefits: json['benefits'] as String,
+      description: json['description'] as String?,
+      requirements: json['requirements'] as String?,
+      benefits: json['benefits'] as String?,
       salaryMin: json['salaryMin'] as String?,
       salaryMax: json['salaryMax'] as String?,
-      quantity: (json['quantity'] as num).toInt(),
+      quantity: (json['quantity'] as num?)?.toInt(),
       deadline: json['deadline'] == null
           ? null
           : DateTime.parse(json['deadline'] as String),
@@ -34,6 +34,7 @@ _RecruitmentJobDto _$RecruitmentJobDtoFromJson(Map<String, dynamic> json) =>
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.parse(json['updatedAt'] as String),
+      applied: json['applied'] as bool?,
     );
 
 Map<String, dynamic> _$RecruitmentJobDtoToJson(_RecruitmentJobDto instance) =>
@@ -54,4 +55,5 @@ Map<String, dynamic> _$RecruitmentJobDtoToJson(_RecruitmentJobDto instance) =>
       'department': instance.department,
       'createdAt': instance.createdAt?.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
+      'applied': instance.applied,
     };

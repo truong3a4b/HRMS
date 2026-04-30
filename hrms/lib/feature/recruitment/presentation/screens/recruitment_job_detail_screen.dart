@@ -11,20 +11,16 @@ import '../../../account/presentation/providers/permission_provider.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../position/domain/entities/position.dart';
+import '../../domain/entities/apply_job_request.dart';
 import '../../domain/entities/recruitment_job.dart';
 import '../providers/recruitment_job_action_provider.dart';
 import '../providers/recruitment_job_detail_provider.dart';
+import '../widgets/apply_job_bottom_sheet.dart';
 
 class RecruitmentJobDetailScreen extends ConsumerWidget {
   final String jobId;
 
-  const RecruitmentJobDetailScreen({
-    super.key,
-    required this.jobId,
-  });
-
-
-
+  const RecruitmentJobDetailScreen({super.key, required this.jobId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,19 +32,16 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
     final isCandidate = user?.role == UserRole.candidate;
     final canManageJob =
         user?.role == UserRole.admin ||
-            permissions.contains(Permission.recruitmentManageJob) ||
-            permissions.contains(Permission.recruitmentUpdateJob) ||
-            permissions.contains(Permission.recruitmentCloseJob);
+        permissions.contains(Permission.recruitmentManageJob) ||
+        permissions.contains(Permission.recruitmentUpdateJob) ||
+        permissions.contains(Permission.recruitmentCloseJob);
 
     ref.listen(recruitmentJobActionProvider, (prev, next) {
       next.whenOrNull(
         error: (err, _) {
           if (!context.mounted) return;
 
-          AppSnackbar.showError(
-            context,
-            err.toString(),
-          );
+          AppSnackbar.showError(context, err.toString());
         },
       );
     });
@@ -106,10 +99,7 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
                   }
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Text('Chỉnh sửa'),
-                  ),
+                  const PopupMenuItem(value: 'edit', child: Text('Chỉnh sửa')),
                   if (job.status == RecruitmentJobStatus.OPEN)
                     const PopupMenuItem(
                       value: 'close',
@@ -137,7 +127,7 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
         data: (job) {
           if (!isCandidate) return null;
           if (job.status != RecruitmentJobStatus.OPEN) return null;
-
+          print('Job applied: ${job.isApplied}');
           return SafeArea(
             child: Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -147,20 +137,38 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
                 width: double.infinity,
                 child: AppPrimaryButton(
                   isLoading: actionAsync.isLoading,
-                  text: 'Ứng tuyển',
-                  onPressed: () async {
-                    final success = await ref
-                        .read(recruitmentJobActionProvider.notifier)
-                        .applyJob(job.id);
-                    if(!context.mounted) return;
-                    if (success) {
-                      AppSnackbar.showSuccess(
-                        context,
-                        'Ứng tuyển thành công',
-                      );
-                      context.pop(true);
-                    }
-                  },
+                  text: job.isApplied ? 'Đã ứng tuyển' : 'Ứng tuyển ngay',
+                  onPressed: job.isApplied
+                      ? null
+                      : () async {
+                          final request =
+                              await showModalBottomSheet<ApplyJobRequest>(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.white,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(24),
+                                  ),
+                                ),
+                                builder: (context) => ApplyJobBottomSheet(
+                                  recruitmentJobId: job.id,
+                                ),
+                              );
+                          if (request == null) return;
+
+                          final success = await ref
+                              .read(recruitmentJobActionProvider.notifier)
+                              .applyJob(request);
+                          if (!context.mounted) return;
+                          if (success) {
+                            AppSnackbar.showSuccess(
+                              context,
+                              'Ứng tuyển thành công',
+                            );
+                            context.pop(true);
+                          }
+                        },
                 ),
               ),
             ),
@@ -211,10 +219,7 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
               content: job.requirements,
             ),
             const SizedBox(height: 16),
-            _TextSectionCard(
-              title: 'Quyền lợi',
-              content: job.benefits,
-            ),
+            _TextSectionCard(title: 'Quyền lợi', content: job.benefits),
           ],
         ),
       ),
@@ -284,10 +289,7 @@ class _TextSectionCard extends StatelessWidget {
   final String title;
   final String content;
 
-  const _TextSectionCard({
-    required this.title,
-    required this.content,
-  });
+  const _TextSectionCard({required this.title, required this.content});
 
   @override
   Widget build(BuildContext context) {
@@ -316,21 +318,14 @@ class _InfoSectionCard extends StatelessWidget {
   final String title;
   final List<_InfoItem> items;
 
-  const _InfoSectionCard({
-    required this.title,
-    required this.items,
-  });
+  const _InfoSectionCard({required this.title, required this.items});
 
   @override
   Widget build(BuildContext context) {
     return _BaseCard(
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(child: _SectionTitle(title)),
-            ],
-          ),
+          Row(children: [Expanded(child: _SectionTitle(title))]),
           const SizedBox(height: 18),
           ...items.map((e) => _InfoRow(item: e)),
         ],
@@ -423,10 +418,7 @@ class _InfoItem {
   final String label;
   final String value;
 
-  const _InfoItem({
-    required this.label,
-    required this.value,
-  });
+  const _InfoItem({required this.label, required this.value});
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -447,7 +439,7 @@ class _StatusBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(

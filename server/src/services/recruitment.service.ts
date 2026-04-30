@@ -3,6 +3,7 @@ import {
   InterviewScheduleStatus,
   Prisma,
   RecruitmentJobStatus,
+  Gender,
 } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { employeeService } from "./employee.service";
@@ -12,9 +13,21 @@ type CandidateProfileInput = {
   fullName?: string;
   phone?: string;
   dateOfBirth?: Date;
+  gender?: Gender;
   address?: string;
   avatar?: string;
   cvUrl?: string;
+  maritalStatus?: string;
+  nationality?: string;
+  religion?: string;
+  bankAccount?: string;
+  bank?: any;
+  identityCardNumber?: string;
+  identityCardIssueDate?: Date;
+  frontIdentityCardImage?: string;
+  backIdentityCardImage?: string;
+  province?: any;
+  ward?: any;
 };
 
 type ApplyJobInput = CandidateProfileInput & {
@@ -101,9 +114,21 @@ const candidateProfileSelect = {
   email: true,
   phone: true,
   dateOfBirth: true,
+  gender: true,
   address: true,
   avatar: true,
   cvUrl: true,
+  maritalStatus: true,
+  nationality: true,
+  religion: true,
+  bankAccount: true,
+  bank: true,
+  identityCardNumber: true,
+  identityCardIssueDate: true,
+  frontIdentityCardImage: true,
+  backIdentityCardImage: true,
+  province: true,
+  ward: true,
   createdAt: true,
   updatedAt: true,
   user: {
@@ -144,7 +169,10 @@ const candidateSummarySelect = {
   fullName: true,
   email: true,
   phone: true,
+  dateOfBirth: true,
+  gender: true,
   avatar: true,
+  cvUrl: true,
 } as const;
 
 const applicationListSelect = {
@@ -175,18 +203,6 @@ const applicationListSelect = {
       title: true,
       status: true,
       deadline: true,
-    },
-  },
-  interviewSchedules: {
-    orderBy: { scheduledAt: "desc" as const },
-    take: 1,
-    select: {
-      id: true,
-      status: true,
-      scheduledAt: true,
-      location: true,
-      meetingLink: true,
-      createdAt: true,
     },
   },
 } satisfies Prisma.JobApplicationSelect;
@@ -375,7 +391,7 @@ const ensureRecruitmentJobEditable = (recruitmentJob: {
 };
 
 export const recruitmentService = {
-  async getJobs(filters: RecruitmentJobListFilters) {
+  async getJobs(filters: RecruitmentJobListFilters, userId?: string) {
     const normalizedSearch = filters.search?.trim() ?? "";
     const conditions: Prisma.RecruitmentJobWhereInput[] = [
       { status: RecruitmentJobStatus.OPEN },
@@ -435,8 +451,35 @@ export const recruitmentService = {
       prisma.recruitmentJob.count({ where }),
     ]);
 
+    // If userId provided, determine candidate's applied jobs
+    let appliedJobIds = new Set<string>();
+
+    if (userId) {
+      try {
+        const candidate = await getCandidateByUserId(userId);
+        if (items.length > 0) {
+          const applications = await prisma.jobApplication.findMany({
+            where: {
+              candidateId: candidate.id,
+              recruitmentJobId: { in: items.map((i) => i.id) },
+            },
+            select: { recruitmentJobId: true },
+          });
+
+          applications.forEach((a) => appliedJobIds.add(a.recruitmentJobId!));
+        }
+      } catch (e) {
+        // ignore candidate not found or other errors and treat as not applied
+      }
+    }
+
+    const itemsWithApplied = items.map((item) => ({
+      ...item,
+      applied: appliedJobIds.has(item.id),
+    }));
+
     return {
-      items,
+      items: itemsWithApplied,
       meta: {
         page: filters.page,
         limit: filters.limit,
@@ -446,7 +489,7 @@ export const recruitmentService = {
     };
   },
 
-  async getJobById(id: string) {
+  async getJobById(id: string, userId?: string) {
     const recruitmentJob = await prisma.recruitmentJob.findFirst({
       where: {
         id,
@@ -463,7 +506,23 @@ export const recruitmentService = {
       );
     }
 
-    return recruitmentJob;
+    let applied = false;
+
+    if (userId) {
+      try {
+        const candidate = await getCandidateByUserId(userId);
+        const application = await prisma.jobApplication.findFirst({
+          where: { candidateId: candidate.id, recruitmentJobId: id },
+          select: { id: true },
+        });
+
+        applied = !!application;
+      } catch (e) {
+        // ignore and leave applied = false
+      }
+    }
+
+    return { ...recruitmentJob, applied };
   },
 
   async createJob(userId: string, data: RecruitmentJobInput) {
@@ -598,7 +657,40 @@ export const recruitmentService = {
       },
       update: {
         email: user.email,
-        ...data,
+        ...(data.fullName !== undefined ? { fullName: data.fullName } : {}),
+        ...(data.phone !== undefined ? { phone: data.phone } : {}),
+        ...(data.dateOfBirth !== undefined
+          ? { dateOfBirth: data.dateOfBirth }
+          : {}),
+        ...(data.gender !== undefined ? { gender: data.gender } : {}),
+        ...(data.address !== undefined ? { address: data.address } : {}),
+        ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
+        ...(data.cvUrl !== undefined ? { cvUrl: data.cvUrl } : {}),
+        ...(data.maritalStatus !== undefined
+          ? { maritalStatus: data.maritalStatus }
+          : {}),
+        ...(data.nationality !== undefined
+          ? { nationality: data.nationality }
+          : {}),
+        ...(data.religion !== undefined ? { religion: data.religion } : {}),
+        ...(data.bankAccount !== undefined
+          ? { bankAccount: data.bankAccount }
+          : {}),
+        ...(data.bank !== undefined ? { bank: data.bank } : {}),
+        ...(data.identityCardNumber !== undefined
+          ? { identityCardNumber: data.identityCardNumber }
+          : {}),
+        ...(data.identityCardIssueDate !== undefined
+          ? { identityCardIssueDate: data.identityCardIssueDate }
+          : {}),
+        ...(data.frontIdentityCardImage !== undefined
+          ? { frontIdentityCardImage: data.frontIdentityCardImage }
+          : {}),
+        ...(data.backIdentityCardImage !== undefined
+          ? { backIdentityCardImage: data.backIdentityCardImage }
+          : {}),
+        ...(data.province !== undefined ? { province: data.province } : {}),
+        ...(data.ward !== undefined ? { ward: data.ward } : {}),
       },
       select: candidateProfileSelect,
     });
@@ -623,9 +715,21 @@ export const recruitmentService = {
           fullName: data.fullName,
           phone: data.phone,
           dateOfBirth: data.dateOfBirth,
+          gender: data.gender,
           address: data.address,
           avatar: data.avatar,
           cvUrl: data.cvUrl,
+          maritalStatus: data.maritalStatus,
+          nationality: data.nationality,
+          religion: data.religion,
+          bankAccount: data.bankAccount,
+          bank: data.bank,
+          identityCardNumber: data.identityCardNumber,
+          identityCardIssueDate: data.identityCardIssueDate,
+          frontIdentityCardImage: data.frontIdentityCardImage,
+          backIdentityCardImage: data.backIdentityCardImage,
+          province: data.province,
+          ward: data.ward,
         },
         update: {
           email: user.email,
@@ -634,9 +738,35 @@ export const recruitmentService = {
           ...(data.dateOfBirth !== undefined
             ? { dateOfBirth: data.dateOfBirth }
             : {}),
+          ...(data.gender !== undefined ? { gender: data.gender } : {}),
           ...(data.address !== undefined ? { address: data.address } : {}),
           ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
           ...(data.cvUrl !== undefined ? { cvUrl: data.cvUrl } : {}),
+          ...(data.maritalStatus !== undefined
+            ? { maritalStatus: data.maritalStatus }
+            : {}),
+          ...(data.nationality !== undefined
+            ? { nationality: data.nationality }
+            : {}),
+          ...(data.religion !== undefined ? { religion: data.religion } : {}),
+          ...(data.bankAccount !== undefined
+            ? { bankAccount: data.bankAccount }
+            : {}),
+          ...(data.bank !== undefined ? { bank: data.bank } : {}),
+          ...(data.identityCardNumber !== undefined
+            ? { identityCardNumber: data.identityCardNumber }
+            : {}),
+          ...(data.identityCardIssueDate !== undefined
+            ? { identityCardIssueDate: data.identityCardIssueDate }
+            : {}),
+          ...(data.frontIdentityCardImage !== undefined
+            ? { frontIdentityCardImage: data.frontIdentityCardImage }
+            : {}),
+          ...(data.backIdentityCardImage !== undefined
+            ? { backIdentityCardImage: data.backIdentityCardImage }
+            : {}),
+          ...(data.province !== undefined ? { province: data.province } : {}),
+          ...(data.ward !== undefined ? { ward: data.ward } : {}),
         },
         select: candidateProfileSelect,
       });

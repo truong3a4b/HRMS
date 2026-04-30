@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hrms/feature/auth/domain/entities/user.dart';
+import 'package:hrms/feature/auth/presentation/providers/user_provider.dart';
+import 'package:hrms/feature/position/domain/entities/position.dart';
 
 import '../../../../core/utils/currency_convert.dart';
 import '../../../../core/utils/time_convert.dart';
+import '../../../account/presentation/providers/permission_provider.dart';
 import '../../domain/entities/recruitment_job.dart';
 import '../providers/recruitment_job_list_provider.dart';
 
@@ -13,6 +17,9 @@ class RecruitmentJobListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final jobsAsync = ref.watch(recruitmentJobListProvider);
+    final user = ref.watch(userProvider).value;
+    final permissions = ref.watch(permissionProvider).value!;
+    final showAddButton = user?.role == UserRole.admin || permissions.contains(Permission.recruitmentCreateJob);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -36,10 +43,9 @@ class RecruitmentJobListScreen extends ConsumerWidget {
         ),
         titleSpacing: 0,
         centerTitle: false,
-
       ),
       //nut them moi nhan vien
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: showAddButton ? FloatingActionButton(
         onPressed: () async {
           final success = await context.push<bool>('/add-recruitment-job');
           if (success == true) {
@@ -49,7 +55,7 @@ class RecruitmentJobListScreen extends ConsumerWidget {
         backgroundColor: const Color(0xFF0069B4),
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white, size: 30),
-      ),
+      ) : null,
       body: jobsAsync.when(
         data: (jobs) {
           if (jobs.isEmpty) {

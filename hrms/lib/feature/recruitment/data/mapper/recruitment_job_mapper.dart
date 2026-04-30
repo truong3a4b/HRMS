@@ -8,16 +8,17 @@ extension RecruitmentJobDtoMapper on RecruitmentJobDto {
     return RecruitmentJob(
       id: id,
       title: title,
-      description: description,
-      requirements: requirements,
-      benefits: benefits,
+      description: description ?? '',
+      requirements: requirements ?? '',
+      benefits: benefits ?? '',
       salaryMin: salaryMin?.toDoubleValue(),
       salaryMax: salaryMax?.toDoubleValue(),
-      quantity: quantity,
+      quantity: quantity ?? 0,
       deadline: deadline,
       status: status.toRecruitmentJobStatus(),
       position: position?.toEntity(),
       department: department?.toEntity(),
+      isApplied: applied ?? false,
     );
   }
 }

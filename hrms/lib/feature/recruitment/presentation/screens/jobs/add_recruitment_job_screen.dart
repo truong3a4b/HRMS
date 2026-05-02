@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/utils/time_convert.dart';
-import '../../../../core/widget/app_primary_button.dart';
-import '../../../../core/widget/app_snackbar.dart';
-import '../../../../core/widget/custom_dialog.dart';
-import '../../../department/domain/entities/department.dart';
-import '../../../employee/presentation/widgets/date_picker_field.dart';
-import '../../../employee/presentation/widgets/normal_text_field.dart';
-import '../../../employee/presentation/widgets/select_field.dart';
-import '../../../position/domain/entities/position.dart';
-import '../../domain/entities/recruitment_job_request.dart';
-import '../providers/add_recruitment_job_provider.dart';
+import '../../../../../core/utils/time_convert.dart';
+import '../../../../../core/widget/app_primary_button.dart';
+import '../../../../../core/widget/app_snackbar.dart';
+import '../../../../../core/widget/custom_dialog.dart';
+import '../../../../department/domain/entities/department.dart';
+import '../../../../../core/widget/date_picker_field.dart';
+import '../../../../../core/widget/normal_text_field.dart';
+import '../../../../../core/widget/select_field.dart';
+import '../../../../position/domain/entities/position.dart';
+import '../../../domain/entities/recruitment_job_request.dart';
+import '../../providers/jobs/add_recruitment_job_provider.dart';
 
 class AddRecruitmentJobScreen extends ConsumerStatefulWidget {
   const AddRecruitmentJobScreen({super.key});

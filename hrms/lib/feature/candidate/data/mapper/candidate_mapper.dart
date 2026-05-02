@@ -1,8 +1,9 @@
 import '../../../../core/service/address/Ward.dart';
 import '../../../../core/service/address/provine_summary.dart';
-import '../../../employee/data/mapper/employee_mapper.dart';
-import '../../domain/entities/candidate.dart';
 import '../models/candidate_dto.dart';
+import '../../../employee/data/mapper/employee_mapper.dart';
+import '../../../candidate/domain/entities/candidate.dart';
+
 
 extension CandidateMapper on CandidateDto {
   Candidate toEntity() {

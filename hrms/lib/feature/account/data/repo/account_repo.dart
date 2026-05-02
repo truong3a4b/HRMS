@@ -3,9 +3,11 @@ import 'package:hrms/feature/account/data/datasources/account_remote.dart';
 import 'package:hrms/feature/employee/domain/entities/employee.dart';
 import 'package:hrms/feature/position/domain/entities/position.dart';
 import 'package:hrms/feature/account/domain/entities/candidate_profile_request.dart';
-import 'package:hrms/feature/account/domain/entities/candidate.dart';
+import 'package:hrms/feature/candidate/domain/entities/candidate.dart';
 
+import '../../../candidate/data/mapper/candidate_mapper.dart';
 import '../../../employee/data/mapper/employee_mapper.dart';
+
 
 class AccountRepo {
   final AccountRemote remote;
@@ -18,7 +20,8 @@ class AccountRepo {
   }
 
   Future<Candidate> fetchCandidateProfile() async {
-    return remote.fetchCandidateProfile();
+    final result = await remote.fetchCandidateProfile();
+    return result.toEntity();
   }
 
   Future<bool> updateCandidateProfile(CandidateProfileRequest request) async {

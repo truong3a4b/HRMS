@@ -20,8 +20,6 @@ _RecruitmentJobDto _$RecruitmentJobDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['deadline'] as String),
       status: json['status'] as String,
-      positionId: json['positionId'] as String?,
-      departmentId: json['departmentId'] as String?,
       position: json['position'] == null
           ? null
           : PositionDto.fromJson(json['position'] as Map<String, dynamic>),
@@ -49,8 +47,6 @@ Map<String, dynamic> _$RecruitmentJobDtoToJson(_RecruitmentJobDto instance) =>
       'quantity': instance.quantity,
       'deadline': instance.deadline?.toIso8601String(),
       'status': instance.status,
-      'positionId': instance.positionId,
-      'departmentId': instance.departmentId,
       'position': instance.position,
       'department': instance.department,
       'createdAt': instance.createdAt?.toIso8601String(),

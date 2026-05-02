@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/error/app_exception.dart';
-import '../../data/repo/recruitment_repo.dart';
-import '../../domain/entities/job_application.dart';
+import '../../../../../core/error/app_exception.dart';
+import '../../../data/repo/recruitment_repo.dart';
+import '../../../domain/entities/job_application.dart';
 
 final jobApplicationListProvider = AsyncNotifierProvider.autoDispose<
     JobApplicationListNotifier, JobApplicationListState>(

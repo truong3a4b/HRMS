@@ -1,9 +1,10 @@
-import 'package:hrms/feature/auth/domain/entities/user.dart';
+import 'package:hrms/feature/employee/domain/entities/employee.dart';
 
 class InterviewEvaluation {
   final String id;
   final String jobApplicationId;
-  final User evaluator;
+  final Employee evaluator;
+  final String? title;
   final int? score;
   final String? strengths;
   final String? concerns;
@@ -14,6 +15,7 @@ class InterviewEvaluation {
   InterviewEvaluation({
     required this.id,
     required this.jobApplicationId,
+    this.title,
     required this.evaluator,
     this.score,
     this.strengths,

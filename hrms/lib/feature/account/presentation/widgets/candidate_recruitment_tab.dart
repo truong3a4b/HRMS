@@ -3,12 +3,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/utils/platform_file_actions.dart';
 import '../../../../core/widget/app_snackbar.dart';
-import '../../domain/entities/candidate.dart';
+import '../../../candidate/domain/entities/candidate.dart';
 
 class CandidateRecruitmentTab extends StatelessWidget {
   final Candidate candidate;
+  final bool canEditCv;
 
-  const CandidateRecruitmentTab({super.key, required this.candidate});
+  const CandidateRecruitmentTab({super.key, required this.candidate, this.canEditCv = false});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +40,7 @@ class CandidateRecruitmentTab extends StatelessWidget {
                     ),
                   ),
                 ),
-                Container(
+                canEditCv ? Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
@@ -56,7 +57,7 @@ class CandidateRecruitmentTab extends StatelessWidget {
                       size: 22,
                     ),
                   ),
-                ),
+                ) : const SizedBox.shrink(),
               ],
             ),
             const SizedBox(height: 18),

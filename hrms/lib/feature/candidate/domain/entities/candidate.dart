@@ -1,4 +1,4 @@
-  import 'profile.dart';
+  import '../../../account/domain/entities/profile.dart';
 
   class Candidate extends Profile {
     final String? cvUrl;

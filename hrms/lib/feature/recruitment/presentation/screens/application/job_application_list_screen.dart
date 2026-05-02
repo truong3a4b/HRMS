@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hrms/core/utils/time_convert.dart';
+import 'package:hrms/core/widget/app_error_center.dart';
 
-import '../../../../core/widget/search_box.dart';
-import '../../../account/domain/entities/candidate.dart';
-import '../../domain/entities/job_application.dart';
-import '../providers/job_application_list_provider.dart';
+import '../../../../../core/widget/search_box.dart';
+import '../../../../candidate/domain/entities/candidate.dart';
+import '../../../domain/entities/job_application.dart';
+import '../../providers/application/job_application_list_provider.dart';
 
 class JobApplicationListScreen extends ConsumerStatefulWidget {
   const JobApplicationListScreen({super.key});
@@ -190,14 +191,11 @@ class _JobApplicationListScreenState
   }
 
   Widget error(Object error, StackTrace stackTrace) {
-    final errorMessage = error.toString();
-    print("Error loading application list: $errorMessage");
-    return Center(
-      child: Text(
-        errorMessage,
-        style: const TextStyle(color: Colors.red, fontSize: 14),
-        textAlign: TextAlign.center,
-      ),
+    return AppErrorCenter(
+      errorMessage: error.toString(),
+      onRetry: () {
+        ref.invalidate(jobApplicationListProvider);
+      },
     );
   }
 }

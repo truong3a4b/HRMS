@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/widget/app_primary_button.dart';
 import '../../../../core/widget/app_snackbar.dart';
 import '../../../../core/widget/custom_dialog.dart';
-import '../../../employee/presentation/widgets/normal_text_field.dart';
+import '../../../../core/widget/normal_text_field.dart';
 import '../../domain/entities/add_position_request.dart';
 import '../../domain/entities/position.dart';
 import '../providers/add_position_provider.dart';

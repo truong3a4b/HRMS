@@ -6,7 +6,7 @@ import '../../../../core/widget/app_confirm_dialog.dart';
 import '../../../../core/widget/app_primary_button.dart';
 import '../../../../core/widget/app_snackbar.dart';
 import '../../../../core/widget/custom_dialog.dart';
-import '../../../employee/presentation/widgets/normal_text_field.dart';
+import '../../../../core/widget/normal_text_field.dart';
 import '../../data/models/update_position_request.dart';
 import '../../domain/entities/position.dart';
 import '../providers/edit_position_provider.dart';

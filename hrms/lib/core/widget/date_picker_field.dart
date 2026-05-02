@@ -5,6 +5,7 @@ class DatePickerField extends StatefulWidget {
   final String hintText;
   final DateTime? firstDate;
   final DateTime? lastDate;
+  final bool includeTime;
   final ValueChanged<DateTime?>? onDateSelected;
 
   const DatePickerField({
@@ -13,6 +14,7 @@ class DatePickerField extends StatefulWidget {
     required this.hintText,
     this.firstDate,
     this.lastDate,
+    this.includeTime = false,
     this.onDateSelected,
   });
 
@@ -45,32 +47,81 @@ class _DatePickerFieldState extends State<DatePickerField> {
     _focusNode.requestFocus();
 
     final now = DateTime.now();
+    final currentDate = _parseDate(widget.controller.text);
+
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: _parseDate(widget.controller.text) ?? DateTime.now(),
+      initialDate: currentDate ?? now,
       firstDate: widget.firstDate ?? DateTime(1950),
       lastDate: widget.lastDate ?? DateTime(now.year + 10),
     );
 
-    if (pickedDate != null) {
-      widget.controller.text = _formatDate(pickedDate);
-      widget.onDateSelected?.call(pickedDate);
-      setState(() {});
+    if (pickedDate == null) {
+      _focusNode.unfocus();
+      return;
     }
+
+    DateTime result = pickedDate;
+
+    if (widget.includeTime) {
+      if (!mounted) return;
+
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: currentDate == null
+            ? TimeOfDay.now()
+            : TimeOfDay.fromDateTime(currentDate),
+      );
+
+      if (pickedTime == null) {
+        _focusNode.unfocus();
+        return;
+      }
+
+      result = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    }
+
+    widget.controller.text = widget.includeTime
+        ? _formatDateTime(result)
+        : _formatDate(result);
+
+    widget.onDateSelected?.call(result);
+    setState(() {});
 
     _focusNode.unfocus();
   }
 
   DateTime? _parseDate(String value) {
     try {
-      final parts = value.split('/');
-      if (parts.length != 3) return null;
+      if (value.trim().isEmpty) return null;
 
-      final day = int.parse(parts[0]);
-      final month = int.parse(parts[1]);
-      final year = int.parse(parts[2]);
+      final parts = value.trim().split(' ');
+      final dateParts = parts[0].split('/');
 
-      return DateTime(year, month, day);
+      if (dateParts.length != 3) return null;
+
+      final day = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final year = int.parse(dateParts[2]);
+
+      int hour = 0;
+      int minute = 0;
+
+      if (parts.length > 1) {
+        final timeParts = parts[1].split(':');
+        if (timeParts.length == 2) {
+          hour = int.parse(timeParts[0]);
+          minute = int.parse(timeParts[1]);
+        }
+      }
+
+      return DateTime(year, month, day, hour, minute);
     } catch (_) {
       return null;
     }
@@ -83,6 +134,15 @@ class _DatePickerFieldState extends State<DatePickerField> {
     return '$day/$month/$year';
   }
 
+  String _formatDateTime(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+
+    return '$day/$month/$year $hour:$minute';
+  }
   @override
   Widget build(BuildContext context) {
     return SizedBox(

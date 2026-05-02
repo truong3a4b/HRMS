@@ -1,10 +1,10 @@
 import { NextFunction, Request, Response, Router } from "express";
 import { z } from "zod";
 import {
-  InterviewScheduleStatus,
   JobApplicationStatus,
   RecruitmentJobStatus,
   UserRole,
+  InterviewScheduleStatus,
 } from "../../generated/prisma/client";
 import { PERMISSIONS } from "../constants/permissions";
 import { recruitmentController } from "../controllers/recruitment.controller";
@@ -37,97 +37,11 @@ const optionalStringSchema = z.preprocess(
   emptyToUndefined,
   z.string().optional(),
 );
-const optionalUrlSchema = z.preprocess(
-  emptyToUndefined,
-  z.string().url("URL không hợp lệ").optional(),
-);
-const optionalCvUrlSchema = z.preprocess(
-  emptyToUndefined,
-  z.string().url("CV URL không hợp lệ").optional(),
-);
-
-const optionalPhoneSchema = z.preprocess(
-  emptyToUndefined,
-  z.string().min(8, "Số điện thoại phải có ít nhất 8 ký tự").optional(),
-);
 
 const optionalNumberSchema = z.preprocess(
   emptyToUndefined,
   z.coerce.number().nonnegative().optional(),
 );
-
-const candidateProfileSchema = z
-  .object({
-    fullName: z.string().min(2, "Họ tên phải có ít nhất 2 ký tự").optional(),
-    phone: optionalPhoneSchema,
-    dateOfBirth: optionalDateSchema,
-    gender: z.preprocess(
-      emptyToUndefined,
-      z
-        .string()
-        .refine(
-          (value) => ["MALE", "FEMALE", "OTHER"].includes(value),
-          "Giới tính không hợp lệ",
-        )
-        .optional(),
-    ),
-    address: z.preprocess(
-      emptyToUndefined,
-      z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
-    ),
-    avatar: optionalUrlSchema,
-    cvUrl: optionalCvUrlSchema,
-    maritalStatus: optionalStringSchema,
-    nationality: optionalStringSchema,
-    religion: optionalStringSchema,
-    bankAccount: optionalStringSchema,
-    bank: z.preprocess(emptyToUndefined, z.unknown().optional()),
-    identityCardNumber: optionalStringSchema,
-    identityCardIssueDate: optionalDateSchema,
-    frontIdentityCardImage: optionalUrlSchema,
-    backIdentityCardImage: optionalUrlSchema,
-    province: z.preprocess(emptyToUndefined, z.unknown().optional()),
-    ward: z.preprocess(emptyToUndefined, z.unknown().optional()),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: "At least one field is required",
-  });
-
-const applyJobSchema = z.object({
-  recruitmentJobId: z.string().uuid("recruitmentJobId không hợp lệ"),
-  fullName: z.string().min(2).optional(),
-  phone: optionalPhoneSchema,
-  dateOfBirth: optionalDateSchema,
-  gender: z.preprocess(
-    emptyToUndefined,
-    z
-      .string()
-      .refine(
-        (value) => ["MALE", "FEMALE", "OTHER"].includes(value),
-        "Giới tính không hợp lệ",
-      )
-      .optional(),
-  ),
-  address: z.preprocess(
-    emptyToUndefined,
-    z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
-  ),
-  avatar: optionalUrlSchema,
-  cvUrl: optionalCvUrlSchema,
-  maritalStatus: optionalStringSchema,
-  nationality: optionalStringSchema,
-  religion: optionalStringSchema,
-  bankAccount: optionalStringSchema,
-  bank: z.preprocess(emptyToUndefined, z.unknown().optional()),
-  identityCardNumber: optionalStringSchema,
-  identityCardIssueDate: optionalDateSchema,
-  frontIdentityCardImage: optionalUrlSchema,
-  backIdentityCardImage: optionalUrlSchema,
-  province: z.preprocess(emptyToUndefined, z.unknown().optional()),
-  ward: z.preprocess(emptyToUndefined, z.unknown().optional()),
-  coverLetter: optionalStringSchema,
-  notes: optionalStringSchema,
-});
 
 const getApplicationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -216,6 +130,44 @@ const recruitmentJobUpdateSchema = z
       path: ["salaryMax"],
     },
   );
+const optionalUrlSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().url("URL không hợp lệ").optional(),
+);
+const optionalCvUrlSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().url("CV URL không hợp lệ").optional(),
+);
+const optionalPhoneSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().min(8, "Số điện thoại phải có ít nhất 8 ký tự").optional(),
+);
+const applyJobSchema = z.object({
+  recruitmentJobId: z.string().uuid("recruitmentJobId không hợp lệ"),
+  fullName: z.string().min(2).optional(),
+  phone: optionalPhoneSchema,
+  dateOfBirth: optionalDateSchema,
+  gender: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .refine(
+        (value) => ["MALE", "FEMALE", "OTHER"].includes(value),
+        "Giới tính không hợp lệ",
+      )
+      .optional(),
+  ),
+  address: z.preprocess(
+    emptyToUndefined,
+    z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
+  ),
+  avatar: optionalUrlSchema,
+  cvUrl: optionalCvUrlSchema,
+  province: z.preprocess(emptyToUndefined, z.unknown().optional()),
+  ward: z.preprocess(emptyToUndefined, z.unknown().optional()),
+  coverLetter: optionalStringSchema,
+  notes: optionalStringSchema,
+});
 
 const validateApplicationsQuery = (
   req: Request,
@@ -244,22 +196,25 @@ const validateRecruitmentJobsQuery = (
 };
 
 const interviewScheduleSchema = z.object({
+  title: z.string().min(2, "Tiêu đề phải có ít nhất 2 ký tự"),
   scheduledAt: z.coerce.date(),
+  type: z.string().min(3, "Loại phỏng vấn phải có ít nhất 3 ký tự"),
   location: optionalStringSchema,
-  meetingLink: optionalUrlSchema,
   interviewerNotes: optionalStringSchema,
 });
 
 const interviewResponseSchema = z.object({
-  decision: z.enum([
-    InterviewScheduleStatus.CONFIRMED,
-    InterviewScheduleStatus.DECLINED,
-  ]),
+  decision: z.enum(
+    [InterviewScheduleStatus.CONFIRMED, InterviewScheduleStatus.DECLINED],
+    {
+      error: "Decision phải là CONFIRMED hoặc DECLINED",
+    },
+  ),
   note: optionalStringSchema,
 });
 
 const interviewEvaluationSchema = z.object({
-  interviewScheduleId: z.string().uuid("interviewScheduleId không hợp lệ"),
+  title: z.string().min(2, "Tiêu đề phải có ít nhất 2 ký tự"),
   score: z.coerce.number().int().min(1).max(10).optional(),
   strengths: optionalStringSchema,
   concerns: optionalStringSchema,
@@ -282,29 +237,6 @@ const offerSchema = z.object({
   notes: optionalStringSchema,
 });
 
-const offerResponseSchema = z.object({
-  decision: z.enum([
-    JobApplicationStatus.OFFER_ACCEPTED,
-    JobApplicationStatus.OFFER_DECLINED,
-  ]),
-  note: optionalStringSchema,
-});
-
-router.get(
-  //lay thong tin profile cua candidate
-  "/profile",
-  authMiddleware(UserRole.CANDIDATE),
-  recruitmentController.getMyProfile,
-);
-router.patch(
-  //update thong tin profile cua candidate
-  "/profile",
-  authMiddleware(UserRole.CANDIDATE),
-  uploadCv,
-  attachUploadedCvUrl,
-  validate(candidateProfileSchema),
-  recruitmentController.updateMyProfile,
-);
 router.get(
   //lay danh sach job voi pagination, filter, search
   "/jobs",
@@ -345,12 +277,30 @@ router.patch(
   ),
   recruitmentController.closeJob,
 );
+router.patch(
+  //reopen job
+  "/jobs/:id/reopen",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(
+    PERMISSIONS.RECRUITMENT_MANAGE_JOB,
+    PERMISSIONS.RECRUITMENT_UPDATE_JOB,
+  ),
+  recruitmentController.reopenJob,
+);
 router.get(
   //lay thong tin pipeline tong the
   "/pipeline",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_PIPELINE),
   recruitmentController.getPipeline,
+);
+router.post(
+  "/applications",
+  authMiddleware(UserRole.CANDIDATE),
+  uploadCv,
+  attachUploadedCvUrl,
+  validate(applyJobSchema),
+  recruitmentController.applyJob,
 );
 router.get(
   //lay danh sach ung tuyen voi pagination, filter, search
@@ -361,27 +311,20 @@ router.get(
   recruitmentController.getApplications,
 );
 router.get(
-  //lay danh sach ung tuyen cua candidate hien tai
-  "/applications/me",
-  authMiddleware(UserRole.CANDIDATE),
-  recruitmentController.getMyApplications,
-);
-router.post(
-  // ung tuyen vao job
-  "/applications",
-  authMiddleware(UserRole.CANDIDATE),
-  uploadCv,
-  attachUploadedCvUrl,
-  validate(applyJobSchema),
-  recruitmentController.applyJob,
-);
-router.get(
   //lay chi tiet ung tuyen theo id
   "/applications/:id",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_APPLICATION),
   recruitmentController.getApplicationById,
 );
+router.get(
+  //lay chi tiet thu moi phong van theo id
+  "/applications/:id/interviews/:scheduleId",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_APPLICATION),
+  recruitmentController.getInterviewScheduleById,
+);
+
 router.post(
   //schedule phỏng vấn
   "/applications/:id/interviews",
@@ -390,21 +333,37 @@ router.post(
   validate(interviewScheduleSchema),
   recruitmentController.scheduleInterview,
 );
-router.patch(
-  //candidate phản hồi lịch phỏng vấn
-  "/applications/:id/interviews/:scheduleId/response",
+router.post(
+  //ứng viên phản hồi lời mời phỏng vấn
+  "/applications/:id/interviews/:scheduleId/respond",
   authMiddleware(UserRole.CANDIDATE),
   validate(interviewResponseSchema),
   recruitmentController.respondToInterview,
 );
 router.post(
-  //employee submit đánh giá sau phỏng vấn
+  //employee đánh giá ứng viên
   "/applications/:id/evaluations",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(PERMISSIONS.RECRUITMENT_SUBMIT_EVALUATION),
   validate(interviewEvaluationSchema),
   recruitmentController.submitEvaluation,
 );
+router.get(
+  //lay chi tiet danh gia  theo id
+  "/applications/:id/evaluations/:evaluationId",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_APPLICATION),
+  recruitmentController.getEvaluationById,
+);
+//cap nhat danh gia
+router.patch(
+  "/applications/:id/evaluations/:evaluationId",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_SUBMIT_EVALUATION),
+  validate(interviewEvaluationSchema),
+  recruitmentController.updateEvaluation,
+);
+
 router.patch(
   //employee quyết định duyệt hay từ chối ứng tuyển
   "/applications/:id/decision",
@@ -426,13 +385,6 @@ router.post(
   ),
   validate(offerSchema),
   recruitmentController.sendOffer,
-);
-router.patch(
-  //candidate phản hồi offer
-  "/applications/:id/offer-response",
-  authMiddleware(UserRole.CANDIDATE),
-  validate(offerResponseSchema),
-  recruitmentController.respondToOffer,
 );
 
 export default router;

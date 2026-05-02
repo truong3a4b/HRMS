@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../employee/domain/entities/employee.dart';
-import '../../domain/entities/candidate.dart';
+import '../../../candidate/domain/entities/candidate.dart';
 import '../providers/profile_provider.dart';
+import '../widgets/candidate_profile_preview.dart';
 import '../widgets/candidate_recruitment_tab.dart';
 import '../widgets/employee_profile_view.dart';
 import '../widgets/personal_profile_tab.dart';
@@ -55,7 +56,7 @@ class ProfileScreen extends ConsumerWidget {
           }
 
           if (profile is Candidate) {
-            return _CandidateProfileView(candidate: profile);
+            return CandidateProfileView(candidate: profile,canEditAdditionalInfo: true,canEditBasicInfo: true, canEditCv: true, );
           }
 
           return const Center(child: Text('Không xác định loại hồ sơ'));
@@ -73,47 +74,4 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _CandidateProfileView extends StatelessWidget {
-  final Candidate candidate;
 
-  const _CandidateProfileView({required this.candidate});
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          ProfileHeader(
-            avatar: candidate.avatar,
-            name: candidate.name,
-            subtitle: 'Ứng viên',
-            showTabs: true,
-            tabs: const [
-              Tab(text: 'Cá nhân'),
-              Tab(text: 'Ứng tuyển'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                ProfilePersonalTab(
-                  profile: candidate,
-                  canEditBasicInfo: true,
-                  canEditAdditionalInfo: true,
-                  onEditBasicInfo: () {
-                    context.push('/edit-candidate-profile');
-                  },
-                  onEditAdditionalInfo: () {
-                    context.push('/edit-candidate-profile');
-                  },
-                ),
-                CandidateRecruitmentTab(candidate: candidate),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

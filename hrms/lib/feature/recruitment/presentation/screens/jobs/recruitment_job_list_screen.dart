@@ -5,11 +5,11 @@ import 'package:hrms/feature/auth/domain/entities/user.dart';
 import 'package:hrms/feature/auth/presentation/providers/user_provider.dart';
 import 'package:hrms/feature/position/domain/entities/position.dart';
 
-import '../../../../core/utils/currency_convert.dart';
-import '../../../../core/utils/time_convert.dart';
-import '../../../account/presentation/providers/permission_provider.dart';
-import '../../domain/entities/recruitment_job.dart';
-import '../providers/recruitment_job_list_provider.dart';
+import '../../../../../core/utils/currency_convert.dart';
+import '../../../../../core/utils/time_convert.dart';
+import '../../../../account/presentation/providers/permission_provider.dart';
+import '../../../domain/entities/recruitment_job.dart';
+import '../../providers/jobs/recruitment_job_list_provider.dart';
 
 class RecruitmentJobListScreen extends ConsumerWidget {
   const RecruitmentJobListScreen({super.key});

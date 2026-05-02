@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../department/domain/entities/department.dart';
-import '../../../department/presentation/providers/department_list_provider.dart';
-import '../../../position/domain/entities/position.dart';
-import '../../../position/presentation/providers/positionListProvider.dart';
-import '../../data/repo/recruitment_repo.dart';
-import '../../domain/entities/recruitment_job_request.dart';
+import '../../../../department/domain/entities/department.dart';
+import '../../../../department/presentation/providers/department_list_provider.dart';
+import '../../../../position/domain/entities/position.dart';
+import '../../../../position/presentation/providers/positionListProvider.dart';
+import '../../../data/repo/recruitment_repo.dart';
+import '../../../domain/entities/recruitment_job_request.dart';
 
 class AddRecruitmentJobState {
   final List<Position> positions;

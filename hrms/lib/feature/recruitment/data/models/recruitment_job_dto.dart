@@ -19,8 +19,6 @@ abstract class RecruitmentJobDto with _$RecruitmentJobDto {
     int? quantity,
     DateTime? deadline,
     required String status,
-    String? positionId,
-    String? departmentId,
     PositionDto? position,
     DepartmentDto? department,
     DateTime? createdAt,

@@ -6,7 +6,7 @@ import '../../../../core/error/app_exception.dart';
 import '../../../../core/service/address/Province.dart';
 import '../../../../core/service/address/province_provider.dart';
 import '../../../employee/domain/entities/employee.dart';
-import '../../domain/entities/candidate.dart';
+import '../../../candidate/domain/entities/candidate.dart';
 import '../../domain/entities/candidate_profile_request.dart';
 import '../../data/repo/account_repo.dart';
 

@@ -10,19 +10,19 @@ import '../../../../core/utils/platform_file_actions.dart';
 import '../../../../core/utils/time_convert.dart';
 import '../../../../core/widget/app_primary_button.dart';
 import '../../../../core/widget/app_snackbar.dart';
-import '../../../account/domain/entities/candidate.dart';
+import '../../../candidate/domain/entities/candidate.dart';
 import '../../../account/presentation/providers/edit_candidate_profile_provider.dart';
 import '../../../account/presentation/widgets/cv_picker.dart';
 import '../../../employee/domain/entities/employee.dart';
-import '../../../employee/presentation/widgets/date_picker_field.dart';
-import '../../../employee/presentation/widgets/normal_text_field.dart';
-import '../../../employee/presentation/widgets/select_field.dart';
+import '../../../../core/widget/date_picker_field.dart';
+import '../../../../core/widget/normal_text_field.dart';
+import '../../../../core/widget/select_field.dart';
 import '../../domain/entities/apply_job_request.dart';
+import '../providers/jobs/recruitment_job_action_provider.dart';
 
 class ApplyJobBottomSheet extends ConsumerStatefulWidget {
   final String recruitmentJobId;
-
-  const ApplyJobBottomSheet({required this.recruitmentJobId});
+  const ApplyJobBottomSheet({super.key, required this.recruitmentJobId});
 
   @override
   ConsumerState<ApplyJobBottomSheet> createState() =>
@@ -143,38 +143,46 @@ class ApplyJobBottomSheetState extends ConsumerState<ApplyJobBottomSheet> {
     }
   }
 
-  void _submit() {
+  void _submit() async {
     if (!_validateForm()) return;
-    print(
-      'Submitting with province: ${selectedProvince?.name}, ward: ${selectedWard?.name}',
-    );
-    context.pop(
-      ApplyJobRequest(
-        recruitmentJobId: widget.recruitmentJobId,
-        fullName: fullNameController.text.trim(),
-        phone: phoneController.text.trim(),
-        dateOfBirth: selectedDateOfBirth,
-        gender: selectedGender?.id,
-        province: selectedProvince == null
-            ? null
-            : ProvinceSummary(
-                maTinhBNV: selectedProvince!.maTinhBNV,
-                name: selectedProvince!.name,
-              ),
-        ward: selectedWard == null
-            ? null
-            : Ward(code: selectedWard!.code, name: selectedWard!.name),
-        address: addressController.text.trim(),
-        cvFile: selectedCvFile,
-        coverLetter: coverLetterController.text.trim(),
-        notes: notesController.text.trim(),
+    final request = ApplyJobRequest(
+      recruitmentJobId: widget.recruitmentJobId,
+      fullName: fullNameController.text.trim(),
+      phone: phoneController.text.trim(),
+      dateOfBirth: selectedDateOfBirth,
+      gender: selectedGender?.id,
+      province: selectedProvince == null
+          ? null
+          : ProvinceSummary(
+        maTinhBNV: selectedProvince!.maTinhBNV,
+        name: selectedProvince!.name,
       ),
+      ward: selectedWard == null
+          ? null
+          : Ward(code: selectedWard!.code, name: selectedWard!.name),
+      address: addressController.text.trim(),
+      cvFile: selectedCvFile,
+      coverLetter: coverLetterController.text.trim(),
+      notes: notesController.text.trim(),
     );
+    final success = await ref
+        .read(recruitmentJobActionProvider.notifier)
+        .applyJob(request);
+    if (!mounted) return;
+    if (success) {
+      AppSnackbar.showSuccess(
+        context,
+        'Ứng tuyển thành công',
+      );
+      context.pop(true);
+    }
+
   }
 
   @override
   Widget build(BuildContext context) {
     final editProfileState = ref.watch(editCandidateProfileProvider);
+    final accountState = ref.watch(recruitmentJobActionProvider);
 
     if (editProfileState.candidate != null &&
         editProfileState.provinces.isNotEmpty) {
@@ -182,6 +190,16 @@ class ApplyJobBottomSheetState extends ConsumerState<ApplyJobBottomSheet> {
     }
 
     final cvName = selectedCvFile?.name ?? fileNameFromUrl(currentCvUrl);
+
+    ref.listen(recruitmentJobActionProvider, (prev, next) {
+      next.whenOrNull(
+        error: (err, _) {
+          if (!mounted) return;
+
+          AppSnackbar.showError(context, err.toString());
+        },
+      );
+    });
 
     return DraggableScrollableSheet(
       expand: false,
@@ -194,14 +212,16 @@ class ApplyJobBottomSheetState extends ConsumerState<ApplyJobBottomSheet> {
           resizeToAvoidBottomInset: false,
           backgroundColor: Colors.white,
           body: SafeArea(
-            child: Padding(
+            child: Container(
               padding: EdgeInsets.fromLTRB(
                 0,
                 18,
                 0,
                 20 + MediaQuery.of(context).viewInsets.bottom,
               ),
+
               child: SingleChildScrollView(
+                controller: scrollController,
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -358,43 +378,51 @@ class ApplyJobBottomSheetState extends ConsumerState<ApplyJobBottomSheet> {
 
                     const SizedBox(height: 22),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 50,
-                            child: OutlinedButton(
-                              onPressed: () => context.pop(),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF334155),
-                                side: const BorderSide(
-                                  color: Color(0xFFCBD5E1),
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Hủy',
-                                style: TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SizedBox(
-                            height: 50,
-                            child: AppPrimaryButton(
-                              onPressed: _submit,
-                              text: 'Gửi ứng tuyển',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+
                   ],
                 ),
+              ),
+            ),
+          ),
+          bottomNavigationBar: SafeArea(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              color: Colors.white,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: OutlinedButton(
+                        onPressed: () => context.pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF334155),
+                          side: const BorderSide(
+                            color: Color(0xFFCBD5E1),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Hủy',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: AppPrimaryButton(
+                        onPressed: _submit,
+                        isLoading: accountState.isLoading,
+                        text: 'Gửi ứng tuyển',
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

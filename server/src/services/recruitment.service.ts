@@ -8,6 +8,7 @@ import {
 import { prisma } from "../config/prisma";
 import { employeeService } from "./employee.service";
 import { ApiError } from "../utils/apiError";
+import { sendInterviewInvitationEmail } from "../config/brevo";
 
 type CandidateProfileInput = {
   fullName?: string;
@@ -53,9 +54,10 @@ type RecruitmentJobInput = {
 type RecruitmentJobUpdateInput = Partial<RecruitmentJobInput>;
 
 type InterviewScheduleInput = {
+  title: string;
   scheduledAt: Date;
+  type: string;
   location?: string;
-  meetingLink?: string;
   interviewerNotes?: string;
 };
 
@@ -65,13 +67,15 @@ type InterviewResponseInput = {
 };
 
 type InterviewEvaluationInput = {
-  interviewScheduleId: string;
+  title: string;
   score?: number;
   strengths?: string;
   concerns?: string;
   recommendation?: string;
   comments?: string;
 };
+
+type InterviewEvaluationUpdateInput = Partial<InterviewEvaluationInput>;
 
 type ApplicationDecisionInput = {
   decision: JobApplicationStatus;
@@ -105,6 +109,7 @@ type RecruitmentJobListFilters = {
   search?: string;
   positionId?: string;
   departmentId?: string;
+  canViewAllStatuses?: boolean;
 };
 
 const candidateProfileSelect = {
@@ -159,7 +164,7 @@ const recruitmentJobInclude = {
     select: {
       id: true,
       email: true,
-      role: true,
+      name: true,
     },
   },
 } satisfies Prisma.RecruitmentJobInclude;
@@ -180,9 +185,12 @@ const applicationListSelect = {
   status: true,
   appliedAt: true,
   updatedAt: true,
-  candidate: {
-    select: candidateSummarySelect,
-  },
+  candidateId: true,
+  candidateAvatar: true,
+  candidateName: true,
+  candidateEmail: true,
+  candidatePhone: true,
+  candidateCvUrl: true,
   position: {
     select: {
       id: true,
@@ -208,46 +216,52 @@ const applicationListSelect = {
 } satisfies Prisma.JobApplicationSelect;
 
 const applicationDetailInclude = {
-  candidate: {
-    select: candidateProfileSelect,
-  },
   recruitmentJob: {
-    include: recruitmentJobInclude,
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      deadline: true,
+    },
   },
-  position: true,
-  department: true,
+  position: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+    },
+  },
+  department: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+    },
+  },
   interviewSchedules: {
     orderBy: { scheduledAt: "desc" as const },
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          email: true,
-          role: true,
-        },
-      },
-      evaluations: {
-        include: {
-          evaluator: {
-            select: {
-              id: true,
-              email: true,
-              role: true,
-            },
-          },
-        },
-      },
+    select: {
+      id: true,
+      title: true,
+      scheduledAt: true,
+      type: true,
+      location: true,
+      status: true,
     },
   },
   evaluations: {
     orderBy: { createdAt: "desc" as const },
-    include: {
-      interviewSchedule: true,
+    select: {
+      id: true,
+      title: true,
+      score: true,
       evaluator: {
         select: {
           id: true,
+          employeeId: true,
+          name: true,
           email: true,
-          role: true,
+          status: true,
         },
       },
     },
@@ -297,23 +311,6 @@ const getCandidateByUserId = async (userId: string) => {
   }
 
   return candidate;
-};
-
-const getApplicationOrThrow = async (id: string) => {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id },
-    include: applicationInclude,
-  });
-
-  if (!application) {
-    throw new ApiError(
-      404,
-      "Job application not found",
-      "JOB_APPLICATION_NOT_FOUND",
-    );
-  }
-
-  return application;
 };
 
 const ensureApplicationOwner = async (
@@ -390,12 +387,27 @@ const ensureRecruitmentJobEditable = (recruitmentJob: {
   }
 };
 
+const isStatusOnlyRecruitmentJobUpdate = (data: RecruitmentJobUpdateInput) =>
+  Object.keys(data).every((key) => key === "status");
+
+function getJsonName(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const obj = value as Record<string, unknown>;
+
+  return typeof obj.name === "string" ? obj.name : undefined;
+}
+
 export const recruitmentService = {
   async getJobs(filters: RecruitmentJobListFilters, userId?: string) {
     const normalizedSearch = filters.search?.trim() ?? "";
-    const conditions: Prisma.RecruitmentJobWhereInput[] = [
-      { status: RecruitmentJobStatus.OPEN },
-    ];
+    const conditions: Prisma.RecruitmentJobWhereInput[] = [];
+
+    if (!filters.canViewAllStatuses) {
+      conditions.push({ status: RecruitmentJobStatus.OPEN });
+    }
 
     if (filters.positionId) {
       conditions.push({ positionId: filters.positionId });
@@ -493,7 +505,9 @@ export const recruitmentService = {
     const recruitmentJob = await prisma.recruitmentJob.findFirst({
       where: {
         id,
-        status: RecruitmentJobStatus.OPEN,
+        status: {
+          in: [RecruitmentJobStatus.OPEN, RecruitmentJobStatus.CLOSED],
+        },
       },
       include: recruitmentJobInclude,
     });
@@ -526,6 +540,19 @@ export const recruitmentService = {
   },
 
   async createJob(userId: string, data: RecruitmentJobInput) {
+    const employee = await prisma.employee.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!employee) {
+      throw new ApiError(
+        404,
+        "Employee profile not found",
+        "EMPLOYEE_NOT_FOUND",
+      );
+    }
+
     const [position, department] = await Promise.all([
       prisma.position.findUnique({
         where: { id: data.positionId },
@@ -558,7 +585,7 @@ export const recruitmentService = {
         quantity: data.quantity,
         deadline: data.deadline,
         status: data.status ?? RecruitmentJobStatus.OPEN,
-        createdById: userId,
+        createdById: employee.id,
       },
       include: recruitmentJobInclude,
     });
@@ -567,7 +594,14 @@ export const recruitmentService = {
   async updateJob(id: string, data: RecruitmentJobUpdateInput) {
     const recruitmentJob = await getRecruitmentJobOrThrow(id);
 
-    ensureRecruitmentJobEditable(recruitmentJob);
+    const isReopeningClosedJob =
+      recruitmentJob.status === RecruitmentJobStatus.CLOSED &&
+      data.status === RecruitmentJobStatus.OPEN &&
+      isStatusOnlyRecruitmentJobUpdate(data);
+
+    if (!isReopeningClosedJob) {
+      ensureRecruitmentJobEditable(recruitmentJob);
+    }
 
     if (data.positionId) {
       const position = await prisma.position.findUnique({
@@ -629,6 +663,26 @@ export const recruitmentService = {
       where: { id },
       data: {
         status: RecruitmentJobStatus.CLOSED,
+      },
+      include: recruitmentJobInclude,
+    });
+  },
+
+  async reopenJob(id: string) {
+    const recruitmentJob = await getRecruitmentJobOrThrow(id);
+
+    if (recruitmentJob.status !== RecruitmentJobStatus.CLOSED) {
+      throw new ApiError(
+        400,
+        "Only closed recruitment jobs can be reopened",
+        "RECRUITMENT_JOB_NOT_CLOSED",
+      );
+    }
+
+    return prisma.recruitmentJob.update({
+      where: { id },
+      data: {
+        status: RecruitmentJobStatus.OPEN,
       },
       include: recruitmentJobInclude,
     });
@@ -719,15 +773,6 @@ export const recruitmentService = {
           address: data.address,
           avatar: data.avatar,
           cvUrl: data.cvUrl,
-          maritalStatus: data.maritalStatus,
-          nationality: data.nationality,
-          religion: data.religion,
-          bankAccount: data.bankAccount,
-          bank: data.bank,
-          identityCardNumber: data.identityCardNumber,
-          identityCardIssueDate: data.identityCardIssueDate,
-          frontIdentityCardImage: data.frontIdentityCardImage,
-          backIdentityCardImage: data.backIdentityCardImage,
           province: data.province,
           ward: data.ward,
         },
@@ -742,29 +787,6 @@ export const recruitmentService = {
           ...(data.address !== undefined ? { address: data.address } : {}),
           ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
           ...(data.cvUrl !== undefined ? { cvUrl: data.cvUrl } : {}),
-          ...(data.maritalStatus !== undefined
-            ? { maritalStatus: data.maritalStatus }
-            : {}),
-          ...(data.nationality !== undefined
-            ? { nationality: data.nationality }
-            : {}),
-          ...(data.religion !== undefined ? { religion: data.religion } : {}),
-          ...(data.bankAccount !== undefined
-            ? { bankAccount: data.bankAccount }
-            : {}),
-          ...(data.bank !== undefined ? { bank: data.bank } : {}),
-          ...(data.identityCardNumber !== undefined
-            ? { identityCardNumber: data.identityCardNumber }
-            : {}),
-          ...(data.identityCardIssueDate !== undefined
-            ? { identityCardIssueDate: data.identityCardIssueDate }
-            : {}),
-          ...(data.frontIdentityCardImage !== undefined
-            ? { frontIdentityCardImage: data.frontIdentityCardImage }
-            : {}),
-          ...(data.backIdentityCardImage !== undefined
-            ? { backIdentityCardImage: data.backIdentityCardImage }
-            : {}),
           ...(data.province !== undefined ? { province: data.province } : {}),
           ...(data.ward !== undefined ? { ward: data.ward } : {}),
         },
@@ -808,12 +830,28 @@ export const recruitmentService = {
         );
       }
 
+      const fullAddress = [
+        candidate.address,
+        getJsonName(candidate.ward),
+        getJsonName(candidate.province),
+      ]
+        .filter(
+          (v): v is string => typeof v === "string" && v.trim().length > 0,
+        )
+        .join(", ");
+
       return tx.jobApplication.create({
         data: {
           candidateId: candidate.id,
           recruitmentJobId: recruitmentJob.id,
           positionId: recruitmentJob.positionId,
           departmentId: recruitmentJob.departmentId,
+          candidateAvatar: candidate.avatar,
+          candidateName: candidate.fullName,
+          candidateEmail: candidate.email,
+          candidatePhone: candidate.phone,
+          candidateCvUrl: candidate.cvUrl,
+          candidateAddress: candidate.address,
           status: JobApplicationStatus.APPLIED,
           coverLetter: data.coverLetter,
           notes: data.notes,
@@ -924,7 +962,7 @@ export const recruitmentService = {
   },
 
   async getApplicationById(id: string) {
-    return getApplicationOrThrow(id);
+    return this.getApplicationByIdWithDetail(id);
   },
 
   async getApplicationByIdWithDetail(id: string) {
@@ -944,12 +982,61 @@ export const recruitmentService = {
     return application;
   },
 
+  async getInterviewScheduleById(applicationId: string, scheduleId: string) {
+    const schedule = await prisma.interviewSchedule.findFirst({
+      where: {
+        id: scheduleId,
+        jobApplicationId: applicationId,
+      },
+    });
+
+    if (!schedule) {
+      throw new ApiError(
+        404,
+        "Interview schedule not found",
+        "INTERVIEW_SCHEDULE_NOT_FOUND",
+      );
+    }
+
+    return schedule;
+  },
+
+  async getEvaluationById(applicationId: string, evaluationId: string) {
+    const evaluation = await prisma.interviewEvaluation.findFirst({
+      where: {
+        id: evaluationId,
+        jobApplicationId: applicationId,
+      },
+      include: {
+        evaluator: {
+          select: {
+            id: true,
+            employeeId: true,
+            name: true,
+            email: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!evaluation) {
+      throw new ApiError(
+        404,
+        "Interview evaluation not found",
+        "INTERVIEW_EVALUATION_NOT_FOUND",
+      );
+    }
+
+    return evaluation;
+  },
+
   async scheduleInterview(
     applicationId: string,
     actorUserId: string,
     data: InterviewScheduleInput,
   ) {
-    const application = await getApplicationOrThrow(applicationId);
+    const application = await this.getApplicationByIdWithDetail(applicationId);
 
     if (isApplicationFinal(application.status)) {
       throw new ApiError(
@@ -959,15 +1046,29 @@ export const recruitmentService = {
       );
     }
 
+    let createdByEmployeeId: string | null = null;
+
+    // Try to find employee profile for the actor using findUnique (userId is unique)
+    try {
+      const employee = await prisma.employee.findUnique({
+        where: { userId: actorUserId },
+        select: { id: true },
+      });
+      createdByEmployeeId = employee?.id ?? null;
+    } catch (e) {
+      // Silently ignore employee lookup error - createdByEmployeeId stays null
+    }
+
     return prisma.$transaction(async (tx) => {
       const updatedSchedule = await tx.interviewSchedule.create({
         data: {
           jobApplicationId: applicationId,
+          title: data.title,
           scheduledAt: data.scheduledAt,
+          type: data.type,
           location: data.location,
-          meetingLink: data.meetingLink,
           interviewerNotes: data.interviewerNotes,
-          createdByUserId: actorUserId,
+          createdByEmployeeId,
           status: InterviewScheduleStatus.INVITED,
         },
       });
@@ -980,8 +1081,22 @@ export const recruitmentService = {
         include: applicationInclude,
       });
 
+      // Send interview invitation email to candidate
+      try {
+        await sendInterviewInvitationEmail(
+          application.candidateEmail!,
+          application.candidateName || "Ứng viên",
+          data.title,
+          application.position?.name || "Vị trí",
+          data.scheduledAt,
+          data.location,
+        );
+      } catch (emailError) {
+        // Log email error but don't fail the schedule creation
+        console.error("Failed to send interview invitation email:", emailError);
+      }
+
       return {
-        application: updatedApplication,
         interviewSchedule: updatedSchedule,
       };
     });
@@ -993,10 +1108,7 @@ export const recruitmentService = {
     candidateUserId: string,
     data: InterviewResponseInput,
   ) {
-    const { candidate } = await ensureApplicationOwner(
-      applicationId,
-      candidateUserId,
-    );
+    await ensureApplicationOwner(applicationId, candidateUserId);
 
     const schedule = await prisma.interviewSchedule.findFirst({
       where: {
@@ -1049,7 +1161,6 @@ export const recruitmentService = {
       });
 
       return {
-        candidate,
         application: updatedApplication,
       };
     });
@@ -1060,46 +1171,36 @@ export const recruitmentService = {
     evaluatorUserId: string,
     data: InterviewEvaluationInput,
   ) {
-    await getApplicationOrThrow(applicationId);
-
-    const schedule = await prisma.interviewSchedule.findFirst({
-      where: {
-        id: data.interviewScheduleId,
-        jobApplicationId: applicationId,
-      },
-      select: {
-        id: true,
-        status: true,
-      },
+    const application = await this.getApplicationByIdWithDetail(applicationId);
+    const employee = await prisma.employee.findUnique({
+      where: { userId: evaluatorUserId },
+      select: { id: true },
     });
 
-    if (!schedule) {
+    if (!employee) {
       throw new ApiError(
         404,
-        "Interview schedule not found",
-        "INTERVIEW_SCHEDULE_NOT_FOUND",
+        "Employee profile not found",
+        "EMPLOYEE_NOT_FOUND",
       );
     }
 
-    if (
-      !new Set<InterviewScheduleStatus>([
-        InterviewScheduleStatus.CONFIRMED,
-        InterviewScheduleStatus.COMPLETED,
-      ]).has(schedule.status)
-    ) {
-      throw new ApiError(
-        400,
-        "Interview must be confirmed before evaluation",
-        "INTERVIEW_NOT_READY_FOR_EVALUATION",
-      );
-    }
+    const latestSchedule = await prisma.interviewSchedule.findFirst({
+      where: {
+        jobApplicationId: applicationId,
+      },
+      orderBy: { scheduledAt: "desc" },
+      select: {
+        id: true,
+      },
+    });
 
     return prisma.$transaction(async (tx) => {
       const evaluation = await tx.interviewEvaluation.create({
         data: {
           jobApplicationId: applicationId,
-          interviewScheduleId: data.interviewScheduleId,
-          evaluatorUserId,
+          title: data.title,
+          evaluatorEmployeeId: employee.id,
           score: data.score,
           strengths: data.strengths,
           concerns: data.concerns,
@@ -1108,12 +1209,14 @@ export const recruitmentService = {
         },
       });
 
-      await tx.interviewSchedule.update({
-        where: { id: data.interviewScheduleId },
-        data: {
-          status: InterviewScheduleStatus.COMPLETED,
-        },
-      });
+      if (latestSchedule) {
+        await tx.interviewSchedule.update({
+          where: { id: latestSchedule.id },
+          data: {
+            status: InterviewScheduleStatus.COMPLETED,
+          },
+        });
+      }
 
       const updatedApplication = await tx.jobApplication.update({
         where: { id: applicationId },
@@ -1124,17 +1227,71 @@ export const recruitmentService = {
       });
 
       return {
-        application: updatedApplication,
-        evaluation,
+        evaluation: {
+          ...evaluation,
+          evaluator: employee,
+        },
       };
     });
+  },
+
+  async updateEvaluation(
+    applicationId: string,
+    evaluationId: string,
+    evaluatorUserId: string,
+    data: InterviewEvaluationUpdateInput,
+  ) {
+    const application = await this.getApplicationByIdWithDetail(applicationId);
+    const employee = await prisma.employee.findUnique({
+      where: { userId: evaluatorUserId },
+      select: { id: true },
+    });
+
+    if (!employee) {
+      throw new ApiError(
+        404,
+        "Employee profile not found",
+        "EMPLOYEE_NOT_FOUND",
+      );
+    }
+    const evaluation = await prisma.interviewEvaluation.findFirst({
+      where: {
+        id: evaluationId,
+        jobApplicationId: applicationId,
+        evaluatorEmployeeId: employee.id,
+      },
+    });
+
+    if (!evaluation) {
+      throw new ApiError(
+        404,
+        "Interview evaluation not found",
+        "INTERVIEW_EVALUATION_NOT_FOUND",
+      );
+    }
+
+    const updatedEvaluation = await prisma.interviewEvaluation.update({
+      where: { id: evaluationId },
+      data: {
+        ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.score !== undefined ? { score: data.score } : {}),
+        ...(data.strengths !== undefined ? { strengths: data.strengths } : {}),
+        ...(data.concerns !== undefined ? { concerns: data.concerns } : {}),
+        ...(data.recommendation !== undefined
+          ? { recommendation: data.recommendation }
+          : {}),
+        ...(data.comments !== undefined ? { comments: data.comments } : {}),
+      },
+    });
+
+    return updatedEvaluation;
   },
 
   async decideApplication(
     applicationId: string,
     data: ApplicationDecisionInput,
   ) {
-    const application = await getApplicationOrThrow(applicationId);
+    const application = await this.getApplicationByIdWithDetail(applicationId);
 
     if (application.status === JobApplicationStatus.ONBOARDED) {
       throw new ApiError(
@@ -1171,7 +1328,7 @@ export const recruitmentService = {
   },
 
   async sendOffer(applicationId: string, data: OfferInput) {
-    const application = await getApplicationOrThrow(applicationId);
+    const application = await this.getApplicationByIdWithDetail(applicationId);
 
     if (
       !new Set<JobApplicationStatus>([

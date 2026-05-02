@@ -4,12 +4,13 @@ import 'package:hrms/core/service/address/Ward.dart';
 import 'package:hrms/core/service/address/provine_summary.dart';
 import 'package:hrms/core/utils/extract_error.dart';
 import 'package:hrms/core/utils/platform_file_actions.dart';
-import 'package:hrms/feature/account/domain/entities/candidate.dart';
+import 'package:hrms/feature/candidate/domain/entities/candidate.dart';
 import 'package:hrms/feature/employee/domain/entities/employee.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../employee/data/models/employee_dto.dart';
+import '../../../candidate/data/models/candidate_dto.dart';
 
 class AccountRemote {
   final Dio dio;
@@ -27,11 +28,11 @@ class AccountRemote {
     }
   }
 
-  Future<Candidate> fetchCandidateProfile() async {
+  Future<CandidateDto> fetchCandidateProfile() async {
     try {
-      final response = await dio.get('/recruitment/profile');
+      final response = await dio.get('/candidates/profile');
 
-      return _candidateFromJson(response.data['data'] as Map<String, dynamic>);
+      return CandidateDto.fromJson(response.data['data']);
     } on DioException catch (e) {
       print('Profile Remote getCurrentUser error: $e');
       throw AppException('Lỗi tải thông tin cá nhân');
@@ -44,7 +45,7 @@ class AccountRemote {
   }) async {
     try {
       if (cvFile == null) {
-        await dio.patch('/recruitment/profile', data: data);
+        await dio.patch('/candidates/profile', data: data);
         return true;
       }
 
@@ -57,7 +58,7 @@ class AccountRemote {
       );
 
       await dio.patch(
-        '/recruitment/profile',
+        '/candidates/profile',
         data: formData,
         options: Options(
           contentType: 'multipart/form-data',
@@ -82,63 +83,6 @@ class AccountRemote {
     }
   }
 
-  Candidate _candidateFromJson(Map<String, dynamic> json) {
-    return Candidate(
-      id: json['id']?.toString() ?? '',
-      name: (json['fullName'] ?? json['name'] ?? 'NO NAME').toString(),
-      email: json['email']?.toString() ?? '',
-      phone: json['phone']?.toString(),
-      avatar: json['avatar']?.toString(),
-      dateOfBirth: _parseDate(json['dateOfBirth']),
-      gender: _parseGender(json['gender']),
-      address: json['address']?.toString(),
-      province: _parseProvince(json['province']),
-      ward: _parseWard(json['ward']),
-      maritalStatus: json['maritalStatus']?.toString(),
-      nationality: json['nationality']?.toString(),
-      religion: json['religion']?.toString(),
-      identityCardNumber: json['identityCardNumber']?.toString(),
-      identityCardIssueDate: _parseDate(json['identityCardIssueDate']),
-      frontIdentityCardImage: json['frontIdentityCardImage']?.toString(),
-      backIdentityCardImage: json['backIdentityCardImage']?.toString(),
-      cvUrl: json['cvUrl']?.toString(),
-    );
-  }
-
-  DateTime? _parseDate(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value;
-    return DateTime.tryParse(value.toString());
-  }
-
-  Gender? _parseGender(dynamic value) {
-    switch (value?.toString()) {
-      case 'MALE':
-        return Gender.MALE;
-      case 'FEMALE':
-        return Gender.FEMALE;
-      case 'OTHER':
-        return Gender.OTHER;
-      default:
-        return null;
-    }
-  }
-
-  ProvinceSummary? _parseProvince(dynamic value) {
-    if (value is! Map<String, dynamic>) return null;
-    final id = value['id'] ?? value['maTinhBNV'] ?? value['code'];
-    final name = value['name'];
-    if (id == null || name == null) return null;
-    return ProvinceSummary(maTinhBNV: id.toString(), name: name.toString());
-  }
-
-  Ward? _parseWard(dynamic value) {
-    if (value is! Map<String, dynamic>) return null;
-    final id = value['id'] ?? value['code'];
-    final name = value['name'];
-    if (id == null || name == null) return null;
-    return Ward(code: id.toString(), name: name.toString());
-  }
 }
 
 final accountRemoteProvider = Provider<AccountRemote>((ref) {

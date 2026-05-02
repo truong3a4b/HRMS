@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/apply_job_request.dart';
+import '../../domain/entities/interview_schedule.dart';
 import '../../domain/entities/job_application.dart';
 import '../../domain/entities/recruitment_job.dart';
-import '../../domain/entities/apply_job_request.dart';
 import '../../domain/entities/recruitment_job_request.dart';
 import '../datasources/recruitment_remote.dart';
+import '../mapper/interview_schedule_mapper.dart';
 import '../mapper/job_application_mapper.dart';
 import '../mapper/recruitment_job_mapper.dart';
 
@@ -52,6 +54,10 @@ class RecruitmentRepository {
     return await remote.closeRecruitmentJob(id);
   }
 
+  Future<bool> reopenRecruitmentJob(String id) async {
+    return await remote.reopenRecruitmentJob(id);
+  }
+
   Future<bool> applyJob(ApplyJobRequest request) async {
     return await remote.applyJob(request.toJson(), cvFile: request.cvFile);
   }
@@ -75,6 +81,53 @@ class RecruitmentRepository {
     );
 
     return dtos.map((e) => e.toEntity()).toList();
+  }
+
+  //get application detail
+  Future<JobApplication> getApplicationById(String id) async {
+    final dto = await remote.getApplicationById(id);
+    return dto.toEntity();
+  }
+
+  //Tao lich phỏng vấn cho ứng viên
+  Future<bool> addInterviewSchedule(
+    String applicationId,
+    Map<String, dynamic> data,
+  ) async {
+    return await remote.addInterviewSchedule(applicationId, data);
+  }
+
+  //Xem chi tiết lịch phỏng vấn
+  Future<InterviewSchedule> getInterviewScheduleById({
+    required String applicationId,
+    required String interviewScheduleId,
+  }) async {
+    final dto = await remote.getInterviewScheduleById(
+      applicationId: applicationId,
+      interviewScheduleId: interviewScheduleId,
+    );
+    return dto.toEntity();
+  }
+
+  //Phan hoi lich phong van
+  Future<bool> respondInterviewSchedule(
+    String applicationId,
+    String interviewScheduleId,
+    Map<String, dynamic> data,
+  ) async {
+    return await remote.respondInterviewSchedule(
+      applicationId,
+      interviewScheduleId,
+      data,
+    );
+  }
+
+  //Đanh gia ung vien
+  Future<bool> evaluateCandidate(
+    String applicationId,
+    Map<String, dynamic> data,
+  ) async {
+    return await remote.evaluateCandidate(applicationId, data);
   }
 }
 

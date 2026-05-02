@@ -15,9 +15,9 @@ import '../../../../core/widget/custom_dialog.dart';
 import '../../domain/entities/basic_info_request.dart';
 import '../../domain/entities/employee.dart';
 import '../providers/edit_employee_provider.dart';
-import '../widgets/date_picker_field.dart';
-import '../widgets/normal_text_field.dart';
-import '../widgets/select_field.dart';
+import '../../../../core/widget/date_picker_field.dart';
+import '../../../../core/widget/normal_text_field.dart';
+import '../../../../core/widget/select_field.dart';
 
 class EditEmployeeBasicInfoScreen extends ConsumerStatefulWidget {
   final String employeeId;

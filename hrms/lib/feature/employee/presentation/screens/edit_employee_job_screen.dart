@@ -12,9 +12,9 @@ import '../../../../core/widget/app_primary_button.dart';
 import '../../../../core/widget/custom_dialog.dart';
 import '../../../department/domain/entities/department.dart';
 import '../providers/edit_employee_provider.dart';
-import '../widgets/date_picker_field.dart';
-import '../widgets/normal_text_field.dart';
-import '../widgets/select_field.dart';
+import '../../../../core/widget/date_picker_field.dart';
+import '../../../../core/widget/normal_text_field.dart';
+import '../../../../core/widget/select_field.dart';
 
 class EditEmployeeJobScreen extends ConsumerStatefulWidget {
   final String employeeId;

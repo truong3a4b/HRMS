@@ -110,3 +110,75 @@ export const sendEmployeeAccountEmail = async (
     throw error;
   }
 };
+
+// Hàm gửi email mời phỏng vấn cho ứng viên
+export const sendInterviewInvitationEmail = async (
+  candidateEmail: string,
+  candidateName: string,
+  interviewTitle: string,
+  jobTitle: string,
+  scheduledAt: Date,
+  location?: string,
+) => {
+  if (!env.BREVO_API_KEY) {
+    throw new Error("BREVO_API_KEY is not configured");
+  }
+
+  if (!env.BREVO_SENDER_EMAIL) {
+    throw new Error("BREVO_SENDER_EMAIL is not configured");
+  }
+
+  try {
+    const formattedDate = scheduledAt.toLocaleString("vi-VN", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const locationText = location
+      ? `<p><strong>Địa điểm:</strong> ${location}</p>`
+      : "";
+
+    await brevoClient.transactionalEmails.sendTransacEmail({
+      sender: {
+        email: env.BREVO_SENDER_EMAIL,
+        name: env.BREVO_SENDER_NAME,
+      },
+      to: [{ email: candidateEmail }],
+      subject: `Thư mời phỏng vấn - ${interviewTitle}`,
+      htmlContent: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h2>Xin chào ${candidateName},</h2>
+        <p>Chúng tôi vui mừng được thông báo rằng bạn đã được mời tham gia <strong>${interviewTitle}</strong> cho vị trí <strong>${jobTitle}</strong>.</p>
+        <p><strong>Thời gian phỏng vấn:</strong> ${formattedDate}</p>
+        ${locationText}
+        <p>Vui lòng xác nhận việc tham dự hoặc từ chối tham dự qua hệ thống HRMS của chúng tôi.</p>
+        <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>
+        <p>Chúc bạn may mắn!</p>
+      </div>
+      `,
+      textContent: `Xin chào ${candidateName}, bạn đã được mời tham gia ${interviewTitle} cho vị trí ${jobTitle}. Thời gian: ${formattedDate}. Vui lòng xác nhận qua hệ thống HRMS.`,
+    });
+  } catch (error) {
+    const maybeError = error as {
+      statusCode?: number;
+      body?: { message?: string; code?: string };
+    };
+
+    if (maybeError.statusCode === 401) {
+      throw new Error(
+        "Brevo API key is invalid or revoked. Update BREVO_API_KEY and restart server.",
+      );
+    }
+
+    const brevoMessage = maybeError.body?.message;
+    if (brevoMessage) {
+      throw new Error(`Brevo error: ${brevoMessage}`);
+    }
+
+    throw error;
+  }
+};

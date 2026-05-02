@@ -5,8 +5,8 @@ import 'package:hrms/core/utils/time_convert.dart';
 import 'package:hrms/core/widget/app_primary_button.dart';
 import 'package:hrms/core/widget/app_snackbar.dart';
 import 'package:hrms/feature/employee/domain/entities/employee.dart';
-import 'package:hrms/feature/employee/presentation/widgets/normal_text_field.dart';
-import 'package:hrms/feature/employee/presentation/widgets/select_field.dart';
+import 'package:hrms/core/widget/normal_text_field.dart';
+import 'package:hrms/core/widget/select_field.dart';
 
 import '../../../../core/service/address/Province.dart';
 import '../../../../core/service/address/Ward.dart';
@@ -17,7 +17,7 @@ import '../../../department/domain/entities/department.dart';
 import '../../../position/domain/entities/position.dart';
 import '../../domain/entities/add_employee_request.dart';
 import '../providers/add_employee_provider.dart';
-import '../widgets/date_picker_field.dart';
+import '../../../../core/widget/date_picker_field.dart';
 
 class AddEmployeeScreen extends ConsumerStatefulWidget {
   const AddEmployeeScreen({super.key});

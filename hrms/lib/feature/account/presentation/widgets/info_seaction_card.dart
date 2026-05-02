@@ -42,36 +42,38 @@ class InfoSectionCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: editBg,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: canEdit ? IconButton(
-                  onPressed: onEdit,
-                  icon: const Icon(
-                    Icons.edit_outlined,
-                    color: primaryColor,
-                    size: 22,
-                  ),
-                ) : const SizedBox(),
-              ),
+              canEdit
+                  ? Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: editBg,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: IconButton(
+                        onPressed: onEdit,
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: primaryColor,
+                          size: 22,
+                        ),
+                      ),
+                    )
+                  : const SizedBox(),
             ],
           ),
           const SizedBox(height: 18),
-          ...items.map((e) => InfoRow(item: e)),
+          ...items.map((e) => _InfoRow(item: e)),
         ],
       ),
     );
   }
 }
 
-class InfoRow extends StatelessWidget {
+class _InfoRow extends StatelessWidget {
   final InfoItem item;
 
-  const InfoRow({required this.item});
+  const _InfoRow({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -141,9 +143,5 @@ class InfoItem {
   final String value;
   final IconData? trailingIcon;
 
-  const InfoItem({
-    required this.label,
-    required this.value,
-    this.trailingIcon,
-  });
+  const InfoItem({required this.label, required this.value, this.trailingIcon});
 }

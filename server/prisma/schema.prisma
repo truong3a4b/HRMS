@@ -35,9 +35,6 @@ model User {
   refreshTokens RefreshToken[]
   candidate     Candidate?
   employee      Employee?
-  interviewSchedules InterviewSchedule[] @relation("InterviewScheduleCreatedBy")
-  interviewEvaluations InterviewEvaluation[] @relation("InterviewEvaluationEvaluator")
-  createdRecruitmentJobs RecruitmentJob[]
 }
 
 model PendingUser {
@@ -161,7 +158,7 @@ model RecruitmentJob {
 
   position      Position             @relation(fields: [positionId], references: [id], onDelete: Restrict)
   department    Department           @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  createdBy     User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy     Employee?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
   applications  JobApplication[]
 
   @@index([status, deadline])
@@ -278,17 +275,28 @@ model Employee {
   createdAt                DateTime        @default(now())
   updatedAt                DateTime        @updatedAt
 
+  interviewSchedules InterviewSchedule[] @relation("InterviewScheduleCreatedBy")
+  interviewEvaluations InterviewEvaluation[] @relation("InterviewEvaluationEvaluator")
+  createdRecruitmentJobs RecruitmentJob[]
   @@index([departmentId])
   @@index([positionId])
   @@map("employees")
 }
 
 model JobApplication {
-  id               String                  @id @default(uuid())
+  id                String                  @id @default(uuid())
   candidateId       String
   recruitmentJobId  String?
   positionId        String
   departmentId      String?
+  candidateAvatar   String?
+  candidateName     String?
+  candidateEmail    String?
+  candidatePhone    String?
+  candidateBirthDate   DateTime?
+  candidateGender   Gender?
+  candidateCvUrl    String?
+  candidateAddress  String?
   status            JobApplicationStatus   @default(APPLIED)
   proposedSalary    Decimal?                @db.Decimal(15, 2)
   proposedHireDate  DateTime?
@@ -319,20 +327,21 @@ model JobApplication {
 model InterviewSchedule {
   id               String                 @id @default(uuid())
   jobApplicationId  String
+  title            String
   scheduledAt       DateTime
+  type             String?                //loai hinh: online/offline
   location          String?
-  meetingLink       String?
   interviewerNotes  String?
   candidateResponseAt DateTime?
   candidateResponseNote String?
   status            InterviewScheduleStatus @default(INVITED)
-  createdByUserId   String?
+  createdByEmployeeId   String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
   jobApplication    JobApplication         @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
-  createdBy         User?                  @relation("InterviewScheduleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  evaluations       InterviewEvaluation[]
+  createdBy         Employee?              @relation("InterviewScheduleCreatedBy", fields: [createdByEmployeeId], references: [id], onDelete: SetNull)
+  
 
   @@index([jobApplicationId, status])
   @@map("interview_schedules")
@@ -341,8 +350,8 @@ model InterviewSchedule {
 model InterviewEvaluation {
   id                String        @id @default(uuid())
   jobApplicationId  String
-  interviewScheduleId String?
-  evaluatorUserId   String?
+  title             String
+  evaluatorEmployeeId   String?
   score             Int?
   strengths         String?
   concerns          String?
@@ -352,11 +361,9 @@ model InterviewEvaluation {
   updatedAt         DateTime      @updatedAt
 
   jobApplication    JobApplication   @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
-  interviewSchedule InterviewSchedule? @relation(fields: [interviewScheduleId], references: [id], onDelete: SetNull)
-  evaluator         User?            @relation("InterviewEvaluationEvaluator", fields: [evaluatorUserId], references: [id], onDelete: SetNull)
+  evaluator         Employee?        @relation("InterviewEvaluationEvaluator", fields: [evaluatorEmployeeId], references: [id], onDelete: SetNull)
 
   @@index([jobApplicationId, createdAt])
-  @@index([interviewScheduleId])
   @@map("interview_evaluations")
 }
 

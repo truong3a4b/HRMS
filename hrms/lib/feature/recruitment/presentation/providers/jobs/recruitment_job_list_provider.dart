@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repo/recruitment_repo.dart';
-import '../../domain/entities/recruitment_job.dart';
+import '../../../data/repo/recruitment_repo.dart';
+import '../../../domain/entities/recruitment_job.dart';
 
 final recruitmentJobListProvider =
 FutureProvider.autoDispose<List<RecruitmentJob>>((ref) async {

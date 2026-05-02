@@ -5,6 +5,7 @@ import 'package:hrms/core/error/app_exception.dart';
 import 'package:hrms/core/network/dio_client.dart';
 import 'package:hrms/core/share/models/app_response.dart';
 import 'package:hrms/core/utils/extract_error.dart';
+import 'package:hrms/feature/recruitment/data/models/interview_schedule_dto.dart';
 
 import '../../../../core/utils/platform_file_actions.dart';
 import '../models/job_application_dto.dart';
@@ -15,6 +16,7 @@ class RecruitmentRemote {
 
   RecruitmentRemote({required this.dio});
 
+  //Lay danh sach cac vi tri tuyen dung, co the loc theo chuc danh, phong ban, tu khoa
   Future<List<RecruitmentJobDto>> fetchRecruitmentJobs({
     String? positionId,
     String? departmentId,
@@ -46,6 +48,7 @@ class RecruitmentRemote {
     }
   }
 
+  //
   Future<RecruitmentJobDto> getRecruitmentJobById(String id) async {
     try {
       final response = await dio.get('/recruitment/jobs/$id');
@@ -60,6 +63,7 @@ class RecruitmentRemote {
     }
   }
 
+  //Tao moi vi tri tuyen dung
   Future<bool> createRecruitmentJob(Map<String, dynamic> data) async {
     try {
       await dio.post('/recruitment/jobs', data: data);
@@ -72,6 +76,7 @@ class RecruitmentRemote {
     }
   }
 
+  //Cap nhat thong tin vi tri tuyen dung
   Future<bool> updateRecruitmentJob(
     String id,
     Map<String, dynamic> data,
@@ -87,6 +92,7 @@ class RecruitmentRemote {
     }
   }
 
+  //Dong vi tri tuyen dung
   Future<bool> closeRecruitmentJob(String id) async {
     try {
       await dio.patch('/recruitment/jobs/$id/close');
@@ -100,6 +106,20 @@ class RecruitmentRemote {
     }
   }
 
+  //Mo lai vi tri tuyen dung
+  Future<bool> reopenRecruitmentJob(String id) async {
+    try {
+      await dio.patch('/recruitment/jobs/$id/reopen');
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote reopenRecruitmentJob error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi mở lại vị trí tuyển dụng',
+      );
+    }
+  }
+
+  //Ung tuyen vao vi tri tuyen dung, co the kem theo file CV
   Future<bool> applyJob(
     Map<String, dynamic> data, {
     PickedCvFile? cvFile,
@@ -168,6 +188,74 @@ class RecruitmentRemote {
 
       final errorMessage = ExtractError.extractFirstError(e.response?.data);
       throw AppException(errorMessage);
+    }
+  }
+
+  //get application detail
+  Future<JobApplicationDto> getApplicationById(String id) async {
+    try {
+      final response = await dio.get('/recruitment/applications/$id');
+
+      final appResponse = AppResponse.fromJson(response.data);
+      return JobApplicationDto.fromJson(appResponse.data);
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote getApplicationById error: $e');
+
+      final errorMessage = ExtractError.extractFirstError(e.response?.data);
+      throw AppException(errorMessage);
+    }
+  }
+
+  //Tao lich phỏng vấn cho ứng viên
+  Future<bool> addInterviewSchedule(String applicationId,Map<String, dynamic> data) async {
+    try {
+      await dio.post('/recruitment/applications/$applicationId/interviews', data: data);
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote addInterviewSchedule error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi tạo lịch phỏng vấn',
+      );
+    }
+  }
+
+  //Xem chi tiết lịch phỏng vấn
+  Future<InterviewScheduleDto> getInterviewScheduleById({required String applicationId, required String interviewScheduleId}) async {
+    try{
+      final response = await dio.get('/recruitment/applications/$applicationId/interviews/$interviewScheduleId');
+      final appResponse = AppResponse.fromJson(response.data);
+      return InterviewScheduleDto.fromJson(appResponse.data);
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote getInterviewScheduleById error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi tải chi tiết lịch phỏng vấn',
+      );
+    }
+  }
+
+  //Phan hoi lich phong van
+  Future<bool> respondInterviewSchedule(String applicationId, String interviewScheduleId, Map<String, dynamic> data) async {
+    try {
+      await dio.post('/recruitment/applications/$applicationId/interviews/$interviewScheduleId/respond', data: data);
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote respondInterviewSchedule error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi phản hồi lịch phỏng vấn',
+      );
+    }
+  }
+
+  //Danh gia ung vien
+  Future<bool> evaluateCandidate(String applicationId, Map<String, dynamic> data) async {
+    try {
+      await dio.post('/recruitment/applications/$applicationId/evaluations', data: data);
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote evaluateInterviewSchedule error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi đánh giá ứng viên',
+      );
     }
   }
 }

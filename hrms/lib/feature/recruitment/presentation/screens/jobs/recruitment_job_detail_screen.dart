@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hrms/feature/recruitment/presentation/providers/recruitment_job_list_provider.dart';
+import 'package:hrms/feature/account/presentation/providers/profile_provider.dart';
+import 'package:hrms/feature/recruitment/presentation/providers/jobs/recruitment_job_list_provider.dart';
 
-import '../../../../core/utils/currency_convert.dart';
-import '../../../../core/utils/time_convert.dart';
-import '../../../../core/widget/app_primary_button.dart';
-import '../../../../core/widget/app_snackbar.dart';
-import '../../../account/presentation/providers/permission_provider.dart';
-import '../../../auth/domain/entities/user.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../position/domain/entities/position.dart';
-import '../../domain/entities/apply_job_request.dart';
-import '../../domain/entities/recruitment_job.dart';
-import '../providers/recruitment_job_action_provider.dart';
-import '../providers/recruitment_job_detail_provider.dart';
-import '../widgets/apply_job_bottom_sheet.dart';
+import '../../../../../core/utils/currency_convert.dart';
+import '../../../../../core/utils/time_convert.dart';
+import '../../../../../core/widget/app_primary_button.dart';
+import '../../../../../core/widget/app_snackbar.dart';
+import '../../../../account/presentation/providers/permission_provider.dart';
+import '../../../../auth/domain/entities/user.dart';
+import '../../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../position/domain/entities/position.dart';
+import '../../../domain/entities/apply_job_request.dart';
+import '../../../domain/entities/recruitment_job.dart';
+import '../../providers/jobs/recruitment_job_action_provider.dart';
+import '../../providers/jobs/recruitment_job_detail_provider.dart';
+import '../../widgets/apply_job_bottom_sheet.dart';
 
 class RecruitmentJobDetailScreen extends ConsumerWidget {
   final String jobId;
@@ -75,7 +76,7 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
                 onSelected: (value) async {
                   if (value == 'edit') {
                     final success = await context.push<bool>(
-                      '/edit-recruitment-job/${job.id}',
+                      '/update-recruitment-job/${job.id}',
                     );
 
                     if (success == true) {
@@ -94,16 +95,37 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
                         'Đã đóng tin tuyển dụng',
                       );
                       ref.invalidate(recruitmentJobListProvider);
+
                       context.pop(true);
+                    }
+                  }
+                  if(value == 'open') {
+                    final success = await ref
+                        .read(recruitmentJobActionProvider.notifier)
+                        .openJob(job.id);
+                    if (!context.mounted) return;
+                    if (success) {
+                      AppSnackbar.showSuccess(
+                        context,
+                        'Đã mở lại tin tuyển dụng',
+                      );
+                      ref.invalidate(recruitmentJobListProvider);
                     }
                   }
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'edit', child: Text('Chỉnh sửa')),
-                  if (job.status == RecruitmentJobStatus.OPEN)
+                  if (job.status == RecruitmentJobStatus.OPEN) ...[
+                    const PopupMenuItem(value: 'edit', child: Text('Chỉnh sửa')),
                     const PopupMenuItem(
                       value: 'close',
                       child: Text('Đóng tin tuyển dụng'),
+                    ),
+                  ],
+
+                  if(job.status == RecruitmentJobStatus.CLOSED)
+                    const PopupMenuItem(
+                      value: 'open',
+                      child: Text('Mở lại tin tuyển dụng'),
                     ),
                 ],
               );
@@ -141,33 +163,20 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
                   onPressed: job.isApplied
                       ? null
                       : () async {
-                          final request =
-                              await showModalBottomSheet<ApplyJobRequest>(
+                          final success =
+                              await showModalBottomSheet<bool>(
                                 context: context,
                                 isScrollControlled: true,
                                 backgroundColor: Colors.white,
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(24),
-                                  ),
-                                ),
                                 builder: (context) => ApplyJobBottomSheet(
                                   recruitmentJobId: job.id,
                                 ),
                               );
-                          if (request == null) return;
-
-                          final success = await ref
-                              .read(recruitmentJobActionProvider.notifier)
-                              .applyJob(request);
-                          if (!context.mounted) return;
-                          if (success) {
-                            AppSnackbar.showSuccess(
-                              context,
-                              'Ứng tuyển thành công',
-                            );
-                            context.pop(true);
+                          if (success == true) {
+                            ref.invalidate(recruitmentJobDetailProvider(job.id));
+                            ref.invalidate(profileProvider);
                           }
+
                         },
                 ),
               ),

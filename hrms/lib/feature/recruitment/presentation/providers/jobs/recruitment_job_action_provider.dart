@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../domain/entities/apply_job_request.dart';
-import '../../data/repo/recruitment_repo.dart';
+import '../../../domain/entities/apply_job_request.dart';
+import '../../../data/repo/recruitment_repo.dart';
 
 class RecruitmentJobActionNotifier extends AsyncNotifier<void> {
   @override
@@ -33,6 +33,22 @@ class RecruitmentJobActionNotifier extends AsyncNotifier<void> {
       return false;
     }
   }
+
+  Future<bool> openJob(String jobId) async {
+    state = const AsyncValue.loading();
+
+    try {
+      final repo = ref.read(recruitmentRepositoryProvider);
+      final result = await repo.reopenRecruitmentJob(jobId);
+      state = const AsyncValue.data(null);
+      return result;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+
+  }
+  
 }
 
 final recruitmentJobActionProvider =

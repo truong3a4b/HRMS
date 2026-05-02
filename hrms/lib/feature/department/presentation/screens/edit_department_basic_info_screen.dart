@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/widget/app_primary_button.dart';
 import '../../../../core/widget/app_snackbar.dart';
 import '../../../../core/widget/custom_dialog.dart';
-import '../../../employee/presentation/widgets/normal_text_field.dart';
+import '../../../../core/widget/normal_text_field.dart';
 import '../../domain/entities/department.dart';
 import '../../domain/entities/update_department_request.dart';
 import '../providers/department_detail_provider.dart';
@@ -71,9 +71,6 @@ class _EditDepartmentBasicInfoScreenState
         return CustomDialog(
           message: message,
           type: 'error',
-          onClose: () {
-            Navigator.pop(context);
-          },
         );
       },
     );

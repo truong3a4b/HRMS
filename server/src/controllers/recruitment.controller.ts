@@ -1,51 +1,14 @@
 import { NextFunction, Request, Response } from "express";
+import { UserRole } from "../../generated/prisma/client";
+import { PERMISSIONS } from "../constants/permissions";
 import { recruitmentService } from "../services/recruitment.service";
 import { sendResponse } from "../utils/response";
+import { candidateService } from "../services/candidate.service";
 
 const getParamValue = (param: string | string[]) =>
   Array.isArray(param) ? param[0] : param;
 
 export const recruitmentController = {
-  async getMyProfile(req: Request, res: Response, next: NextFunction) {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return sendResponse(res, 401, "Unauthorized");
-      }
-
-      const result = await recruitmentService.getMyProfile(userId);
-      return sendResponse(
-        res,
-        200,
-        "Candidate profile fetched successfully",
-        result,
-      );
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  async updateMyProfile(req: Request, res: Response, next: NextFunction) {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return sendResponse(res, 401, "Unauthorized");
-      }
-
-      const result = await recruitmentService.updateMyProfile(userId, req.body);
-      return sendResponse(
-        res,
-        200,
-        "Candidate profile updated successfully",
-        result,
-      );
-    } catch (error) {
-      next(error);
-    }
-  },
-
   async getJobs(req: Request, res: Response, next: NextFunction) {
     try {
       const page = Number(req.query.page || 1);
@@ -62,6 +25,14 @@ export const recruitmentController = {
           : undefined;
 
       const userId = req.user?.id;
+      const canViewAllStatuses =
+        req.user?.role === UserRole.ADMIN ||
+        (req.user?.role === UserRole.EMPLOYEE &&
+          req.user.permissions.some(
+            (permission) =>
+              permission === PERMISSIONS.RECRUITMENT_VIEW_JOB ||
+              permission === PERMISSIONS.RECRUITMENT_MANAGE_JOB,
+          ));
 
       const result = await recruitmentService.getJobs(
         {
@@ -70,6 +41,7 @@ export const recruitmentController = {
           search,
           positionId,
           departmentId,
+          canViewAllStatuses,
         },
         userId,
       );
@@ -151,6 +123,21 @@ export const recruitmentController = {
     }
   },
 
+  async reopenJob(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await recruitmentService.reopenJob(id);
+      return sendResponse(
+        res,
+        200,
+        "Recruitment job reopened successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async applyJob(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
@@ -164,26 +151,6 @@ export const recruitmentController = {
         res,
         201,
         "Job application created successfully",
-        result,
-      );
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  async getMyApplications(req: Request, res: Response, next: NextFunction) {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return sendResponse(res, 401, "Unauthorized");
-      }
-
-      const result = await recruitmentService.getMyApplications(userId);
-      return sendResponse(
-        res,
-        200,
-        "Your applications fetched successfully",
         result,
       );
     } catch (error) {
@@ -238,21 +205,24 @@ export const recruitmentController = {
     }
   },
 
-  async scheduleInterview(req: Request, res: Response, next: NextFunction) {
+  async getInterviewScheduleById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
     try {
-      const id = getParamValue(req.params.id);
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return sendResponse(res, 401, "Unauthorized");
-      }
-
-      const result = await recruitmentService.scheduleInterview(
-        id,
-        userId,
-        req.body,
+      const applicationId = getParamValue(req.params.id);
+      const scheduleId = getParamValue(req.params.scheduleId);
+      const result = await recruitmentService.getInterviewScheduleById(
+        applicationId,
+        scheduleId,
       );
-      return sendResponse(res, 201, "Interview scheduled successfully", result);
+      return sendResponse(
+        res,
+        200,
+        "Interview schedule fetched successfully",
+        result,
+      );
     } catch (error) {
       next(error);
     }
@@ -277,9 +247,29 @@ export const recruitmentController = {
       return sendResponse(
         res,
         200,
-        "Interview response recorded successfully",
+        "Interview response submitted successfully",
         result,
       );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async scheduleInterview(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = getParamValue(req.params.id);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+
+      const result = await recruitmentService.scheduleInterview(
+        id,
+        userId,
+        req.body,
+      );
+      return sendResponse(res, 201, "Interview scheduled successfully", result);
     } catch (error) {
       next(error);
     }
@@ -303,6 +293,52 @@ export const recruitmentController = {
         res,
         201,
         "Evaluation submitted successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getEvaluationById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const applicationId = getParamValue(req.params.id);
+      const evaluationId = getParamValue(req.params.evaluationId);
+      const result = await recruitmentService.getEvaluationById(
+        applicationId,
+        evaluationId,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Interview evaluation fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  //cap nha danh gia
+  async updateEvaluation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const applicationId = getParamValue(req.params.id);
+      const evaluationId = getParamValue(req.params.evaluationId);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+      const result = await recruitmentService.updateEvaluation(
+        applicationId,
+        evaluationId,
+        userId,
+        req.body,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Interview evaluation updated successfully",
         result,
       );
     } catch (error) {

@@ -7,6 +7,8 @@ import 'package:hrms/feature/recruitment/domain/entities/interview_evaluation.da
 import 'package:hrms/feature/recruitment/domain/entities/interview_schedule.dart';
 import 'package:hrms/feature/recruitment/domain/entities/recruitment_job.dart';
 
+import 'offer.dart';
+
 class JobApplication {
   final String id;
   final Candidate candidate;
@@ -16,6 +18,7 @@ class JobApplication {
   final JobApplicationStatus status;
   final List<InterviewSchedule> interviewSchedules;
   final List<InterviewEvaluation> interviewEvaluations;
+  final Offer? offer;
   final double? proposedSalary;
   final String? coverLetter;
   final String? notes;
@@ -35,6 +38,7 @@ class JobApplication {
     required this.status,
     this.interviewSchedules = const [],
     this.interviewEvaluations = const [],
+    this.offer,
     this.proposedSalary,
     this.coverLetter,
     this.notes,

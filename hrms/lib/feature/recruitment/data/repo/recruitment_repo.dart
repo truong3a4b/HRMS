@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hrms/feature/recruitment/domain/entities/interview_evaluation.dart';
 
 import '../../domain/entities/apply_job_request.dart';
 import '../../domain/entities/interview_schedule.dart';
@@ -6,6 +7,7 @@ import '../../domain/entities/job_application.dart';
 import '../../domain/entities/recruitment_job.dart';
 import '../../domain/entities/recruitment_job_request.dart';
 import '../datasources/recruitment_remote.dart';
+import '../mapper/interview_evaluation_mapper.dart';
 import '../mapper/interview_schedule_mapper.dart';
 import '../mapper/job_application_mapper.dart';
 import '../mapper/recruitment_job_mapper.dart';
@@ -128,6 +130,36 @@ class RecruitmentRepository {
     Map<String, dynamic> data,
   ) async {
     return await remote.evaluateCandidate(applicationId, data);
+  }
+
+  //Xem chi tiết đánh giá ung vien
+  Future<InterviewEvaluation> getCandidateEvaluationById({
+    required String applicationId,
+    required String evaluationId,
+  }) async {
+    final dto = await remote.getCandidateEvaluationById(
+      applicationId: applicationId,
+      evaluationId: evaluationId,
+    );
+    return dto.toEntity();
+  }
+
+  //Sửa đánh giá ung vien
+  Future<bool> updateCandidateEvaluation(
+    String applicationId,
+    String evaluationId,
+    Map<String, dynamic> data,
+  ) async {
+    return await remote.updateCandidateEvaluation(
+        applicationId, evaluationId, data);
+  }
+
+  //Xoa đánh giá ung vien
+  Future<bool> deleteCandidateEvaluation(
+    String applicationId,
+    String evaluationId,
+  ) async {
+    return await remote.deleteCandidateEvaluation(applicationId, evaluationId);
   }
 }
 

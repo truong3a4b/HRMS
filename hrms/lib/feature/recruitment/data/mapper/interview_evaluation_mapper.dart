@@ -5,10 +5,10 @@ import '../../domain/entities/interview_evaluation.dart';
 import '../models/interview_evaluation_dto.dart';
 
 extension InterviewEvaluationDtoMapper on InterviewEvaluationDto {
-  InterviewEvaluation toEntity() {
+  InterviewEvaluation toEntity({String? applicationId}) {
     return InterviewEvaluation(
       id: id,
-      jobApplicationId: jobApplicationId ?? '',
+      jobApplicationId: jobApplicationId ?? applicationId ?? '',
       title: title,
       evaluator: evaluator?.toEntity() ?? _emptyEmployee(),
       score: score,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hrms/feature/recruitment/presentation/widgets/section_card.dart';
 
 import '../../../../core/utils/time_convert.dart';
@@ -142,7 +143,7 @@ class _EvaluationItem extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () {
-                // context.push('/interview-evaluation-detail/${evaluation.id}');
+                context.push('/applications/${evaluation.jobApplicationId}/evaluation-detail/${evaluation.id}');
               },
               child: const Text('Xem chi tiết'),
             ),

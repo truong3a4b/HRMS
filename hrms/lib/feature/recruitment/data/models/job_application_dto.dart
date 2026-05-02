@@ -5,6 +5,7 @@ import '../../../department/data/models/department_dto.dart';
 import '../../../position/data/models/position_dto.dart';
 import 'interview_evaluation_dto.dart';
 import 'interview_schedule_dto.dart';
+import 'offer_dto.dart';
 import 'recruitment_job_dto.dart';
 
 part 'job_application_dto.freezed.dart';
@@ -50,6 +51,8 @@ abstract class JobApplicationDto with _$JobApplicationDto {
 
     @Default([])
     List<InterviewEvaluationDto> evaluations,
+    @Default([])
+    List<OfferDto> offers,
   }) = _JobApplicationDto;
 
   factory JobApplicationDto.fromJson(Map<String, dynamic> json) =>

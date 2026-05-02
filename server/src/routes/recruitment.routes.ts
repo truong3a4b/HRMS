@@ -5,6 +5,7 @@ import {
   RecruitmentJobStatus,
   UserRole,
   InterviewScheduleStatus,
+  OfferStatus,
 } from "../../generated/prisma/client";
 import { PERMISSIONS } from "../constants/permissions";
 import { recruitmentController } from "../controllers/recruitment.controller";
@@ -223,10 +224,6 @@ const interviewEvaluationSchema = z.object({
 });
 
 const applicationDecisionSchema = z.object({
-  decision: z.enum([
-    JobApplicationStatus.APPROVED,
-    JobApplicationStatus.REJECTED,
-  ]),
   notes: optionalStringSchema,
 });
 
@@ -364,17 +361,26 @@ router.patch(
   recruitmentController.updateEvaluation,
 );
 
+//xoa danh gia
+router.delete(
+  "/applications/:id/evaluations/:evaluationId",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_SUBMIT_EVALUATION),
+  recruitmentController.deleteEvaluation,
+);
+
 router.patch(
-  //employee quyết định duyệt hay từ chối ứng tuyển
-  "/applications/:id/decision",
+  //employee từ chối ứng tuyển
+  "/applications/:id/reject",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(
     PERMISSIONS.RECRUITMENT_MANAGE_APPLICATION,
     PERMISSIONS.RECRUITMENT_APPROVE_DIRECT,
   ),
   validate(applicationDecisionSchema),
-  recruitmentController.decideApplication,
+  recruitmentController.rejectApplication,
 );
+
 router.post(
   //employee gửi offer cho candidate
   "/applications/:id/offer",
@@ -385,6 +391,29 @@ router.post(
   ),
   validate(offerSchema),
   recruitmentController.sendOffer,
+);
+
+// candidate respond to offer
+const offerResponseSchema = z.object({
+  decision: z.union([
+    z.literal(OfferStatus.ACCEPTED),
+    z.literal(OfferStatus.DECLINED),
+  ]),
+  note: optionalStringSchema,
+});
+
+router.post(
+  "/applications/:id/offer/respond",
+  authMiddleware(UserRole.CANDIDATE),
+  validate(offerResponseSchema),
+  recruitmentController.respondToOffer,
+);
+
+// candidate cancel application
+router.post(
+  "/applications/:id/cancel",
+  authMiddleware(UserRole.CANDIDATE),
+  recruitmentController.cancelApplication,
 );
 
 export default router;

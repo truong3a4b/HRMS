@@ -182,3 +182,65 @@ export const sendInterviewInvitationEmail = async (
     throw error;
   }
 };
+
+export const sendOfferEmail = async (
+  candidateEmail: string,
+  candidateName: string,
+  jobTitle: string,
+  proposedSalary: number | null | undefined,
+  proposedHireDate: Date | null | undefined,
+) => {
+  if (!env.BREVO_API_KEY) {
+    throw new Error("BREVO_API_KEY is not configured");
+  }
+
+  if (!env.BREVO_SENDER_EMAIL) {
+    throw new Error("BREVO_SENDER_EMAIL is not configured");
+  }
+
+  try {
+    const salaryText = proposedSalary
+      ? `<p><strong>Lương đề xuất:</strong> ${proposedSalary}</p>`
+      : "";
+    const hireDateText = proposedHireDate
+      ? `<p><strong>Ngày bắt đầu:</strong> ${proposedHireDate.toLocaleDateString("vi-VN")}</p>`
+      : "";
+
+    await brevoClient.transactionalEmails.sendTransacEmail({
+      sender: {
+        email: env.BREVO_SENDER_EMAIL,
+        name: env.BREVO_SENDER_NAME,
+      },
+      to: [{ email: candidateEmail }],
+      subject: `Lời mời làm việc - ${jobTitle}`,
+      htmlContent: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h2>Xin chào ${candidateName},</h2>
+        <p>Chúng tôi gửi tới bạn lời mời làm việc cho vị trí <strong>${jobTitle}</strong>.</p>
+        ${salaryText}
+        ${hireDateText}
+        <p>Vui lòng phản hồi lời mời qua hệ thống HRMS.</p>
+      </div>
+      `,
+      textContent: `Xin chào ${candidateName}, bạn nhận được lời mời làm việc cho vị trí ${jobTitle}.`,
+    });
+  } catch (error) {
+    const maybeError = error as {
+      statusCode?: number;
+      body?: { message?: string; code?: string };
+    };
+
+    if (maybeError.statusCode === 401) {
+      throw new Error(
+        "Brevo API key is invalid or revoked. Update BREVO_API_KEY and restart server.",
+      );
+    }
+
+    const brevoMessage = maybeError.body?.message;
+    if (brevoMessage) {
+      throw new Error(`Brevo error: ${brevoMessage}`);
+    }
+
+    throw error;
+  }
+};

@@ -25,12 +25,12 @@ enum UserRole {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  password     String
-  role         UserRole  @default(CANDIDATE)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      UserRole @default(CANDIDATE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   refreshTokens RefreshToken[]
   candidate     Candidate?
@@ -47,15 +47,15 @@ model PendingUser {
 }
 
 model RefreshToken {
-  id         String   @id @default(cuid())
-  userId     String
-  tokenHash  String
-  userAgent  String?
-  ipAddress  String?
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -81,13 +81,11 @@ enum JobApplicationStatus {
   INTERVIEW_INVITED
   INTERVIEW_CONFIRMED
   INTERVIEW_DECLINED
-  INTERVIEW_COMPLETED
-  APPROVED
-  REJECTED
   OFFER_SENT
-  OFFER_ACCEPTED
   OFFER_DECLINED
   ONBOARDED
+  CANCELLED
+  REJECTED
 }
 
 enum InterviewScheduleStatus {
@@ -105,34 +103,35 @@ enum RecruitmentJobStatus {
 }
 
 model Department {
-  id          String     @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
-  code        String?    @unique
+  code        String?  @unique
   description String?
-  managerId   String?    @unique
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  managerId   String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  employees   Employee[] @relation("DepartmentEmployees")
-  manager     Employee?  @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
-  jobHistories EmployeeJobHistory[]
+  employees       Employee[]           @relation("DepartmentEmployees")
+  manager         Employee?            @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  jobHistories    EmployeeJobHistory[]
   jobApplications JobApplication[]
   recruitmentJobs RecruitmentJob[]
+  offers          Offer[]
 
   @@map("departments")
 }
 
 model Position {
-  id          String     @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
-  code        String?    @unique
+  code        String?  @unique
   description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  employees   Employee[]
-  jobHistories EmployeeJobHistory[]
-  permissions PositionPermission[]
+  employees       Employee[]
+  jobHistories    EmployeeJobHistory[]
+  permissions     PositionPermission[]
   jobApplications JobApplication[]
   recruitmentJobs RecruitmentJob[]
 
@@ -140,26 +139,26 @@ model Position {
 }
 
 model RecruitmentJob {
-  id            String               @id @default(uuid())
-  positionId    String
-  departmentId   String
-  title         String
-  description   String
-  requirements  String
-  benefits      String
-  salaryMin     Decimal?             @db.Decimal(15, 2)
-  salaryMax     Decimal?             @db.Decimal(15, 2)
-  quantity      Int
-  deadline      DateTime?
-  status        RecruitmentJobStatus @default(OPEN)
-  createdById   String?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id           String               @id @default(uuid())
+  positionId   String
+  departmentId String
+  title        String
+  description  String
+  requirements String
+  benefits     String
+  salaryMin    Decimal?             @db.Decimal(15, 2)
+  salaryMax    Decimal?             @db.Decimal(15, 2)
+  quantity     Int
+  deadline     DateTime?
+  status       RecruitmentJobStatus @default(OPEN)
+  createdById  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
-  position      Position             @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  department    Department           @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  createdBy     Employee?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  applications  JobApplication[]
+  position     Position         @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  department   Department       @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  createdBy    Employee?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  applications JobApplication[]
 
   @@index([status, deadline])
   @@index([positionId, departmentId])
@@ -168,52 +167,52 @@ model RecruitmentJob {
 }
 
 model Candidate {
-  id                       String   @id @default(uuid())
-  userId                   String   @unique
-  fullName                 String?
-  email                    String   @unique
-  phone                    String?
-  dateOfBirth              DateTime?
-  gender                   Gender?
-  address                  String?
-  avatar                   String?
-  cvUrl                    String?
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  fullName    String?
+  email       String    @unique
+  phone       String?
+  dateOfBirth DateTime?
+  gender      Gender?
+  address     String?
+  avatar      String?
+  cvUrl       String?
 
-  maritalStatus            String?
-  nationality              String?
-  religion                 String?
+  maritalStatus String?
+  nationality   String?
+  religion      String?
 
-  bankAccount              String?
-  bank                     Json?
+  bankAccount String?
+  bank        Json?
 
-  identityCardNumber       String?
-  identityCardIssueDate    DateTime?
-  frontIdentityCardImage   String?
-  backIdentityCardImage    String?
+  identityCardNumber     String?
+  identityCardIssueDate  DateTime?
+  frontIdentityCardImage String?
+  backIdentityCardImage  String?
 
-  province                 Json?
-  ward                     Json?
+  province Json?
+  ward     Json?
 
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user                     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  applications             JobApplication[]
-  employee                 Employee?
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications JobApplication[]
+  employee     Employee?
 
   @@index([email])
   @@map("candidates")
 }
 
 model Permission {
-  id          String               @id @default(uuid())
-  key         String               @unique
+  id          String   @id @default(uuid())
+  key         String   @unique
   name        String
   description String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  positions   PositionPermission[]
+  positions PositionPermission[]
 
   @@map("permissions")
 }
@@ -221,10 +220,10 @@ model Permission {
 model PositionPermission {
   positionId   String
   permissionId String
-  createdAt    DateTime    @default(now())
+  createdAt    DateTime @default(now())
 
-  position     Position    @relation(fields: [positionId], references: [id], onDelete: Cascade)
-  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  position   Position   @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([positionId, permissionId])
   @@index([permissionId])
@@ -232,89 +231,90 @@ model PositionPermission {
 }
 
 model Employee {
-  id                       String          @id @default(uuid())
-  employeeId               String          @unique
-  name                     String
-  email                    String          @unique
-  phone                    String?
-  avatar                   String?
+  id         String  @id @default(uuid())
+  employeeId String  @unique
+  name       String
+  email      String  @unique
+  phone      String?
+  avatar     String?
 
-  status                   EmployeeStatus  @default(WORKING)
-  dateOfBirth              DateTime?
-  gender                   Gender?
-  address                  String?
-  hireDate                 DateTime?
-  salary                   Decimal?        @db.Decimal(15, 2)
+  status      EmployeeStatus @default(WORKING)
+  dateOfBirth DateTime?
+  gender      Gender?
+  address     String?
+  hireDate    DateTime?
+  salary      Decimal?       @db.Decimal(15, 2)
 
-  bankAccount              String?
-  bank                     Json?
-  maritalStatus            String?
-  nationality              String?
-  religion                 String?
+  bankAccount   String?
+  bank          Json?
+  maritalStatus String?
+  nationality   String?
+  religion      String?
 
-  identityCardNumber       String?
-  identityCardIssueDate    DateTime?
-  frontIdentityCardImage   String?
-  backIdentityCardImage    String?
+  identityCardNumber     String?
+  identityCardIssueDate  DateTime?
+  frontIdentityCardImage String?
+  backIdentityCardImage  String?
 
-  province                 Json?
-  ward                     Json?
+  province Json?
+  ward     Json?
 
-  userId                   String?         @unique
-  candidateId              String?         @unique
-  departmentId             String?
-  positionId               String?
+  userId       String? @unique
+  candidateId  String? @unique
+  departmentId String?
+  positionId   String?
 
-  user                     User?           @relation(fields: [userId], references: [id])
-  candidate                Candidate?      @relation(fields: [candidateId], references: [id], onDelete: SetNull)
-  department               Department?     @relation("DepartmentEmployees", fields: [departmentId], references: [id])
-  managedDepartment        Department?     @relation("DepartmentManager")
-  position                 Position?       @relation(fields: [positionId], references: [id])
-  jobHistories             EmployeeJobHistory[]
+  user              User?                @relation(fields: [userId], references: [id])
+  candidate         Candidate?           @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  department        Department?          @relation("DepartmentEmployees", fields: [departmentId], references: [id])
+  managedDepartment Department?          @relation("DepartmentManager")
+  position          Position?            @relation(fields: [positionId], references: [id])
+  jobHistories      EmployeeJobHistory[]
 
-  createdAt                DateTime        @default(now())
-  updatedAt                DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  interviewSchedules InterviewSchedule[] @relation("InterviewScheduleCreatedBy")
-  interviewEvaluations InterviewEvaluation[] @relation("InterviewEvaluationEvaluator")
+  interviewSchedules     InterviewSchedule[]   @relation("InterviewScheduleCreatedBy")
+  interviewEvaluations   InterviewEvaluation[] @relation("InterviewEvaluationEvaluator")
   createdRecruitmentJobs RecruitmentJob[]
+
   @@index([departmentId])
   @@index([positionId])
   @@map("employees")
 }
 
 model JobApplication {
-  id                String                  @id @default(uuid())
-  candidateId       String
-  recruitmentJobId  String?
-  positionId        String
-  departmentId      String?
-  candidateAvatar   String?
-  candidateName     String?
-  candidateEmail    String?
-  candidatePhone    String?
-  candidateBirthDate   DateTime?
-  candidateGender   Gender?
-  candidateCvUrl    String?
-  candidateAddress  String?
-  status            JobApplicationStatus   @default(APPLIED)
-  proposedSalary    Decimal?                @db.Decimal(15, 2)
-  proposedHireDate  DateTime?
-  coverLetter       String?
-  notes             String?
-  appliedAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  rejectedAt        DateTime?
-  offerSentAt       DateTime?
-  offerRespondedAt  DateTime?
-  onboardedAt       DateTime?
+  id                 String               @id @default(uuid())
+  candidateId        String
+  recruitmentJobId   String?
+  positionId         String
+  departmentId       String?
+  candidateAvatar    String?
+  candidateName      String?
+  candidateEmail     String?
+  candidatePhone     String?
+  candidateBirthDate DateTime?
+  candidateGender    Gender?
+  candidateCvUrl     String?
+  candidateAddress   String?
+  status             JobApplicationStatus @default(APPLIED)
+  proposedSalary     Decimal?             @db.Decimal(15, 2)
+  proposedHireDate   DateTime?
+  coverLetter        String?
+  notes              String?
+  appliedAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  rejectedAt         DateTime?
+  cancelledAt        DateTime?
+  onboardedAt        DateTime?
 
-  candidate         Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  recruitmentJob    RecruitmentJob?         @relation(fields: [recruitmentJobId], references: [id], onDelete: SetNull)
-  position          Position                @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  department        Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  candidate          Candidate             @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  recruitmentJob     RecruitmentJob?       @relation(fields: [recruitmentJobId], references: [id], onDelete: SetNull)
+  position           Position              @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  department         Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   interviewSchedules InterviewSchedule[]
-  evaluations       InterviewEvaluation[]
+  evaluations        InterviewEvaluation[]
+  offers             Offer[]
 
   @@index([candidateId, status])
   @@index([candidateId, recruitmentJobId])
@@ -325,63 +325,87 @@ model JobApplication {
 }
 
 model InterviewSchedule {
-  id               String                 @id @default(uuid())
-  jobApplicationId  String
-  title            String
-  scheduledAt       DateTime
-  type             String?                //loai hinh: online/offline
-  location          String?
-  interviewerNotes  String?
-  candidateResponseAt DateTime?
+  id                    String                  @id @default(uuid())
+  jobApplicationId      String
+  title                 String
+  scheduledAt           DateTime
+  type                  String? //loai hinh: online/offline
+  location              String?
+  interviewerNotes      String?
+  candidateResponseAt   DateTime?
   candidateResponseNote String?
-  status            InterviewScheduleStatus @default(INVITED)
+  status                InterviewScheduleStatus @default(INVITED)
   createdByEmployeeId   String?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
-  jobApplication    JobApplication         @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
-  createdBy         Employee?              @relation("InterviewScheduleCreatedBy", fields: [createdByEmployeeId], references: [id], onDelete: SetNull)
-  
+  jobApplication JobApplication @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+  createdBy      Employee?      @relation("InterviewScheduleCreatedBy", fields: [createdByEmployeeId], references: [id], onDelete: SetNull)
 
   @@index([jobApplicationId, status])
   @@map("interview_schedules")
 }
 
 model InterviewEvaluation {
-  id                String        @id @default(uuid())
-  jobApplicationId  String
-  title             String
-  evaluatorEmployeeId   String?
-  score             Int?
-  strengths         String?
-  concerns          String?
-  recommendation    String?
-  comments          String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                  String   @id @default(uuid())
+  jobApplicationId    String
+  title               String
+  evaluatorEmployeeId String?
+  score               Int?
+  strengths           String?
+  concerns            String?
+  recommendation      String?
+  comments            String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  jobApplication    JobApplication   @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
-  evaluator         Employee?        @relation("InterviewEvaluationEvaluator", fields: [evaluatorEmployeeId], references: [id], onDelete: SetNull)
+  jobApplication JobApplication @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+  evaluator      Employee?      @relation("InterviewEvaluationEvaluator", fields: [evaluatorEmployeeId], references: [id], onDelete: SetNull)
 
   @@index([jobApplicationId, createdAt])
   @@map("interview_evaluations")
 }
 
-model EmployeeJobHistory {
-  id           String         @id @default(uuid())
-  employeeId   String
-  departmentId String?
-  positionId   String?
-  hireDate     DateTime?
-  salary       Decimal?       @db.Decimal(15, 2)
-  status       EmployeeStatus @default(WORKING)
-  effectiveFrom DateTime
-  effectiveTo  DateTime?
-  createdAt    DateTime       @default(now())
+enum OfferStatus {
+  SENT
+  ACCEPTED
+  DECLINED
+}
 
-  employee     Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  department   Department?    @relation(fields: [departmentId], references: [id])
-  position     Position?      @relation(fields: [positionId], references: [id])
+model Offer {
+  id               String      @id @default(uuid())
+  jobApplicationId String
+  departmentId     String?
+  proposedSalary   Decimal?    @db.Decimal(15, 2)
+  proposedHireDate DateTime?
+  notes            String?
+  candidateNote    String?
+  status           OfferStatus @default(SENT)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  jobApplication JobApplication @relation(fields: [jobApplicationId], references: [id], onDelete: Cascade)
+  department     Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([jobApplicationId])
+  @@map("offers")
+}
+
+model EmployeeJobHistory {
+  id            String         @id @default(uuid())
+  employeeId    String
+  departmentId  String?
+  positionId    String?
+  hireDate      DateTime?
+  salary        Decimal?       @db.Decimal(15, 2)
+  status        EmployeeStatus @default(WORKING)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime       @default(now())
+
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id])
+  position   Position?   @relation(fields: [positionId], references: [id])
 
   @@index([employeeId, effectiveFrom])
   @@index([employeeId, effectiveTo])

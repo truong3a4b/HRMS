@@ -8,6 +8,7 @@ import '../../domain/entities/job_application.dart';
 import '../models/job_application_dto.dart';
 import 'interview_evaluation_mapper.dart';
 import 'interview_schedule_mapper.dart';
+import 'offer_mapper.dart';
 extension JobApplicationMapper on JobApplicationDto {
   JobApplication toEntity() {
 
@@ -38,7 +39,8 @@ extension JobApplicationMapper on JobApplicationDto {
       offerRespondedAt: offerRespondedAt,
       onboardedAt: onboardedAt,
       interviewSchedules: interviewSchedules.map((e) => e.toEntity(applicationId: id)).toList(),
-      interviewEvaluations: evaluations.map((e) => e.toEntity()).toList(),
+      interviewEvaluations: evaluations.map((e) => e.toEntity(applicationId: id)).toList(),
+      offer: offers.isNotEmpty ? offers.first.toEntity() : null,
     );
   }
 }

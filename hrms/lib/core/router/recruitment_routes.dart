@@ -3,6 +3,8 @@ import 'package:hrms/feature/candidate/presentation/screens/candidate_detail_scr
 import 'package:hrms/feature/recruitment/presentation/screens/application/job_application_list_screen.dart';
 import 'package:hrms/feature/recruitment/presentation/screens/jobs/update_recruitment_job_screen.dart';
 
+import '../../feature/recruitment/presentation/screens/evaluation/evaluation_detail_screen.dart';
+import '../../feature/recruitment/presentation/screens/evaluation/update_evaluation_screen.dart';
 import '../../feature/recruitment/presentation/screens/interview/interview_schedule_detail_screen.dart';
 import '../../feature/recruitment/presentation/screens/jobs/add_recruitment_job_screen.dart';
 import '../../feature/recruitment/presentation/screens/application/job_application_detail_screen.dart';
@@ -66,6 +68,23 @@ final recruitmentRoutes = <RouteBase>[
       final applicationId = state.pathParameters['applicationId']!;
       final id = state.pathParameters['id']!;
       return InterviewScheduleDetailScreen(applicationId: applicationId,interviewScheduleId: id);
+    },
+  ),
+  GoRoute(
+    path: '/applications/:applicationId/evaluation-detail/:id',
+    name: 'evaluation-detail',
+    builder: (context, state) {
+      final applicationId = state.pathParameters['applicationId']!;
+      final id = state.pathParameters['id']!;
+      return EvaluationDetailScreen(applicationId: applicationId, evaluationId: id);
+    },
+  ),
+  GoRoute(path: '/applications/:applicationId/evaluation-detail/:id/edit',
+    name: 'update-evaluation',
+    builder: (context, state) {
+      final applicationId = state.pathParameters['applicationId']!;
+      final id = state.pathParameters['id']!;
+      return UpdateEvaluationScreen(applicationId: applicationId, evaluationId: id);
     },
   ),
 ];

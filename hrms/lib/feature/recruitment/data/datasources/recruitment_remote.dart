@@ -5,6 +5,7 @@ import 'package:hrms/core/error/app_exception.dart';
 import 'package:hrms/core/network/dio_client.dart';
 import 'package:hrms/core/share/models/app_response.dart';
 import 'package:hrms/core/utils/extract_error.dart';
+import 'package:hrms/feature/recruitment/data/models/interview_evaluation_dto.dart';
 import 'package:hrms/feature/recruitment/data/models/interview_schedule_dto.dart';
 
 import '../../../../core/utils/platform_file_actions.dart';
@@ -255,6 +256,103 @@ class RecruitmentRemote {
       debugPrint('RecruitmentRemote evaluateInterviewSchedule error: $e');
       throw AppException(
         e.response?.data['message'] ?? 'Lỗi đánh giá ứng viên',
+      );
+    }
+  }
+
+  //Xem chi tiết đánh giá ung vien
+  Future<InterviewEvaluationDto> getCandidateEvaluationById({required String applicationId,required String evaluationId}) async {
+    try {
+      final response = await dio.get('/recruitment/applications/$applicationId/evaluations/$evaluationId');
+      final appResponse = AppResponse.fromJson(response.data);
+      return InterviewEvaluationDto.fromJson(appResponse.data);
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote getCandidateEvaluationById error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi tải chi tiết đánh giá ứng viên',
+      );
+    }
+  }
+
+  //Cap nhat ket qua danh gia ung vien
+  Future<bool> updateCandidateEvaluation(String applicationId, String evaluationId, Map<String, dynamic> data) async {
+    try {
+      await dio.patch(
+          '/recruitment/applications/$applicationId/evaluations/$evaluationId',
+          data: data);
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote updateCandidateEvaluation error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi cập nhật đánh giá ứng viên',
+      );
+    }
+  }
+
+  //Xoa danh gia ung vien
+  Future<bool> deleteCandidateEvaluation(String applicationId, String evaluationId) async {
+    try {
+      await dio.delete('/recruitment/applications/$applicationId/evaluations/$evaluationId');
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote deleteCandidateEvaluation error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi xóa đánh giá ứng viên',
+      );
+    }
+  }
+
+  //Gui offer cho ung vien
+  Future<bool> sendJobOffer(String applicationId, Map<String, dynamic> data) async{
+    try {
+      await dio.post('/recruitment/applications/$applicationId/offer', data: data);
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote sendJobOffer error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi gửi offer cho ứng viên',
+      );
+    }
+  }
+
+  //Ung vien phan hoi offer
+  Future<bool> respondJobOffer(String applicationId, Map<String, dynamic> data) async {
+    try {
+      await dio.post(
+          '/recruitment/applications/$applicationId/offer/respond',
+          data: data);
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote respondJobOffer error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi phản hồi offer của ứng viên',
+      );
+    }
+  }
+
+  //Huy ung tuyen
+  Future<bool> cancelApplication(String applicationId) async {
+    try {
+      await dio.post('/recruitment/applications/$applicationId/cancel');
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote cancelApplication error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi hủy ứng tuyển',
+      );
+    }
+  }
+
+  //tu choi ung tuyen
+  Future<bool> rejectApplication(String applicationId, Map<String, dynamic> data) async {
+    try {
+      await dio.post(
+          '/recruitment/applications/$applicationId/reject', data: data);
+      return true;
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote rejectApplication error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi từ chối ứng viên',
       );
     }
   }

@@ -17,6 +17,7 @@ import '../../providers/application/job_application_detail_provider.dart';
 import '../../widgets/evaluation_section.dart';
 import '../../widgets/info_row.dart';
 import '../../widgets/interview_schedule_card.dart';
+import '../../widgets/offer_section.dart';
 import '../../widgets/section_card.dart';
 
 class JobApplicationDetailScreen extends ConsumerWidget {
@@ -49,6 +50,30 @@ class JobApplicationDetailScreen extends ConsumerWidget {
           ),
         ),
         titleSpacing: 0,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.black),
+            onSelected: (value) {
+              if (value == 'cancel') {
+                //_showCancelApplicationDialog(context, ref);
+              }
+
+              if (value == 'reject') {
+               // _showRejectApplicationDialog(context, ref);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'cancel',
+                child: Text('Hủy đơn'),
+              ),
+              PopupMenuItem(
+                value: 'reject',
+                child: Text('Từ chối ứng viên'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: applicationAsync.when(
         data: (data) => _buildContent(data, ref),
@@ -98,6 +123,12 @@ class JobApplicationDetailScreen extends ConsumerWidget {
             applicationId: applicationId,
             evaluations: data.interviewEvaluations,
             canEvaluate: canEvaluate,
+          ),
+          const SizedBox(height: 12),
+          OfferSection(
+            application: data,
+            canSendOffer: true,
+            canRespondOffer: true,
           ),
         ],
       ),

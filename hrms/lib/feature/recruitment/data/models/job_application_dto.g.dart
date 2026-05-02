@@ -68,6 +68,11 @@ _JobApplicationDto _$JobApplicationDtoFromJson(Map<String, dynamic> json) =>
               )
               .toList() ??
           const [],
+      offers:
+          (json['offers'] as List<dynamic>?)
+              ?.map((e) => OfferDto.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$JobApplicationDtoToJson(_JobApplicationDto instance) =>
@@ -101,4 +106,5 @@ Map<String, dynamic> _$JobApplicationDtoToJson(_JobApplicationDto instance) =>
       'recruitmentJob': instance.recruitmentJob,
       'interviewSchedules': instance.interviewSchedules,
       'evaluations': instance.evaluations,
+      'offers': instance.offers,
     };

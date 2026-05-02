@@ -1,6 +1,7 @@
 import {
   JobApplicationStatus,
   InterviewScheduleStatus,
+  OfferStatus,
   Prisma,
   RecruitmentJobStatus,
   Gender,
@@ -8,7 +9,8 @@ import {
 import { prisma } from "../config/prisma";
 import { employeeService } from "./employee.service";
 import { ApiError } from "../utils/apiError";
-import { sendInterviewInvitationEmail } from "../config/brevo";
+import { sendInterviewInvitationEmail, sendOfferEmail } from "../config/brevo";
+import { env } from "../config/env";
 
 type CandidateProfileInput = {
   fullName?: string;
@@ -87,11 +89,6 @@ type OfferInput = {
   proposedSalary: number;
   proposedHireDate: Date;
   notes?: string;
-};
-
-type OfferResponseInput = {
-  decision: JobApplicationStatus;
-  note?: string;
 };
 
 type ApplicationListFilters = {
@@ -185,6 +182,7 @@ const applicationListSelect = {
   status: true,
   appliedAt: true,
   updatedAt: true,
+  cancelledAt: true,
   candidateId: true,
   candidateAvatar: true,
   candidateName: true,
@@ -266,35 +264,147 @@ const applicationDetailInclude = {
       },
     },
   },
-} satisfies Prisma.JobApplicationInclude;
+  offers: {
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      id: true,
+      departmentId: true,
+      proposedSalary: true,
+      proposedHireDate: true,
+      notes: true,
+      candidateNote: true,
+      status: true,
+      createdAt: true,
+    },
+  },
+} as any;
 
-const activeApplicationStatuses = new Set<JobApplicationStatus>([
+const activeApplicationStatuses = new Set<string>([
   JobApplicationStatus.APPLIED,
   JobApplicationStatus.INTERVIEW_INVITED,
   JobApplicationStatus.INTERVIEW_CONFIRMED,
-  JobApplicationStatus.INTERVIEW_COMPLETED,
-  JobApplicationStatus.APPROVED,
   JobApplicationStatus.OFFER_SENT,
-  JobApplicationStatus.OFFER_ACCEPTED,
 ]);
 
-const finalApplicationStatuses = new Set<JobApplicationStatus>([
+const finalApplicationStatuses = new Set<string>([
   JobApplicationStatus.REJECTED,
-  JobApplicationStatus.INTERVIEW_DECLINED,
-  JobApplicationStatus.OFFER_DECLINED,
   JobApplicationStatus.ONBOARDED,
+  JobApplicationStatus.CANCELLED,
 ]);
 
-const isApplicationActive = (status: JobApplicationStatus) =>
-  activeApplicationStatuses.has(status);
+const isApplicationActive = (status: JobApplicationStatus | string) =>
+  activeApplicationStatuses.has(status as string);
 
-const isApplicationFinal = (status: JobApplicationStatus) =>
-  finalApplicationStatuses.has(status);
+const isApplicationFinal = (status: JobApplicationStatus | string) =>
+  finalApplicationStatuses.has(status as string);
 
 const isRecruitmentJobExpired = (deadline: Date | null | undefined) =>
   !!deadline && deadline.getTime() < Date.now();
 
 const applicationInclude = applicationDetailInclude;
+
+const hoursAgo = (hours: number) =>
+  new Date(Date.now() - hours * 60 * 60 * 1000);
+
+const automaticDeclineNote =
+  "Automatically declined because the candidate did not respond in time.";
+
+const expirePendingRecruitmentResponses = async () => {
+  const now = new Date();
+  const interviewCutoff = hoursAgo(
+    env.RECRUITMENT_INTERVIEW_RESPONSE_TIMEOUT_HOURS,
+  );
+  const offerCutoff = hoursAgo(env.RECRUITMENT_OFFER_RESPONSE_TIMEOUT_HOURS);
+
+  await prisma.$transaction(async (tx) => {
+    const expiredInterviews = await tx.interviewSchedule.findMany({
+      where: {
+        status: InterviewScheduleStatus.INVITED,
+        createdAt: { lte: interviewCutoff },
+        jobApplication: {
+          status: JobApplicationStatus.INTERVIEW_INVITED,
+        },
+      },
+      select: {
+        id: true,
+        jobApplicationId: true,
+      },
+    });
+
+    if (expiredInterviews.length > 0) {
+      const applicationIds = [
+        ...new Set(
+          expiredInterviews.map((schedule) => schedule.jobApplicationId),
+        ),
+      ];
+
+      await tx.interviewSchedule.updateMany({
+        where: {
+          id: { in: expiredInterviews.map((schedule) => schedule.id) },
+          status: InterviewScheduleStatus.INVITED,
+        },
+        data: {
+          status: InterviewScheduleStatus.DECLINED,
+          candidateResponseAt: now,
+          candidateResponseNote: automaticDeclineNote,
+        },
+      });
+
+      await tx.jobApplication.updateMany({
+        where: {
+          id: { in: applicationIds },
+          status: JobApplicationStatus.INTERVIEW_INVITED,
+        },
+        data: {
+          status: JobApplicationStatus.INTERVIEW_DECLINED,
+          notes: automaticDeclineNote,
+        },
+      });
+    }
+
+    const expiredOffers = await tx.offer.findMany({
+      where: {
+        status: OfferStatus.SENT,
+        createdAt: { lte: offerCutoff },
+        jobApplication: {
+          status: JobApplicationStatus.OFFER_SENT,
+        },
+      },
+      select: {
+        id: true,
+        jobApplicationId: true,
+      },
+    });
+
+    if (expiredOffers.length > 0) {
+      const applicationIds = [
+        ...new Set(expiredOffers.map((offer) => offer.jobApplicationId)),
+      ];
+
+      await tx.offer.updateMany({
+        where: {
+          id: { in: expiredOffers.map((offer) => offer.id) },
+          status: OfferStatus.SENT,
+        },
+        data: {
+          status: OfferStatus.DECLINED,
+          candidateNote: automaticDeclineNote,
+        },
+      });
+
+      await tx.jobApplication.updateMany({
+        where: {
+          id: { in: applicationIds },
+          status: JobApplicationStatus.OFFER_SENT,
+        },
+        data: {
+          status: JobApplicationStatus.OFFER_DECLINED,
+          notes: automaticDeclineNote,
+        },
+      });
+    }
+  });
+};
 
 const getCandidateByUserId = async (userId: string) => {
   const candidate = await prisma.candidate.findUnique({
@@ -814,7 +924,7 @@ export const recruitmentService = {
       const existingActiveApplication = await tx.jobApplication.findFirst({
         where: {
           candidateId: candidate.id,
-          status: { in: Array.from(activeApplicationStatuses) },
+          status: { in: Array.from(activeApplicationStatuses) as any },
         },
         select: {
           id: true,
@@ -862,6 +972,8 @@ export const recruitmentService = {
   },
 
   async getMyApplications(userId: string) {
+    await expirePendingRecruitmentResponses();
+
     const candidate = await getCandidateByUserId(userId);
 
     const applications = await prisma.jobApplication.findMany({
@@ -883,6 +995,8 @@ export const recruitmentService = {
   },
 
   async getApplications(filters: ApplicationListFilters) {
+    await expirePendingRecruitmentResponses();
+
     const normalizedSearch = filters.search?.trim() ?? "";
     const conditions: Prisma.JobApplicationWhereInput[] = [];
 
@@ -966,6 +1080,8 @@ export const recruitmentService = {
   },
 
   async getApplicationByIdWithDetail(id: string) {
+    await expirePendingRecruitmentResponses();
+
     const application = await prisma.jobApplication.findUnique({
       where: { id },
       include: applicationDetailInclude,
@@ -983,6 +1099,8 @@ export const recruitmentService = {
   },
 
   async getInterviewScheduleById(applicationId: string, scheduleId: string) {
+    await expirePendingRecruitmentResponses();
+
     const schedule = await prisma.interviewSchedule.findFirst({
       where: {
         id: scheduleId,
@@ -1087,7 +1205,7 @@ export const recruitmentService = {
           application.candidateEmail!,
           application.candidateName || "Ứng viên",
           data.title,
-          application.position?.name || "Vị trí",
+          (application as any).position?.name || "Vị trí",
           data.scheduledAt,
           data.location,
         );
@@ -1108,6 +1226,8 @@ export const recruitmentService = {
     candidateUserId: string,
     data: InterviewResponseInput,
   ) {
+    await expirePendingRecruitmentResponses();
+
     await ensureApplicationOwner(applicationId, candidateUserId);
 
     const schedule = await prisma.interviewSchedule.findFirst({
@@ -1221,7 +1341,7 @@ export const recruitmentService = {
       const updatedApplication = await tx.jobApplication.update({
         where: { id: applicationId },
         data: {
-          status: JobApplicationStatus.INTERVIEW_COMPLETED,
+          status: JobApplicationStatus.INTERVIEW_CONFIRMED,
         },
         include: applicationInclude,
       });
@@ -1287,38 +1407,97 @@ export const recruitmentService = {
     return updatedEvaluation;
   },
 
-  async decideApplication(
+  async deleteEvaluation(
     applicationId: string,
-    data: ApplicationDecisionInput,
+    evaluationId: string,
+    evaluatorUserId: string,
   ) {
     const application = await this.getApplicationByIdWithDetail(applicationId);
+    const employee = await prisma.employee.findUnique({
+      where: { userId: evaluatorUserId },
+      select: { id: true },
+    });
 
-    if (application.status === JobApplicationStatus.ONBOARDED) {
+    if (!employee) {
       throw new ApiError(
-        400,
-        "Application is already onboarded",
-        "APPLICATION_ALREADY_ONBOARDED",
+        404,
+        "Employee profile not found",
+        "EMPLOYEE_NOT_FOUND",
       );
     }
 
-    if (data.decision === JobApplicationStatus.REJECTED) {
-      const updatedApplication = await prisma.jobApplication.update({
-        where: { id: applicationId },
-        data: {
-          status: JobApplicationStatus.REJECTED,
-          rejectedAt: new Date(),
-          notes: data.notes,
-        },
-        include: applicationInclude,
-      });
+    const evaluation = await prisma.interviewEvaluation.findFirst({
+      where: {
+        id: evaluationId,
+        jobApplicationId: applicationId,
+        evaluatorEmployeeId: employee.id,
+      },
+    });
 
-      return updatedApplication;
+    if (!evaluation) {
+      throw new ApiError(
+        404,
+        "Interview evaluation not found or you don't have permission to delete it",
+        "INTERVIEW_EVALUATION_NOT_FOUND",
+      );
+    }
+
+    await prisma.interviewEvaluation.delete({
+      where: { id: evaluationId },
+    });
+
+    return { message: "Interview evaluation deleted successfully" };
+  },
+
+  async cancelApplication(applicationId: string, candidateUserId: string) {
+    const { candidate, application } = await ensureApplicationOwner(
+      applicationId,
+      candidateUserId,
+    );
+
+    if (
+      application.status === JobApplicationStatus.REJECTED ||
+      application.status === JobApplicationStatus.ONBOARDED
+    ) {
+      throw new ApiError(
+        400,
+        "Cannot cancel an application that is rejected or onboarded",
+        "APPLICATION_CANNOT_CANCEL",
+      );
     }
 
     const updatedApplication = await prisma.jobApplication.update({
       where: { id: applicationId },
       data: {
-        status: JobApplicationStatus.APPROVED,
+        status: JobApplicationStatus.CANCELLED,
+        cancelledAt: new Date(),
+        notes: application.notes,
+      },
+      include: applicationInclude,
+    });
+
+    return {
+      candidate,
+      application: updatedApplication,
+    };
+  },
+
+  async rejectApplication(applicationId: string, data: { notes?: string }) {
+    const application = await this.getApplicationByIdWithDetail(applicationId);
+
+    if (isApplicationFinal(application.status)) {
+      throw new ApiError(
+        400,
+        "Application is already in a final state",
+        "APPLICATION_ALREADY_FINAL",
+      );
+    }
+
+    const updatedApplication = await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: {
+        status: JobApplicationStatus.REJECTED,
+        rejectedAt: new Date(),
         notes: data.notes,
       },
       include: applicationInclude,
@@ -1328,13 +1507,23 @@ export const recruitmentService = {
   },
 
   async sendOffer(applicationId: string, data: OfferInput) {
+    await expirePendingRecruitmentResponses();
+
     const application = await this.getApplicationByIdWithDetail(applicationId);
+
+    if ((application.status as string) === "CANCELLED") {
+      throw new ApiError(
+        400,
+        "Cannot send offer for cancelled application",
+        "APPLICATION_CANCELLED",
+      );
+    }
 
     if (
       !new Set<JobApplicationStatus>([
         JobApplicationStatus.APPLIED,
-        JobApplicationStatus.APPROVED,
-        JobApplicationStatus.INTERVIEW_COMPLETED,
+        JobApplicationStatus.INTERVIEW_CONFIRMED,
+        JobApplicationStatus.INTERVIEW_INVITED,
       ]).has(application.status)
     ) {
       throw new ApiError(
@@ -1353,27 +1542,56 @@ export const recruitmentService = {
       throw new ApiError(404, "Department not found", "DEPARTMENT_NOT_FOUND");
     }
 
-    const updatedApplication = await prisma.jobApplication.update({
-      where: { id: applicationId },
-      data: {
-        departmentId: data.departmentId,
-        proposedSalary: data.proposedSalary,
-        proposedHireDate: data.proposedHireDate,
-        notes: data.notes,
-        status: JobApplicationStatus.OFFER_SENT,
-        offerSentAt: new Date(),
-      },
-      include: applicationInclude,
-    });
+    return prisma.$transaction(async (tx) => {
+      const offer = await tx.offer.create({
+        data: {
+          jobApplicationId: applicationId,
+          departmentId: data.departmentId,
+          proposedSalary: data.proposedSalary,
+          proposedHireDate: data.proposedHireDate,
+          notes: data.notes,
+          status: OfferStatus.SENT,
+        },
+      });
 
-    return updatedApplication;
+      const updatedApplication = await tx.jobApplication.update({
+        where: { id: applicationId },
+        data: {
+          departmentId: data.departmentId,
+          status: JobApplicationStatus.OFFER_SENT,
+        },
+        include: applicationInclude,
+      });
+
+      // Send offer email (best-effort)
+      try {
+        await sendOfferEmail(
+          application.candidateEmail!,
+          application.candidateName || "Ứng viên",
+          (application as any).position?.name || "Vị trí",
+          data.proposedSalary,
+          data.proposedHireDate,
+        );
+      } catch (emailError) {
+        console.error("Failed to send offer email:", emailError);
+      }
+
+      return {
+        offer,
+      };
+    });
   },
 
   async respondToOffer(
     applicationId: string,
     candidateUserId: string,
-    data: OfferResponseInput,
+    data: {
+      decision: "ACCEPTED" | "DECLINED";
+      note?: string;
+    },
   ) {
+    await expirePendingRecruitmentResponses();
+
     const { candidate, application } = await ensureApplicationOwner(
       applicationId,
       candidateUserId,
@@ -1387,27 +1605,44 @@ export const recruitmentService = {
       );
     }
 
-    if (data.decision === JobApplicationStatus.OFFER_DECLINED) {
+    // Find latest SENT offer for this application
+    const offer = await prisma.offer.findFirst({
+      where: { jobApplicationId: applicationId, status: OfferStatus.SENT },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!offer) {
+      throw new ApiError(404, "Offer not found", "OFFER_NOT_FOUND");
+    }
+
+    if (data.decision === OfferStatus.DECLINED) {
+      const updatedOffer = await prisma.offer.update({
+        where: { id: offer.id },
+        data: {
+          status: OfferStatus.DECLINED,
+          candidateNote: data.note ?? null,
+        },
+      });
+
       const updatedApplication = await prisma.jobApplication.update({
         where: { id: applicationId },
         data: {
           status: JobApplicationStatus.OFFER_DECLINED,
-          offerRespondedAt: new Date(),
           notes: data.note,
         },
         include: applicationInclude,
       });
 
       return {
-        candidate,
         application: updatedApplication,
       };
     }
 
+    // ACCEPT
     if (
-      !application.departmentId ||
-      !application.proposedSalary ||
-      !application.proposedHireDate
+      !offer.departmentId ||
+      !offer.proposedSalary ||
+      !offer.proposedHireDate
     ) {
       throw new ApiError(
         400,
@@ -1435,17 +1670,21 @@ export const recruitmentService = {
       avatar: candidateProfile.avatar ?? undefined,
       dateOfBirth: candidateProfile.dateOfBirth ?? undefined,
       address: candidateProfile.address ?? undefined,
-      departmentId: application.departmentId,
+      departmentId: offer.departmentId,
       positionId: application.positionId,
-      hireDate: application.proposedHireDate,
-      salary: Number(application.proposedSalary),
+      hireDate: offer.proposedHireDate!,
+      salary: Number(offer.proposedSalary),
+    });
+
+    const updatedOffer = await prisma.offer.update({
+      where: { id: offer.id },
+      data: { status: OfferStatus.ACCEPTED },
     });
 
     const updatedApplication = await prisma.jobApplication.update({
       where: { id: applicationId },
       data: {
         status: JobApplicationStatus.ONBOARDED,
-        offerRespondedAt: new Date(),
         onboardedAt: new Date(),
         notes: data.note,
       },
@@ -1456,10 +1695,13 @@ export const recruitmentService = {
       candidate,
       application: updatedApplication,
       employee,
+      offer: updatedOffer,
     };
   },
 
   async getPipeline() {
+    await expirePendingRecruitmentResponses();
+
     const applications = await prisma.jobApplication.findMany({
       include: {
         candidate: {

@@ -300,6 +300,19 @@ export const recruitmentController = {
     }
   },
 
+  async rejectApplication(req: Request, res: Response, next: NextFunction) {
+    try {
+      const applicationId = getParamValue(req.params.id);
+      const result = await recruitmentService.rejectApplication(
+        applicationId,
+        req.body,
+      );
+      return sendResponse(res, 200, "Application rejected successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getEvaluationById(req: Request, res: Response, next: NextFunction) {
     try {
       const applicationId = getParamValue(req.params.id);
@@ -346,19 +359,22 @@ export const recruitmentController = {
     }
   },
 
-  async decideApplication(req: Request, res: Response, next: NextFunction) {
+  //xoa danh gia
+  async deleteEvaluation(req: Request, res: Response, next: NextFunction) {
     try {
       const applicationId = getParamValue(req.params.id);
-      const result = await recruitmentService.decideApplication(
+      const evaluationId = getParamValue(req.params.evaluationId);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+      const result = await recruitmentService.deleteEvaluation(
         applicationId,
-        req.body,
+        evaluationId,
+        userId,
       );
-      return sendResponse(
-        res,
-        200,
-        "Application decision saved successfully",
-        result,
-      );
+      return sendResponse(res, 200, result.message, result);
     } catch (error) {
       next(error);
     }
@@ -395,6 +411,31 @@ export const recruitmentController = {
         res,
         200,
         "Offer response processed successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async cancelApplication(req: Request, res: Response, next: NextFunction) {
+    try {
+      const applicationId = getParamValue(req.params.id);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+
+      const result = await recruitmentService.cancelApplication(
+        applicationId,
+        userId,
+      );
+
+      return sendResponse(
+        res,
+        200,
+        "Application cancelled successfully",
         result,
       );
     } catch (error) {

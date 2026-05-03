@@ -25,6 +25,7 @@ class JobApplication {
   final DateTime appliedAt;
   final DateTime? updatedAt;
   final DateTime? rejectedAt;
+  final DateTime? cancelledAt;
   final DateTime? offerSentAt;
   final DateTime? offerRespondedAt;
   final DateTime? onboardedAt;
@@ -45,6 +46,7 @@ class JobApplication {
     required this.appliedAt,
     this.updatedAt,
     this.rejectedAt,
+    this.cancelledAt,
     this.offerSentAt,
     this.offerRespondedAt,
     this.onboardedAt,
@@ -54,14 +56,10 @@ class JobApplication {
 enum JobApplicationStatus {
   notApplied,
   applied,
-  interviewInvited,
-  interviewConfirmed,
-  interviewDeclined,
-  interviewCompleted,
-  approved,
+  interviewing,
+  cancelled,
   rejected,
   offerSent,
-  offerAccepted,
   offerDeclined,
   onboarded,
 }
@@ -73,22 +71,14 @@ extension JobApplicationStatusX on JobApplicationStatus {
         return 'NOT_APPLIED';
       case JobApplicationStatus.applied:
         return 'APPLIED';
-      case JobApplicationStatus.interviewInvited:
-        return 'INTERVIEW_INVITED';
-      case JobApplicationStatus.interviewConfirmed:
-        return 'INTERVIEW_CONFIRMED';
-      case JobApplicationStatus.interviewDeclined:
-        return 'INTERVIEW_DECLINED';
-      case JobApplicationStatus.interviewCompleted:
-        return 'INTERVIEW_COMPLETED';
-      case JobApplicationStatus.approved:
-        return 'APPROVED';
+      case JobApplicationStatus.interviewing:
+        return 'INTERVIEWING';
+      case JobApplicationStatus.cancelled:
+        return 'CANCELLED';
       case JobApplicationStatus.rejected:
         return 'REJECTED';
       case JobApplicationStatus.offerSent:
         return 'OFFER_SENT';
-      case JobApplicationStatus.offerAccepted:
-        return 'OFFER_ACCEPTED';
       case JobApplicationStatus.offerDeclined:
         return 'OFFER_DECLINED';
       case JobApplicationStatus.onboarded:
@@ -102,22 +92,14 @@ extension JobApplicationStatusX on JobApplicationStatus {
         return 'Chưa ứng tuyển';
       case JobApplicationStatus.applied:
         return 'Đã ứng tuyển';
-      case JobApplicationStatus.interviewInvited:
-        return 'Mời phỏng vấn';
-      case JobApplicationStatus.interviewConfirmed:
-        return 'Xác nhận phỏng vấn';
-      case JobApplicationStatus.interviewDeclined:
-        return 'Từ chối phỏng vấn';
-      case JobApplicationStatus.interviewCompleted:
-        return 'Đã phỏng vấn';
-      case JobApplicationStatus.approved:
-        return 'Đã duyệt';
+      case JobApplicationStatus.interviewing:
+        return 'Đang xét duyệt';
+      case JobApplicationStatus.cancelled:
+        return 'Đã hủy';
       case JobApplicationStatus.rejected:
         return 'Từ chối';
       case JobApplicationStatus.offerSent:
         return 'Đã gửi offer';
-      case JobApplicationStatus.offerAccepted:
-        return 'Nhận offer';
       case JobApplicationStatus.offerDeclined:
         return 'Từ chối offer';
       case JobApplicationStatus.onboarded:
@@ -129,17 +111,13 @@ extension JobApplicationStatusX on JobApplicationStatus {
     switch (this) {
       case JobApplicationStatus.applied:
         return const Color(0xFF0069B4);
-      case JobApplicationStatus.interviewInvited:
-      case JobApplicationStatus.interviewConfirmed:
-      case JobApplicationStatus.interviewCompleted:
+      case JobApplicationStatus.interviewing:
         return const Color(0xFF8E44AD);
-      case JobApplicationStatus.approved:
-      case JobApplicationStatus.offerAccepted:
       case JobApplicationStatus.onboarded:
         return const Color(0xFF16A34A);
       case JobApplicationStatus.rejected:
-      case JobApplicationStatus.interviewDeclined:
       case JobApplicationStatus.offerDeclined:
+      case JobApplicationStatus.cancelled:
         return const Color(0xFFDC2626);
       case JobApplicationStatus.offerSent:
         return const Color(0xFFF59E0B);
@@ -168,7 +146,8 @@ extension JobApplicationTimelineX on JobApplication {
     events.add(
       RecruitmentTimelineEvent(
         title: 'Đã ứng tuyển',
-        description: '${candidate.name} đã gửi đơn ứng tuyển vị trí ${position.name}.',
+        description:
+            '${candidate.name} đã gửi đơn ứng tuyển vị trí ${position.name}.',
         createdAt: appliedAt,
       ),
     );
@@ -181,37 +160,16 @@ extension JobApplicationTimelineX on JobApplication {
           createdAt: schedule.createdAt,
         ),
       );
-
-      if (schedule.updatedAt != null &&
-          schedule.updatedAt!.isAfter(schedule.createdAt)) {
-        events.add(
-          RecruitmentTimelineEvent(
-            title: 'Cập nhật lịch phỏng vấn',
-            description: 'Lịch phỏng vấn được cập nhật.',
-            createdAt: schedule.updatedAt!,
-          ),
-        );
-      }
     }
 
     for (final evaluation in interviewEvaluations) {
       events.add(
         RecruitmentTimelineEvent(
-          title: 'Đã thêm đánh giá phỏng vấn',
+          title: 'Đã thêm đánh giá ',
           description:
-          '${evaluation.evaluator.name} đã đánh giá ứng viên'
+              '${evaluation.evaluator.name} đã đánh giá ứng viên'
               '${evaluation.score == null ? '' : ' với điểm ${evaluation.score}/10'}.',
           createdAt: evaluation.createdAt,
-        ),
-      );
-    }
-
-    if (updatedAt != null && updatedAt!.isAfter(appliedAt)) {
-      events.add(
-        RecruitmentTimelineEvent(
-          title: 'Cập nhật đơn ứng tuyển',
-          description: 'Thông tin hoặc trạng thái đơn ứng tuyển đã được cập nhật.',
-          createdAt: updatedAt!,
         ),
       );
     }
@@ -222,6 +180,16 @@ extension JobApplicationTimelineX on JobApplication {
           title: 'Đã từ chối ứng viên',
           description: 'Đơn ứng tuyển đã bị từ chối.',
           createdAt: rejectedAt!,
+        ),
+      );
+    }
+
+    if(cancelledAt != null) {
+      events.add(
+        RecruitmentTimelineEvent(
+          title: 'Đã hủy ứng tuyển',
+          description: 'Ứng viên đã hủy đơn ứng tuyển.',
+          createdAt: cancelledAt!,
         ),
       );
     }
@@ -250,7 +218,8 @@ extension JobApplicationTimelineX on JobApplication {
       events.add(
         RecruitmentTimelineEvent(
           title: 'Đã onboard',
-          description: 'Ứng viên đã được chuyển sang quy trình tiếp nhận nhân sự.',
+          description:
+              'Ứng viên đã được chuyển sang quy trình tiếp nhận nhân sự.',
           createdAt: onboardedAt!,
         ),
       );
@@ -271,8 +240,6 @@ extension JobApplicationTimelineX on JobApplication {
 
   String _buildOfferResponseTitle(JobApplicationStatus status) {
     switch (status) {
-      case JobApplicationStatus.offerAccepted:
-        return 'Ứng viên đã nhận offer';
       case JobApplicationStatus.offerDeclined:
         return 'Ứng viên đã từ chối offer';
       default:
@@ -282,8 +249,6 @@ extension JobApplicationTimelineX on JobApplication {
 
   String _buildOfferResponseDescription(JobApplicationStatus status) {
     switch (status) {
-      case JobApplicationStatus.offerAccepted:
-        return 'Ứng viên đã đồng ý nhận việc.';
       case JobApplicationStatus.offerDeclined:
         return 'Ứng viên đã từ chối thư mời nhận việc.';
       default:

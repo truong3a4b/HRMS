@@ -155,4 +155,12 @@ router.get(
   candidateController.getMyApplications,
 );
 
+//lay don xin viec cua ung vien theo id
+router.get(
+  "/applications/:id",
+  authMiddleware(UserRole.CANDIDATE),
+  validateCandidateIdParam,
+  candidateController.getApplicationById,
+);
+
 export default router;

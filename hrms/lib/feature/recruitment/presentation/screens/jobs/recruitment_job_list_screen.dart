@@ -19,7 +19,7 @@ class RecruitmentJobListScreen extends ConsumerWidget {
     final jobsAsync = ref.watch(recruitmentJobListProvider);
     final user = ref.watch(userProvider).value;
     final permissions = ref.watch(permissionProvider).value!;
-    final showAddButton = user?.role == UserRole.admin || permissions.contains(Permission.recruitmentCreateJob);
+    final showAddButton = user?.role == UserRole.admin || permissions.contains(Permission.recruitmentManageJob);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),

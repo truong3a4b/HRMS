@@ -199,8 +199,8 @@ router.patch(
   "/:id/additional",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   selfOrPermissionMiddleware(
-    PERMISSIONS.EMPLOYEE_UPDATE_ADDITIONAL,
-    PERMISSIONS.EMPLOYEE_UPDATE_SELF_ADDITIONAL,
+    PERMISSIONS.EMPLOYEE_UPDATE_BASIC,
+    PERMISSIONS.EMPLOYEE_UPDATE_SELF_BASIC,
   ),
   validate(updateAdditionalSchema),
   employeeController.updateAdditional,

@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:hrms/feature/candidate/presentation/screens/candidate_detail_screen.dart';
 import 'package:hrms/feature/recruitment/presentation/screens/application/job_application_list_screen.dart';
+import 'package:hrms/feature/recruitment/presentation/screens/application/my_applications_screen.dart';
 import 'package:hrms/feature/recruitment/presentation/screens/jobs/update_recruitment_job_screen.dart';
 
 import '../../feature/recruitment/presentation/screens/evaluation/evaluation_detail_screen.dart';
@@ -45,6 +46,12 @@ final recruitmentRoutes = <RouteBase>[
     name: 'job-application-list',
     builder: (context, state) {
       return JobApplicationListScreen();
+    },
+  ),
+  GoRoute(path: '/my-applications',
+    name: 'my-applications',
+    builder: (context, state) {
+      return MyApplicationsScreen();
     },
   ),
   GoRoute(

@@ -38,6 +38,7 @@ abstract class JobApplicationDto with _$JobApplicationDto {
     required DateTime appliedAt,
     DateTime? updatedAt,
     DateTime? rejectedAt,
+    DateTime? cancelledAt,
     DateTime? offerSentAt,
     DateTime? offerRespondedAt,
     DateTime? onboardedAt,

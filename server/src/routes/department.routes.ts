@@ -33,36 +33,40 @@ const updateDepartmentBasicSchema = z
 router.get(
   "/",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.DEPARTMENT_VIEW_LIST),
+  permissionMiddleware(PERMISSIONS.DEPARTMENT_VIEW),
   departmentController.getAll,
 );
 router.get(
   "/:id",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.DEPARTMENT_VIEW_LIST),
+  permissionMiddleware(PERMISSIONS.DEPARTMENT_VIEW),
   departmentController.getById,
 );
 router.post(
   "/",
-  authMiddleware(UserRole.ADMIN),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.DEPARTMENT_SETUP),
   validate(createDepartmentSchema),
   departmentController.create,
 );
 router.patch(
   "/:id/manager",
-  authMiddleware(UserRole.ADMIN),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.DEPARTMENT_SETUP),
   validate(updateDepartmentManagerSchema),
   departmentController.updateManager,
 );
 router.patch(
   "/:id/basic",
-  authMiddleware(UserRole.ADMIN),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.DEPARTMENT_SETUP),
   validate(updateDepartmentBasicSchema),
   departmentController.updateBasic,
 );
 router.delete(
   "/:id",
-  authMiddleware(UserRole.ADMIN),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.DEPARTMENT_SETUP),
   departmentController.remove,
 );
 

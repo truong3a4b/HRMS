@@ -26,12 +26,14 @@ const updatePositionSchema = z.object({
 });
 
 router.get(
+  //lấy danh sách vị trí
   "/",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.POSITION_VIEW_LIST),
+  permissionMiddleware(PERMISSIONS.POSITION_VIEW),
   positionController.getAll,
 );
 router.get(
+  //lấy danh sách tat ca quyen
   "/permissions",
   authMiddleware(UserRole.ADMIN),
   positionController.getPermissionCatalog,
@@ -39,26 +41,26 @@ router.get(
 router.get(
   "/:id",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.POSITION_VIEW_LIST),
+  permissionMiddleware(PERMISSIONS.POSITION_VIEW, PERMISSIONS.POSITION_SETUP),
   positionController.getById,
 );
 router.put(
   "/:id",
-  authMiddleware(UserRole.ADMIN),
-  permissionMiddleware(PERMISSIONS.POSITION_CREATE),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.POSITION_SETUP),
   validate(updatePositionSchema),
   positionController.update,
 );
 router.delete(
   "/:id",
-  authMiddleware(UserRole.ADMIN),
-  permissionMiddleware(PERMISSIONS.POSITION_DELETE),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.POSITION_SETUP),
   positionController.delete,
 );
 router.post(
   "/",
-  authMiddleware(UserRole.ADMIN),
-  permissionMiddleware(PERMISSIONS.POSITION_CREATE),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.POSITION_SETUP),
   validate(createPositionSchema),
   positionController.create,
 );

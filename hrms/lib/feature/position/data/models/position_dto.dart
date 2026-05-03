@@ -10,6 +10,7 @@ abstract class PositionDto with _$PositionDto {
     required String name,
     String? code,
     String? description,
+    @Default([]) List<String> permissions,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) = _PositionDto;

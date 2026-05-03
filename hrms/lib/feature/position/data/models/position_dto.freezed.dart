@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PositionDto {
 
- String get id; String get name; String? get code; String? get description; DateTime? get createdAt; DateTime? get updatedAt;
+ String get id; String get name; String? get code; String? get description; List<String> get permissions; DateTime? get createdAt; DateTime? get updatedAt;
 /// Create a copy of PositionDto
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $PositionDtoCopyWith<PositionDto> get copyWith => _$PositionDtoCopyWithImpl<Posi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PositionDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PositionDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other.permissions, permissions)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,code,description,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,code,description,const DeepCollectionEquality().hash(permissions),createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'PositionDto(id: $id, name: $name, code: $code, description: $description, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'PositionDto(id: $id, name: $name, code: $code, description: $description, permissions: $permissions, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $PositionDtoCopyWith<$Res>  {
   factory $PositionDtoCopyWith(PositionDto value, $Res Function(PositionDto) _then) = _$PositionDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String? code, String? description, DateTime? createdAt, DateTime? updatedAt
+ String id, String name, String? code, String? description, List<String> permissions, DateTime? createdAt, DateTime? updatedAt
 });
 
 
@@ -65,13 +65,14 @@ class _$PositionDtoCopyWithImpl<$Res>
 
 /// Create a copy of PositionDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? permissions = null,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,code: freezed == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String?,permissions: null == permissions ? _self.permissions : permissions // ignore: cast_nullable_to_non_nullable
+as List<String>,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
@@ -158,10 +159,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  List<String> permissions,  DateTime? createdAt,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PositionDto() when $default != null:
-return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.code,_that.description,_that.permissions,_that.createdAt,_that.updatedAt);case _:
   return orElse();
 
 }
@@ -179,10 +180,10 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? code,  String? description,  List<String> permissions,  DateTime? createdAt,  DateTime? updatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _PositionDto():
-return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.code,_that.description,_that.permissions,_that.createdAt,_that.updatedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -199,10 +200,10 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? code,  String? description,  DateTime? createdAt,  DateTime? updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? code,  String? description,  List<String> permissions,  DateTime? createdAt,  DateTime? updatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _PositionDto() when $default != null:
-return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.code,_that.description,_that.permissions,_that.createdAt,_that.updatedAt);case _:
   return null;
 
 }
@@ -214,13 +215,20 @@ return $default(_that.id,_that.name,_that.code,_that.description,_that.createdAt
 @JsonSerializable()
 
 class _PositionDto implements PositionDto {
-  const _PositionDto({required this.id, required this.name, this.code, this.description, this.createdAt, this.updatedAt});
+  const _PositionDto({required this.id, required this.name, this.code, this.description, final  List<String> permissions = const [], this.createdAt, this.updatedAt}): _permissions = permissions;
   factory _PositionDto.fromJson(Map<String, dynamic> json) => _$PositionDtoFromJson(json);
 
 @override final  String id;
 @override final  String name;
 @override final  String? code;
 @override final  String? description;
+ final  List<String> _permissions;
+@override@JsonKey() List<String> get permissions {
+  if (_permissions is EqualUnmodifiableListView) return _permissions;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_permissions);
+}
+
 @override final  DateTime? createdAt;
 @override final  DateTime? updatedAt;
 
@@ -237,16 +245,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PositionDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PositionDto&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other._permissions, _permissions)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,code,description,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,code,description,const DeepCollectionEquality().hash(_permissions),createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'PositionDto(id: $id, name: $name, code: $code, description: $description, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'PositionDto(id: $id, name: $name, code: $code, description: $description, permissions: $permissions, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -257,7 +265,7 @@ abstract mixin class _$PositionDtoCopyWith<$Res> implements $PositionDtoCopyWith
   factory _$PositionDtoCopyWith(_PositionDto value, $Res Function(_PositionDto) _then) = __$PositionDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String? code, String? description, DateTime? createdAt, DateTime? updatedAt
+ String id, String name, String? code, String? description, List<String> permissions, DateTime? createdAt, DateTime? updatedAt
 });
 
 
@@ -274,13 +282,14 @@ class __$PositionDtoCopyWithImpl<$Res>
 
 /// Create a copy of PositionDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? code = freezed,Object? description = freezed,Object? permissions = null,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
   return _then(_PositionDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,code: freezed == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String?,permissions: null == permissions ? _self._permissions : permissions // ignore: cast_nullable_to_non_nullable
+as List<String>,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));

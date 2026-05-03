@@ -184,6 +184,7 @@ const validateApplicationsQuery = (
 };
 
 const validateRecruitmentJobsQuery = (
+  //validate query params khi lay danh sach job
   req: Request,
   _res: Response,
   next: NextFunction,
@@ -194,6 +195,22 @@ const validateRecruitmentJobsQuery = (
   } catch (error) {
     next(error);
   }
+};
+
+const viewApplicationOrOwnCandidateMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (req.user?.role === UserRole.CANDIDATE) {
+    return next();
+  }
+
+  return permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_APPLICATION)(
+    req,
+    res,
+    next,
+  );
 };
 
 const interviewScheduleSchema = z.object({
@@ -223,10 +240,6 @@ const interviewEvaluationSchema = z.object({
   comments: optionalStringSchema,
 });
 
-const applicationDecisionSchema = z.object({
-  notes: optionalStringSchema,
-});
-
 const offerSchema = z.object({
   departmentId: z.string().uuid("departmentId không hợp lệ"),
   proposedSalary: z.coerce.number().nonnegative("Lương phải là số không âm"),
@@ -246,10 +259,7 @@ router.post(
   //tao moi job
   "/jobs",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(
-    PERMISSIONS.RECRUITMENT_MANAGE_JOB,
-    PERMISSIONS.RECRUITMENT_CREATE_JOB,
-  ),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_JOB),
   validate(recruitmentJobSchema),
   recruitmentController.createJob,
 );
@@ -257,10 +267,7 @@ router.patch(
   //update job
   "/jobs/:id",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(
-    PERMISSIONS.RECRUITMENT_MANAGE_JOB,
-    PERMISSIONS.RECRUITMENT_UPDATE_JOB,
-  ),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_JOB),
   validate(recruitmentJobUpdateSchema),
   recruitmentController.updateJob,
 );
@@ -268,28 +275,15 @@ router.patch(
   //close job
   "/jobs/:id/close",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(
-    PERMISSIONS.RECRUITMENT_MANAGE_JOB,
-    PERMISSIONS.RECRUITMENT_CLOSE_JOB,
-  ),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_JOB),
   recruitmentController.closeJob,
 );
 router.patch(
   //reopen job
   "/jobs/:id/reopen",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(
-    PERMISSIONS.RECRUITMENT_MANAGE_JOB,
-    PERMISSIONS.RECRUITMENT_UPDATE_JOB,
-  ),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_JOB),
   recruitmentController.reopenJob,
-);
-router.get(
-  //lay thong tin pipeline tong the
-  "/pipeline",
-  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_PIPELINE),
-  recruitmentController.getPipeline,
 );
 router.post(
   "/applications",
@@ -310,15 +304,15 @@ router.get(
 router.get(
   //lay chi tiet ung tuyen theo id
   "/applications/:id",
-  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_APPLICATION),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.CANDIDATE),
+  viewApplicationOrOwnCandidateMiddleware,
   recruitmentController.getApplicationById,
 );
 router.get(
   //lay chi tiet thu moi phong van theo id
   "/applications/:id/interviews/:scheduleId",
-  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_APPLICATION),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.CANDIDATE),
+  viewApplicationOrOwnCandidateMiddleware,
   recruitmentController.getInterviewScheduleById,
 );
 
@@ -326,7 +320,7 @@ router.post(
   //schedule phỏng vấn
   "/applications/:id/interviews",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_SCHEDULE_INTERVIEW),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_APPLICATION),
   validate(interviewScheduleSchema),
   recruitmentController.scheduleInterview,
 );
@@ -341,22 +335,22 @@ router.post(
   //employee đánh giá ứng viên
   "/applications/:id/evaluations",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_SUBMIT_EVALUATION),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_APPLICATION),
   validate(interviewEvaluationSchema),
   recruitmentController.submitEvaluation,
 );
 router.get(
   //lay chi tiet danh gia  theo id
   "/applications/:id/evaluations/:evaluationId",
-  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_VIEW_APPLICATION),
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.CANDIDATE),
+  viewApplicationOrOwnCandidateMiddleware,
   recruitmentController.getEvaluationById,
 );
 //cap nhat danh gia
 router.patch(
   "/applications/:id/evaluations/:evaluationId",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_SUBMIT_EVALUATION),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_APPLICATION),
   validate(interviewEvaluationSchema),
   recruitmentController.updateEvaluation,
 );
@@ -365,7 +359,7 @@ router.patch(
 router.delete(
   "/applications/:id/evaluations/:evaluationId",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  permissionMiddleware(PERMISSIONS.RECRUITMENT_SUBMIT_EVALUATION),
+  permissionMiddleware(PERMISSIONS.RECRUITMENT_MANAGE_APPLICATION),
   recruitmentController.deleteEvaluation,
 );
 
@@ -377,7 +371,6 @@ router.patch(
     PERMISSIONS.RECRUITMENT_MANAGE_APPLICATION,
     PERMISSIONS.RECRUITMENT_APPROVE_DIRECT,
   ),
-  validate(applicationDecisionSchema),
   recruitmentController.rejectApplication,
 );
 

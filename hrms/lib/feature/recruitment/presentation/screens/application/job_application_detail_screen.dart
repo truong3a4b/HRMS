@@ -7,12 +7,14 @@ import 'package:hrms/feature/account/presentation/providers/permission_provider.
 import 'package:hrms/feature/position/domain/entities/position.dart';
 
 import '../../../../../core/utils/platform_file_actions.dart';
+import '../../../../../core/widget/app_confirm_dialog.dart';
 import '../../../../../core/widget/app_snackbar.dart';
 import '../../../../auth/domain/entities/user.dart';
 import '../../../../auth/presentation/providers/user_provider.dart';
 import '../../../../candidate/domain/entities/candidate.dart';
 import '../../../domain/entities/job_application.dart';
 import '../../../domain/entities/recruitment_job.dart';
+import '../../providers/application/job_application_action_provider.dart';
 import '../../providers/application/job_application_detail_provider.dart';
 import '../../widgets/evaluation_section.dart';
 import '../../widgets/info_row.dart';
@@ -25,11 +27,27 @@ class JobApplicationDetailScreen extends ConsumerWidget {
 
   const JobApplicationDetailScreen({super.key, required this.applicationId});
 
+  bool isFinalStatus(JobApplicationStatus status) {
+    return [
+      JobApplicationStatus.rejected,
+      JobApplicationStatus.cancelled,
+      JobApplicationStatus.onboarded,
+    ].contains(status);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final applicationAsync = ref.watch(
       jobApplicationDetailProvider(applicationId),
     );
+    ref.listen(jobApplicationActionProvider, (prev, next) {
+      next.whenOrNull(
+        error: (err, _) {
+          if (!context.mounted) return;
+          AppSnackbar.showError(context, err.toString());
+        },
+      );
+    });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F3F3),
@@ -51,27 +69,66 @@ class JobApplicationDetailScreen extends ConsumerWidget {
         ),
         titleSpacing: 0,
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.black),
-            onSelected: (value) {
-              if (value == 'cancel') {
-                //_showCancelApplicationDialog(context, ref);
-              }
+          applicationAsync.maybeWhen(
+            data: (application) {
+              final permissions = ref.watch(permissionProvider).value ?? {};
+              final user = ref.watch(userProvider).value;
 
-              if (value == 'reject') {
-               // _showRejectApplicationDialog(context, ref);
-              }
+              final isCandidate = user?.role == UserRole.candidate;
+
+              // Ứng viên chỉ được hủy đơn khi ứng dụng chưa ở trạng thái cuối
+              final canCancel =
+                  isCandidate && !isFinalStatus(application.status);
+
+              // Chỉ admin hoặc người có quyền quản lý ứng dụng mới được từ chối, và chỉ khi ứng dụng chưa ở trạng thái cuối
+              final canReject =
+                  user != null &&
+                  !isCandidate &&
+                  (user.role == UserRole.admin ||
+                      permissions.contains(
+                        Permission.recruitmentManageApplication,
+                      )) && !isFinalStatus(application.status);
+
+
+              if (!canCancel && !canReject) return const SizedBox();
+
+              return PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.black),
+                onSelected: (value) async {
+                  if (value == 'cancel') {
+                    await _showCancelApplicationDialog(
+                      context,
+                      ref,
+                      application.id,
+                    );
+                  }
+
+                  if (value == 'reject') {
+                    await _showRejectApplicationDialog(
+                      context,
+                      ref,
+                      application.id,
+                    );
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (canCancel)
+                    const PopupMenuItem(
+                      value: 'cancel',
+                      child: Text('Hủy đơn'),
+                    ),
+                  if (canReject)
+                    const PopupMenuItem(
+                      value: 'reject',
+                      child: Text(
+                        'Từ chối ứng viên',
+                        style: TextStyle(color: Color(0xFFDC2626)),
+                      ),
+                    ),
+                ],
+              );
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'cancel',
-                child: Text('Hủy đơn'),
-              ),
-              PopupMenuItem(
-                value: 'reject',
-                child: Text('Từ chối ứng viên'),
-              ),
-            ],
+            orElse: () => const SizedBox(),
           ),
         ],
       ),
@@ -93,19 +150,34 @@ class JobApplicationDetailScreen extends ConsumerWidget {
     final Set<Permission> permissions =
         ref.watch(permissionProvider).value ?? {};
     final user = ref.watch(userProvider).value;
+
+    // Quyền thêm lịch phỏng vấn: có quyền lên lịch phỏng vấn hoặc là admin và don chưa ở trạng thái cuối
     final canAddInterview =
         user != null &&
-        (permissions.contains(Permission.recruitmentScheduleInterview) ||
-            user.role == UserRole.admin);
+        (permissions.contains(Permission.recruitmentManageApplication) ||
+            user.role == UserRole.admin) && !isFinalStatus(data.status);
+
+    print('User: ${user?.role}, Permissions: $permissions, Can add interview: $canAddInterview');
+
     final canEvaluate =
         user != null &&
-        (permissions.contains(Permission.recruitmentSubmitEvaluation) ||
+        (permissions.contains(Permission.recruitmentManageApplication) ||
             user.role == UserRole.admin);
+    final canSendOffer =
+        user != null &&
+        (permissions.containsAll([
+              Permission.recruitmentApproveDirect,
+              Permission.recruitmentManageApplication,
+            ]) ||
+            user.role == UserRole.admin);
+
+    final canRespondOffer = user != null && user.role == UserRole.candidate;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
       child: Column(
         children: [
-          _CandidateInfoSection(candidate: data.candidate),
+          _CandidateInfoSection(candidate: data.candidate, isOwner: user!.role == UserRole.candidate),
           const SizedBox(height: 12),
           _JobInfoSection(application: data),
           const SizedBox(height: 12),
@@ -127,19 +199,87 @@ class JobApplicationDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           OfferSection(
             application: data,
-            canSendOffer: true,
-            canRespondOffer: true,
+            canSendOffer: canSendOffer,
+            canRespondOffer: canRespondOffer,
           ),
         ],
       ),
     );
   }
+
+  Future<void> _showCancelApplicationDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String applicationId,
+  ) async
+  {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AppConfirmDialog(
+        title: 'Xác nhận hủy đơn',
+        message: 'Bạn có chắc chắn muốn hủy đơn ứng tuyển này không?',
+        confirmText: 'Hủy đơn',
+        cancelText: 'Đóng',
+        onConfirm: () => context.pop(true),
+        onCancel: () => context.pop(false),
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await ref
+        .read(jobApplicationActionProvider.notifier)
+        .cancelApplication(applicationId);
+
+    if (!context.mounted) return;
+
+    if (success) {
+      AppSnackbar.showSuccess(context, 'Hủy đơn ứng tuyển thành công');
+      ref.invalidate(jobApplicationDetailProvider(applicationId));
+    }
+  }
+
+  Future<void> _showRejectApplicationDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String applicationId,
+  ) async
+  {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AppConfirmDialog(
+          title: 'Xác nhận từ chối',
+          message: 'Bạn có chắc chắn muốn từ chối ứng viên này không?',
+          confirmText: 'Từ chối',
+          cancelText: 'Đóng',
+          onConfirm: () => context.pop(true),
+          onCancel: () => context.pop(false),
+        );
+      },
+    );
+
+    if (result != true) return;
+    final success = await ref
+        .read(jobApplicationActionProvider.notifier)
+        .rejectApplication({
+          'applicationId': applicationId,
+        });
+
+    if (!context.mounted) return;
+
+    if (success) {
+      AppSnackbar.showSuccess(context, 'Đã từ chối ứng viên');
+      ref.invalidate(jobApplicationDetailProvider(applicationId));
+    }
+  }
 }
 
 class _CandidateInfoSection extends StatelessWidget {
   final Candidate candidate;
+  final bool isOwner;
 
-  const _CandidateInfoSection({required this.candidate});
+  const _CandidateInfoSection({required this.candidate, this.isOwner = false});
 
   Future<void> _openCv(BuildContext context, String? url) async {
     if (url == null || url.trim().isEmpty) {
@@ -167,7 +307,11 @@ class _CandidateInfoSection extends StatelessWidget {
         .join(', ');
     return InkWell(
       onTap: () {
-        context.push('/candidate-detail/${candidate.id}');
+        if(isOwner) {
+          context.push('/profile');
+        } else {
+          context.push('/candidate-detail/${candidate.id}');
+        }
       },
       child: SectionCard(
         title: 'Thông tin ứng viên',

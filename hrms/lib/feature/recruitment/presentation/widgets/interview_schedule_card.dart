@@ -34,10 +34,19 @@ class _InterviewInvitationSectionState
     final invitations = widget.invitations;
 
     if (invitations.isEmpty) {
-      return const SectionCard(
+      return SectionCard(
         title: 'Thư mời phỏng vấn',
         icon: Icons.mail_outline,
-        child: Text(
+        canAdd: widget.canInvite,
+        onAdd: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) =>  AddInterviewScheduleBottomSheet(jobApplicationId: widget.applicationId,),
+          );
+        },
+        child: const Text(
           'Chưa có thư mời phỏng vấn',
           style: TextStyle(fontSize: 13, color: Color(0xFF7A7A7A)),
         ),

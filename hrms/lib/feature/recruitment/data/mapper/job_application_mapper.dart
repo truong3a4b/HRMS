@@ -1,6 +1,5 @@
 import 'package:hrms/feature/employee/data/mapper/employee_mapper.dart';
 import 'package:hrms/feature/recruitment/data/mapper/recruitment_job_mapper.dart';
-import '../../../candidate/data/mapper/candidate_mapper.dart';
 import '../../../candidate/domain/entities/candidate.dart';
 import '../../../department/data/mapper/department_mapper.dart';
 import '../../../position/data/mapper/posittion_mapper.dart';
@@ -35,6 +34,7 @@ extension JobApplicationMapper on JobApplicationDto {
       appliedAt: appliedAt,
       updatedAt: updatedAt,
       rejectedAt: rejectedAt,
+      cancelledAt: cancelledAt,
       offerSentAt: offerSentAt,
       offerRespondedAt: offerRespondedAt,
       onboardedAt: onboardedAt,
@@ -49,22 +49,14 @@ JobApplicationStatus _mapApplicationStatus(String value) {
   switch (value.toUpperCase()) {
     case 'APPLIED':
       return JobApplicationStatus.applied;
-    case 'INTERVIEW_INVITED':
-      return JobApplicationStatus.interviewInvited;
-    case 'INTERVIEW_CONFIRMED':
-      return JobApplicationStatus.interviewConfirmed;
-    case 'INTERVIEW_DECLINED':
-      return JobApplicationStatus.interviewDeclined;
-    case 'INTERVIEW_COMPLETED':
-      return JobApplicationStatus.interviewCompleted;
-    case 'APPROVED':
-      return JobApplicationStatus.approved;
+    case 'INTERVIEWING':
+      return JobApplicationStatus.interviewing;
+    case 'CANCELLED':
+      return JobApplicationStatus.cancelled;
     case 'REJECTED':
       return JobApplicationStatus.rejected;
     case 'OFFER_SENT':
       return JobApplicationStatus.offerSent;
-    case 'OFFER_ACCEPTED':
-      return JobApplicationStatus.offerAccepted;
     case 'OFFER_DECLINED':
       return JobApplicationStatus.offerDeclined;
     case 'ONBOARDED':

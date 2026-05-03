@@ -192,6 +192,25 @@ class RecruitmentRemote {
     }
   }
 
+  //lay danh sach don ung tuyen cua ung vien
+  Future<List<JobApplicationDto>> fetchCandidateApplications() async {
+    try {
+      final response = await dio.get('/candidates/applications/me');
+
+      final appResponse = AppResponse.fromJson(response.data);
+      final data = appResponse.data['items'] as List<dynamic>;
+
+      return data
+          .map((e) => JobApplicationDto.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote fetchCandidateApplications error: $e');
+
+      final errorMessage = ExtractError.extractFirstError(e.response?.data);
+      throw AppException(errorMessage);
+    }
+  }
+
   //get application detail
   Future<JobApplicationDto> getApplicationById(String id) async {
     try {
@@ -201,6 +220,21 @@ class RecruitmentRemote {
       return JobApplicationDto.fromJson(appResponse.data);
     } on DioException catch (e) {
       debugPrint('RecruitmentRemote getApplicationById error: $e');
+
+      final errorMessage = ExtractError.extractFirstError(e.response?.data);
+      throw AppException(errorMessage);
+    }
+  }
+
+  //get application detail for candidate
+  Future<JobApplicationDto> getCandidateApplicationDetail(String id) async {
+    try {
+      final response = await dio.get('/candidates/applications/$id');
+
+      final appResponse = AppResponse.fromJson(response.data);
+      return JobApplicationDto.fromJson(appResponse.data);
+    } on DioException catch (e) {
+      debugPrint('RecruitmentRemote getCandidateApplicationDetail error: $e');
 
       final errorMessage = ExtractError.extractFirstError(e.response?.data);
       throw AppException(errorMessage);
@@ -346,7 +380,7 @@ class RecruitmentRemote {
   //tu choi ung tuyen
   Future<bool> rejectApplication(String applicationId, Map<String, dynamic> data) async {
     try {
-      await dio.post(
+      await dio.patch(
           '/recruitment/applications/$applicationId/reject', data: data);
       return true;
     } on DioException catch (e) {

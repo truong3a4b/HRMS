@@ -202,4 +202,12 @@ export const candidateService = {
   getMyApplications(userId: string) {
     return recruitmentService.getMyApplications(userId);
   },
+
+  //lay don xin viec cua ung vien theo id
+  getApplicationById(userId: string, applicationId: string) {
+    return recruitmentService.getApplicationByIdForCandidate(
+      applicationId,
+      userId,
+    );
+  },
 };

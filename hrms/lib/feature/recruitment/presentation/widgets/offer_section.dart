@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:hrms/feature/recruitment/presentation/widgets/response_offer_bottom_sheet.dart';
 import 'package:hrms/feature/recruitment/presentation/widgets/section_card.dart';
+import 'package:hrms/feature/recruitment/presentation/widgets/send_offer_bottom_sheet.dart';
 
 import '../../../../core/utils/time_convert.dart';
 import '../../domain/entities/job_application.dart';
@@ -39,7 +41,14 @@ class OfferSection extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  //_showSendOfferBottomSheet(context, application);
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => SendOfferBottomSheet(
+                      application: application,
+                    ),
+                  );
                 },
                 icon: const Icon(Icons.send_outlined),
                 label: const Text('Gửi offer'),
@@ -79,24 +88,69 @@ class OfferSection extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      //_showDeclineOfferDialog(context, application);
-                    },
-                    child: const Text('Từ chối'),
+                  child: SizedBox(
+                    height: 42,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => RespondOfferBottomSheet(
+                            applicationId: application.id,
+                            isAccepted: false,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.close, size: 18),
+                      label: const Text(
+                        'Từ chối',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626), // đỏ
+                        side: const BorderSide(color: Color(0xFFDC2626)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      //_showAcceptOfferDialog(context, application);
-                    },
-                    child: const Text('Đồng ý'),
+                  child: SizedBox(
+                    height: 42,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => RespondOfferBottomSheet(
+                            applicationId: application.id,
+                            isAccepted: true,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.check, size: 18),
+                      label: const Text(
+                        'Đồng ý',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
-            ),
+            )
           ],
         ],
       ),

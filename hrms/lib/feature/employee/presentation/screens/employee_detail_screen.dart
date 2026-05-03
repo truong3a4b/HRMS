@@ -31,7 +31,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
 
     final canEditAdditionalInfo =
         user?.role == UserRole.admin ||
-            permission.contains(Permission.employeeUpdateAdditional);
+            permission.contains(Permission.employeeUpdateBasic);
 
     final canEditWorkInfo =
         user?.role == UserRole.admin ||

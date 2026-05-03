@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hrms/feature/account/presentation/providers/permission_provider.dart';
+
+import '../../../auth/domain/entities/user.dart';
+import '../../../auth/presentation/providers/user_provider.dart';
+import '../../../position/domain/entities/position.dart';
 
 class TaskScreen extends ConsumerStatefulWidget {
   const TaskScreen({super.key});
@@ -12,6 +17,9 @@ class TaskScreen extends ConsumerStatefulWidget {
 class _TaskScreenState extends ConsumerState<TaskScreen> {
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(userProvider).value!;
+    final Set<Permission> permissions = ref.watch(permissionProvider).value ?? {};
+
     return Scaffold(
       backgroundColor: const Color(0xC7EDEDED),
       appBar: AppBar(
@@ -35,7 +43,7 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
               TaskGroupCard(
                 title: 'Tuyển dụng',
                 items: [
-                  TaskItemData(
+                  if(user.role == UserRole.admin || permissions.contains(Permission.recruitmentViewApplication) ) TaskItemData(
                     icon: 'assets/images/candidate.png',
                     label: 'Danh sách ứng tuyển',
                     onTap: (){
@@ -48,6 +56,13 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                     onTap: (){
                       context.push('/recruitment-job-list');
                     }
+                  ),
+                  if(user.role == UserRole.candidate )TaskItemData(
+                      icon: 'assets/images/candidate.png',
+                      label: 'Đơn ứng tuyển của tôi',
+                      onTap: (){
+                        context.push('/my-applications');
+                      }
                   ),
                 ],
               ),

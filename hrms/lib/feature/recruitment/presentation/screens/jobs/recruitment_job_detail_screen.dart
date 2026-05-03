@@ -33,9 +33,7 @@ class RecruitmentJobDetailScreen extends ConsumerWidget {
     final isCandidate = user?.role == UserRole.candidate;
     final canManageJob =
         user?.role == UserRole.admin ||
-        permissions.contains(Permission.recruitmentManageJob) ||
-        permissions.contains(Permission.recruitmentUpdateJob) ||
-        permissions.contains(Permission.recruitmentCloseJob);
+        permissions.contains(Permission.recruitmentManageJob) ;
 
     ref.listen(recruitmentJobActionProvider, (prev, next) {
       next.whenOrNull(

@@ -11,6 +11,11 @@ _PositionDto _$PositionDtoFromJson(Map<String, dynamic> json) => _PositionDto(
   name: json['name'] as String,
   code: json['code'] as String?,
   description: json['description'] as String?,
+  permissions:
+      (json['permissions'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const [],
   createdAt: json['createdAt'] == null
       ? null
       : DateTime.parse(json['createdAt'] as String),
@@ -25,6 +30,7 @@ Map<String, dynamic> _$PositionDtoToJson(_PositionDto instance) =>
       'name': instance.name,
       'code': instance.code,
       'description': instance.description,
+      'permissions': instance.permissions,
       'createdAt': instance.createdAt?.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
     };

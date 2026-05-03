@@ -11,6 +11,7 @@ import { employeeService } from "./employee.service";
 import { ApiError } from "../utils/apiError";
 import { sendInterviewInvitationEmail, sendOfferEmail } from "../config/brevo";
 import { env } from "../config/env";
+import { is } from "zod/locales";
 
 type CandidateProfileInput = {
   fullName?: string;
@@ -281,8 +282,7 @@ const applicationDetailInclude = {
 
 const activeApplicationStatuses = new Set<string>([
   JobApplicationStatus.APPLIED,
-  JobApplicationStatus.INTERVIEW_INVITED,
-  JobApplicationStatus.INTERVIEW_CONFIRMED,
+  JobApplicationStatus.INTERVIEWING,
   JobApplicationStatus.OFFER_SENT,
 ]);
 
@@ -321,9 +321,6 @@ const expirePendingRecruitmentResponses = async () => {
       where: {
         status: InterviewScheduleStatus.INVITED,
         createdAt: { lte: interviewCutoff },
-        jobApplication: {
-          status: JobApplicationStatus.INTERVIEW_INVITED,
-        },
       },
       select: {
         id: true,
@@ -331,13 +328,8 @@ const expirePendingRecruitmentResponses = async () => {
       },
     });
 
+    //Nếu có lịch phỏng vấn nào quá hạn mà vẫn đang ở trạng thái "Đã mời", tự động chuyển sang "Từ chối" và cập nhật thời gian phản hồi của ứng viên là thời điểm hiện tại
     if (expiredInterviews.length > 0) {
-      const applicationIds = [
-        ...new Set(
-          expiredInterviews.map((schedule) => schedule.jobApplicationId),
-        ),
-      ];
-
       await tx.interviewSchedule.updateMany({
         where: {
           id: { in: expiredInterviews.map((schedule) => schedule.id) },
@@ -347,17 +339,6 @@ const expirePendingRecruitmentResponses = async () => {
           status: InterviewScheduleStatus.DECLINED,
           candidateResponseAt: now,
           candidateResponseNote: automaticDeclineNote,
-        },
-      });
-
-      await tx.jobApplication.updateMany({
-        where: {
-          id: { in: applicationIds },
-          status: JobApplicationStatus.INTERVIEW_INVITED,
-        },
-        data: {
-          status: JobApplicationStatus.INTERVIEW_DECLINED,
-          notes: automaticDeclineNote,
         },
       });
     }
@@ -399,7 +380,6 @@ const expirePendingRecruitmentResponses = async () => {
         },
         data: {
           status: JobApplicationStatus.OFFER_DECLINED,
-          notes: automaticDeclineNote,
         },
       });
     }
@@ -983,14 +963,7 @@ export const recruitmentService = {
     });
 
     return {
-      currentApplication:
-        applications.find((application) =>
-          isApplicationActive(application.status),
-        ) ?? null,
-      history: applications.filter(
-        (application) => !isApplicationActive(application.status),
-      ),
-      applications,
+      items: applications,
     };
   },
 
@@ -1079,6 +1052,13 @@ export const recruitmentService = {
     return this.getApplicationByIdWithDetail(id);
   },
 
+  async getApplicationByIdForCandidate(id: string, candidateUserId: string) {
+    await expirePendingRecruitmentResponses();
+
+    const { application } = await ensureApplicationOwner(id, candidateUserId);
+    return application;
+  },
+
   async getApplicationByIdWithDetail(id: string) {
     await expirePendingRecruitmentResponses();
 
@@ -1119,6 +1099,16 @@ export const recruitmentService = {
     return schedule;
   },
 
+  async getInterviewScheduleByIdForCandidate(
+    applicationId: string,
+    scheduleId: string,
+    candidateUserId: string,
+  ) {
+    await ensureApplicationOwner(applicationId, candidateUserId);
+
+    return this.getInterviewScheduleById(applicationId, scheduleId);
+  },
+
   async getEvaluationById(applicationId: string, evaluationId: string) {
     const evaluation = await prisma.interviewEvaluation.findFirst({
       where: {
@@ -1149,6 +1139,16 @@ export const recruitmentService = {
     return evaluation;
   },
 
+  async getEvaluationByIdForCandidate(
+    applicationId: string,
+    evaluationId: string,
+    candidateUserId: string,
+  ) {
+    await ensureApplicationOwner(applicationId, candidateUserId);
+
+    return this.getEvaluationById(applicationId, evaluationId);
+  },
+
   async scheduleInterview(
     applicationId: string,
     actorUserId: string,
@@ -1156,11 +1156,15 @@ export const recruitmentService = {
   ) {
     const application = await this.getApplicationByIdWithDetail(applicationId);
 
-    if (isApplicationFinal(application.status)) {
+    // Chỉ cho phép lên lịch phỏng vấn nếu đơn đang ở trạng thái "Đã nộp" hoặc "Đang phỏng vấn"
+    if (
+      application.status !== JobApplicationStatus.APPLIED &&
+      application.status !== JobApplicationStatus.INTERVIEWING
+    ) {
       throw new ApiError(
         400,
-        "Application is already in a final state",
-        "APPLICATION_ALREADY_FINAL",
+        "Interview can only be scheduled for applications in Applied or Interviewing status",
+        "INVALID_APPLICATION_STATUS",
       );
     }
 
@@ -1191,12 +1195,11 @@ export const recruitmentService = {
         },
       });
 
-      const updatedApplication = await tx.jobApplication.update({
+      await tx.jobApplication.update({
         where: { id: applicationId },
         data: {
-          status: JobApplicationStatus.INTERVIEW_INVITED,
+          status: JobApplicationStatus.INTERVIEWING,
         },
-        include: applicationInclude,
       });
 
       // Send interview invitation email to candidate
@@ -1257,13 +1260,18 @@ export const recruitmentService = {
       );
     }
 
-    const nextApplicationStatus =
-      data.decision === InterviewScheduleStatus.CONFIRMED
-        ? JobApplicationStatus.INTERVIEW_CONFIRMED
-        : JobApplicationStatus.INTERVIEW_DECLINED;
+    //Chỉ cho phép ứng viên phản hồi nếu đơn đang ở trạng thái "Đang phỏng vấn" và lịch phỏng vấn đang ở trạng thái "Đã mời"
+    const application = await this.getApplicationByIdWithDetail(applicationId);
+    if (application.status !== JobApplicationStatus.INTERVIEWING) {
+      throw new ApiError(
+        400,
+        "Interview can only be responded to for applications in Interviewing status",
+        "INVALID_APPLICATION_STATUS",
+      );
+    }
 
     return prisma.$transaction(async (tx) => {
-      await tx.interviewSchedule.update({
+      const updatedSchedule = await tx.interviewSchedule.update({
         where: { id: scheduleId },
         data: {
           status: data.decision,
@@ -1272,16 +1280,8 @@ export const recruitmentService = {
         },
       });
 
-      const updatedApplication = await tx.jobApplication.update({
-        where: { id: applicationId },
-        data: {
-          status: nextApplicationStatus,
-        },
-        include: applicationInclude,
-      });
-
       return {
-        application: updatedApplication,
+        interviewSchedule: updatedSchedule,
       };
     });
   },
@@ -1305,15 +1305,14 @@ export const recruitmentService = {
       );
     }
 
-    const latestSchedule = await prisma.interviewSchedule.findFirst({
-      where: {
-        jobApplicationId: applicationId,
-      },
-      orderBy: { scheduledAt: "desc" },
-      select: {
-        id: true,
-      },
-    });
+    // Chỉ cho phép đánh giá nếu đơn đang ở trạng thái "Đang phỏng vấn"
+    if (application.status !== JobApplicationStatus.INTERVIEWING) {
+      throw new ApiError(
+        400,
+        "Interview evaluation can only be submitted for applications in Interviewing status",
+        "INVALID_APPLICATION_STATUS",
+      );
+    }
 
     return prisma.$transaction(async (tx) => {
       const evaluation = await tx.interviewEvaluation.create({
@@ -1327,23 +1326,6 @@ export const recruitmentService = {
           recommendation: data.recommendation,
           comments: data.comments,
         },
-      });
-
-      if (latestSchedule) {
-        await tx.interviewSchedule.update({
-          where: { id: latestSchedule.id },
-          data: {
-            status: InterviewScheduleStatus.COMPLETED,
-          },
-        });
-      }
-
-      const updatedApplication = await tx.jobApplication.update({
-        where: { id: applicationId },
-        data: {
-          status: JobApplicationStatus.INTERVIEW_CONFIRMED,
-        },
-        include: applicationInclude,
       });
 
       return {
@@ -1374,6 +1356,16 @@ export const recruitmentService = {
         "EMPLOYEE_NOT_FOUND",
       );
     }
+
+    // Chỉ cho phép cập nhật đánh giá nếu đơn đang ở trạng thái "Đang phỏng vấn" và đánh giá thuộc về người đánh giá
+    if (application.status !== JobApplicationStatus.INTERVIEWING) {
+      throw new ApiError(
+        400,
+        "Interview evaluation can only be updated for applications in Interviewing status",
+        "INVALID_APPLICATION_STATUS",
+      );
+    }
+
     const evaluation = await prisma.interviewEvaluation.findFirst({
       where: {
         id: evaluationId,
@@ -1426,6 +1418,15 @@ export const recruitmentService = {
       );
     }
 
+    // Chỉ cho phép xóa đánh giá nếu đơn đang ở trạng thái "Đang phỏng vấn" và đánh giá thuộc về người xóa
+    if (application.status !== JobApplicationStatus.INTERVIEWING) {
+      throw new ApiError(
+        400,
+        "Interview evaluation can only be deleted for applications in Interviewing status",
+        "INVALID_APPLICATION_STATUS",
+      );
+    }
+
     const evaluation = await prisma.interviewEvaluation.findFirst({
       where: {
         id: evaluationId,
@@ -1455,10 +1456,7 @@ export const recruitmentService = {
       candidateUserId,
     );
 
-    if (
-      application.status === JobApplicationStatus.REJECTED ||
-      application.status === JobApplicationStatus.ONBOARDED
-    ) {
+    if (isApplicationFinal(application.status)) {
       throw new ApiError(
         400,
         "Cannot cancel an application that is rejected or onboarded",
@@ -1471,18 +1469,16 @@ export const recruitmentService = {
       data: {
         status: JobApplicationStatus.CANCELLED,
         cancelledAt: new Date(),
-        notes: application.notes,
       },
       include: applicationInclude,
     });
 
     return {
-      candidate,
       application: updatedApplication,
     };
   },
 
-  async rejectApplication(applicationId: string, data: { notes?: string }) {
+  async rejectApplication(applicationId: string) {
     const application = await this.getApplicationByIdWithDetail(applicationId);
 
     if (isApplicationFinal(application.status)) {
@@ -1498,7 +1494,6 @@ export const recruitmentService = {
       data: {
         status: JobApplicationStatus.REJECTED,
         rejectedAt: new Date(),
-        notes: data.notes,
       },
       include: applicationInclude,
     });
@@ -1511,25 +1506,11 @@ export const recruitmentService = {
 
     const application = await this.getApplicationByIdWithDetail(applicationId);
 
-    if ((application.status as string) === "CANCELLED") {
+    if (isApplicationFinal(application.status)) {
       throw new ApiError(
         400,
-        "Cannot send offer for cancelled application",
-        "APPLICATION_CANCELLED",
-      );
-    }
-
-    if (
-      !new Set<JobApplicationStatus>([
-        JobApplicationStatus.APPLIED,
-        JobApplicationStatus.INTERVIEW_CONFIRMED,
-        JobApplicationStatus.INTERVIEW_INVITED,
-      ]).has(application.status)
-    ) {
-      throw new ApiError(
-        400,
-        "Application is not ready for offer",
-        "APPLICATION_NOT_READY_FOR_OFFER",
+        "Cannot send offer for an application that is rejected or onboarded",
+        "APPLICATION_CANNOT_SEND_OFFER",
       );
     }
 
@@ -1554,13 +1535,12 @@ export const recruitmentService = {
         },
       });
 
-      const updatedApplication = await tx.jobApplication.update({
+      await tx.jobApplication.update({
         where: { id: applicationId },
         data: {
           departmentId: data.departmentId,
           status: JobApplicationStatus.OFFER_SENT,
         },
-        include: applicationInclude,
       });
 
       // Send offer email (best-effort)

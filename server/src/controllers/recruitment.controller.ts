@@ -3,7 +3,6 @@ import { UserRole } from "../../generated/prisma/client";
 import { PERMISSIONS } from "../constants/permissions";
 import { recruitmentService } from "../services/recruitment.service";
 import { sendResponse } from "../utils/response";
-import { candidateService } from "../services/candidate.service";
 
 const getParamValue = (param: string | string[]) =>
   Array.isArray(param) ? param[0] : param;
@@ -198,6 +197,25 @@ export const recruitmentController = {
   async getApplicationById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = getParamValue(req.params.id);
+      const userId = req.user?.id;
+
+      if (req.user?.role === UserRole.CANDIDATE) {
+        if (!userId) {
+          return sendResponse(res, 401, "Unauthorized");
+        }
+
+        const result = await recruitmentService.getApplicationByIdForCandidate(
+          id,
+          userId,
+        );
+        return sendResponse(
+          res,
+          200,
+          "Your application fetched successfully",
+          result,
+        );
+      }
+
       const result = await recruitmentService.getApplicationById(id);
       return sendResponse(res, 200, "Application fetched successfully", result);
     } catch (error) {
@@ -213,6 +231,27 @@ export const recruitmentController = {
     try {
       const applicationId = getParamValue(req.params.id);
       const scheduleId = getParamValue(req.params.scheduleId);
+      const userId = req.user?.id;
+
+      if (req.user?.role === UserRole.CANDIDATE) {
+        if (!userId) {
+          return sendResponse(res, 401, "Unauthorized");
+        }
+
+        const result =
+          await recruitmentService.getInterviewScheduleByIdForCandidate(
+            applicationId,
+            scheduleId,
+            userId,
+          );
+        return sendResponse(
+          res,
+          200,
+          "Interview schedule fetched successfully",
+          result,
+        );
+      }
+
       const result = await recruitmentService.getInterviewScheduleById(
         applicationId,
         scheduleId,
@@ -303,11 +342,13 @@ export const recruitmentController = {
   async rejectApplication(req: Request, res: Response, next: NextFunction) {
     try {
       const applicationId = getParamValue(req.params.id);
-      const result = await recruitmentService.rejectApplication(
-        applicationId,
-        req.body,
+      const result = await recruitmentService.rejectApplication(applicationId);
+      return sendResponse(
+        res,
+        200,
+        "Application rejected successfully",
+        result,
       );
-      return sendResponse(res, 200, "Application rejected successfully", result);
     } catch (error) {
       next(error);
     }
@@ -317,6 +358,26 @@ export const recruitmentController = {
     try {
       const applicationId = getParamValue(req.params.id);
       const evaluationId = getParamValue(req.params.evaluationId);
+      const userId = req.user?.id;
+
+      if (req.user?.role === UserRole.CANDIDATE) {
+        if (!userId) {
+          return sendResponse(res, 401, "Unauthorized");
+        }
+
+        const result = await recruitmentService.getEvaluationByIdForCandidate(
+          applicationId,
+          evaluationId,
+          userId,
+        );
+        return sendResponse(
+          res,
+          200,
+          "Interview evaluation fetched successfully",
+          result,
+        );
+      }
+
       const result = await recruitmentService.getEvaluationById(
         applicationId,
         evaluationId,

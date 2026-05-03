@@ -26,129 +26,6 @@ async function main() {
     },
   });
 
-  // 3. Tạo permission
-  const permissions = await Promise.all([
-    prisma.permission.upsert({
-      where: { key: PERMISSIONS.POSITION_VIEW_LIST },
-      update: {},
-      create: {
-        key: PERMISSIONS.POSITION_VIEW_LIST,
-        name: "Xem vị trí công việc",
-      },
-    }),
-    prisma.permission.upsert({
-      where: { key: PERMISSIONS.POSITION_CREATE },
-      update: {},
-      create: {
-        key: PERMISSIONS.POSITION_CREATE,
-        name: "Tạo vị trí công việc",
-      },
-    }),
-    prisma.permission.upsert({
-      where: { key: PERMISSIONS.RECRUITMENT_VIEW_JOB },
-      update: {},
-      create: {
-        key: PERMISSIONS.RECRUITMENT_VIEW_JOB,
-        name: "Xem tin tuyển dụng",
-      },
-    }),
-    prisma.permission.upsert({
-      where: { key: PERMISSIONS.RECRUITMENT_MANAGE_JOB },
-      update: {},
-      create: {
-        key: PERMISSIONS.RECRUITMENT_MANAGE_JOB,
-        name: "Quản lý tin tuyển dụng",
-      },
-    }),
-    prisma.permission.upsert({
-      where: { key: PERMISSIONS.RECRUITMENT_CREATE_JOB },
-      update: {},
-      create: {
-        key: PERMISSIONS.RECRUITMENT_CREATE_JOB,
-        name: "Tạo tin tuyển dụng",
-      },
-    }),
-    prisma.permission.upsert({
-      where: { key: PERMISSIONS.RECRUITMENT_UPDATE_JOB },
-      update: {},
-      create: {
-        key: PERMISSIONS.RECRUITMENT_UPDATE_JOB,
-        name: "Cập nhật tin tuyển dụng",
-      },
-    }),
-    prisma.permission.upsert({
-      where: { key: PERMISSIONS.RECRUITMENT_CLOSE_JOB },
-      update: {},
-      create: {
-        key: PERMISSIONS.RECRUITMENT_CLOSE_JOB,
-        name: "Đóng tin tuyển dụng",
-      },
-    }),
-  ]);
-
-  const viewEmployee = permissions.find(
-    (permission) => permission.key === PERMISSIONS.POSITION_VIEW_LIST,
-  );
-
-  const createEmployee = permissions.find(
-    (permission) => permission.key === PERMISSIONS.POSITION_CREATE,
-  );
-
-  const recruitmentJobPermissions = permissions.filter((permission) =>
-    [
-      PERMISSIONS.RECRUITMENT_VIEW_JOB,
-      PERMISSIONS.RECRUITMENT_MANAGE_JOB,
-      PERMISSIONS.RECRUITMENT_CREATE_JOB,
-      PERMISSIONS.RECRUITMENT_UPDATE_JOB,
-      PERMISSIONS.RECRUITMENT_CLOSE_JOB,
-    ].includes(permission.key as any),
-  );
-
-  // 4. Gán permission cho position
-  await prisma.positionPermission.upsert({
-    where: {
-      positionId_permissionId: {
-        positionId: position.id,
-        permissionId: viewEmployee?.id as string,
-      },
-    },
-    update: {},
-    create: {
-      positionId: position.id,
-      permissionId: viewEmployee?.id as string,
-    },
-  });
-
-  await prisma.positionPermission.upsert({
-    where: {
-      positionId_permissionId: {
-        positionId: position.id,
-        permissionId: createEmployee?.id as string,
-      },
-    },
-    update: {},
-    create: {
-      positionId: position.id,
-      permissionId: createEmployee?.id as string,
-    },
-  });
-
-  for (const permission of recruitmentJobPermissions) {
-    await prisma.positionPermission.upsert({
-      where: {
-        positionId_permissionId: {
-          positionId: position.id,
-          permissionId: permission.id,
-        },
-      },
-      update: {},
-      create: {
-        positionId: position.id,
-        permissionId: permission.id,
-      },
-    });
-  }
-
   // 5. Hash password
   const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);
 
@@ -165,22 +42,14 @@ async function main() {
     },
   });
 
-  // 7. Tạo department đầu tiên với trưởng phòng bắt buộc
+  // 7. Tạo department đầu tiên
   const department = await prisma.department.upsert({
     where: { code: "HR" },
-    update: {
-      managerId: adminEmployee.id,
-    },
+    update: {},
     create: {
       name: "Phòng nhân sự",
       code: "HR",
-      managerId: adminEmployee.id,
     },
-  });
-
-  await prisma.employee.update({
-    where: { id: adminEmployee.id },
-    data: { departmentId: department.id },
   });
 
   // 8. Tạo user admin

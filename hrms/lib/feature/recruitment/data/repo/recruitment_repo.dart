@@ -85,9 +85,21 @@ class RecruitmentRepository {
     return dtos.map((e) => e.toEntity()).toList();
   }
 
+  //get applications of candidate
+  Future<List<JobApplication>> fetchCandidateApplications() async {
+    final dtos = await remote.fetchCandidateApplications();
+    return dtos.map((e) => e.toEntity()).toList();
+  }
+
   //get application detail
   Future<JobApplication> getApplicationById(String id) async {
     final dto = await remote.getApplicationById(id);
+    return dto.toEntity();
+  }
+
+  //get application detail for candidate
+  Future<JobApplication> fetchCandidateApplicationDetail(String id) async {
+    final dto = await remote.getCandidateApplicationDetail(id);
     return dto.toEntity();
   }
 
@@ -160,6 +172,32 @@ class RecruitmentRepository {
     String evaluationId,
   ) async {
     return await remote.deleteCandidateEvaluation(applicationId, evaluationId);
+  }
+
+  //Gửi offer cho ứng viên
+  Future<bool> sendOffer(
+    String applicationId,
+    Map<String, dynamic> data,
+  ) async {
+    return await remote.sendJobOffer(applicationId, data);;
+  }
+
+  //Ung vien phan hoi offer
+  Future<bool> respondOffer(
+    String applicationId,
+    Map<String, dynamic> data,
+  ) async {
+    return await remote.respondJobOffer(applicationId, data);
+  }
+
+  //Huy dong tuyen dung
+  Future<bool> cancelRecruitment(String applicationId) async {
+    return await remote.cancelApplication(applicationId);
+  }
+
+  //Tu choi ung vien
+  Future<bool> rejectCandidate(String applicationId, Map<String, dynamic> data) async {
+    return await remote.rejectApplication(applicationId, data);
   }
 }
 

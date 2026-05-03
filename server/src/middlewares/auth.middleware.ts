@@ -91,6 +91,7 @@ export const authMiddleware =
 export const checkAccessToken = authMiddleware();
 
 export const optionalAuth = async (
+  //ham dung de co the lay thong tin nguoi dung tu token neu co, neu khong co token thi van cho phep truy cap nhu binh thuong
   req: Request,
   _res: Response,
   next: NextFunction,

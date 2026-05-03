@@ -8,6 +8,10 @@ extension PositionMapper on PositionDto {
       name: name,
       code: code,
       description: description,
+      permissions: permissions
+          .map((perm) => PermissionKeyX.fromString(perm))
+          .whereType<Permission>()
+          .toList(),
     );
   }
 }

@@ -37,6 +37,9 @@ _JobApplicationDto _$JobApplicationDtoFromJson(Map<String, dynamic> json) =>
       rejectedAt: json['rejectedAt'] == null
           ? null
           : DateTime.parse(json['rejectedAt'] as String),
+      cancelledAt: json['cancelledAt'] == null
+          ? null
+          : DateTime.parse(json['cancelledAt'] as String),
       offerSentAt: json['offerSentAt'] == null
           ? null
           : DateTime.parse(json['offerSentAt'] as String),
@@ -98,6 +101,7 @@ Map<String, dynamic> _$JobApplicationDtoToJson(_JobApplicationDto instance) =>
       'appliedAt': instance.appliedAt.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
       'rejectedAt': instance.rejectedAt?.toIso8601String(),
+      'cancelledAt': instance.cancelledAt?.toIso8601String(),
       'offerSentAt': instance.offerSentAt?.toIso8601String(),
       'offerRespondedAt': instance.offerRespondedAt?.toIso8601String(),
       'onboardedAt': instance.onboardedAt?.toIso8601String(),

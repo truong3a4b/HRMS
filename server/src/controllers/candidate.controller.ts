@@ -94,4 +94,28 @@ export const candidateController = {
       next(error);
     }
   },
+
+  //lay don xin viec cua ung vien theo id
+  async getApplicationById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.id;
+      const applicationId = getParamValue(req.params.id);
+
+      if (!userId) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+      const result = await candidateService.getApplicationById(
+        userId,
+        applicationId,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Your application fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
 };

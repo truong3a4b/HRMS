@@ -125,8 +125,12 @@ export const positionService = {
       where: { id },
       include: {
         permissions: {
-          include: {
-            permission: true,
+          select: {
+            permission: {
+              select: {
+                key: true,
+              },
+            },
           },
         },
       },
@@ -136,7 +140,10 @@ export const positionService = {
       throw new ApiError(404, "Position not found", "POSITION_NOT_FOUND");
     }
 
-    return position;
+    return {
+      ...position,
+      permissions: position.permissions.map((item) => item.permission.key),
+    };
   },
 
   async update(id: string, data: UpdatePositionInput) {

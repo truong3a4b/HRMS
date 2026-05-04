@@ -14,8 +14,8 @@ class UpdatePositionRequest {
   Map<String, dynamic> toJson() {
     return {
       'name': name,
-      'description': description,
-      'permissions': permissionKeys,
+       if (description != null) 'description': description,
+      'permissionKeys': permissionKeys,
     };
   }
 }

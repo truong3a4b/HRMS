@@ -1,9 +1,11 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import http from "http";
 import morgan from "morgan";
 import { env } from "./config/env";
 import { prisma } from "./config/prisma";
+import { initializeSocket } from "./config/socket";
 import routes from "./routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
 
@@ -25,11 +27,14 @@ app.get("/", (_req, res) => {
 app.use("/api", routes);
 app.use(errorMiddleware);
 
+const server = http.createServer(app);
+initializeSocket(server);
+
 const startServer = async () => {
   try {
     await prisma.$connect();
 
-    app.listen(env.PORT, () => {
+    server.listen(env.PORT, () => {
       console.log(`Server running at http://localhost:${env.PORT}`);
     });
   } catch (error) {

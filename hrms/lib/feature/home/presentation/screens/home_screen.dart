@@ -3,9 +3,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/utils/token_storage.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../employee/domain/entities/employee.dart';
+import '../../../notification/presentation/providers/notification_provider.dart';
+import '../../../notification/presentation/providers/notification_socket_service_provider.dart';
 import '../providers/home_provider.dart';
+import '../widgets/candidate_home_section.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -14,10 +18,30 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
+
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(() async {
+      final token = await ref.read(tokenStorageProvider).readAccessToken();
+
+      if (token != null) {
+        ref.read(notificationSocketServiceProvider).connect(token);
+
+        ref.invalidate(notificationListProvider);
+        ref.invalidate(unreadNotificationCountProvider);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncValue = ref.watch(homeProvider);
+
+
     return Scaffold(
       backgroundColor: Color(0xFFFAFAFA),
       body: asyncValue.when(
@@ -35,6 +59,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final showFeatureSection = state.role == UserRole.employee;
     final showTodayTaskSection = state.role == UserRole.employee;
     final showTodaySummary = state.role == UserRole.admin;
+    final showCandidateHome = state.role == UserRole.candidate;
+
     final isDay = DateTime.now().hour >= 6 && DateTime.now().hour < 18;
     String position = 'Ứng viên';
     if(state.me is Employee){
@@ -86,6 +112,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     isDay: isDay,
                   ),
                   const SizedBox(height: 20),
+
+                  if (showCandidateHome) ...[
+                    const CandidateHomeSection(),
+                    const SizedBox(height: 24),
+                  ],
 
                   if (showCheckInCard) ...[
                     const CheckInCard(),

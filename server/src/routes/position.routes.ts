@@ -1,4 +1,4 @@
-import { Router } from "express";
+import e, { Router } from "express";
 import { z } from "zod";
 import { UserRole } from "../../generated/prisma/client";
 import { positionController } from "../controllers/position.controller";
@@ -10,18 +10,35 @@ import {
 import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
+const emptyToUndefined = (value: unknown) => {
+  if (value === "" || value === null || value === undefined) {
+    return undefined;
+  }
+
+  return value;
+};
+
+const codeOptions = z.preprocess(
+  emptyToUndefined,
+  z.string().min(2).optional(),
+);
+
+const descriptionOptions = z.preprocess(
+  emptyToUndefined,
+  z.string().optional(),
+);
 
 const createPositionSchema = z.object({
   name: z.string().min(2),
-  code: z.string().min(2).optional(),
-  description: z.string().optional(),
+  code: codeOptions,
+  description: descriptionOptions,
   permissionKeys: z.array(z.nativeEnum(PERMISSIONS)).min(1),
 });
 
 const updatePositionSchema = z.object({
   name: z.string().min(2).optional(),
-  code: z.string().min(2).optional(),
-  description: z.string().optional(),
+  code: codeOptions,
+  description: descriptionOptions,
   permissionKeys: z.array(z.nativeEnum(PERMISSIONS)).optional(),
 });
 

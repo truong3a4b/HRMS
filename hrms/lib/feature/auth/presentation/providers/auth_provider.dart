@@ -8,6 +8,7 @@ import '../../../../core/network/dio_client.dart';
 import '../../../../core/utils/token_storage.dart';
 import '../../../account/presentation/providers/permission_provider.dart';
 import '../../../department/presentation/providers/department_list_provider.dart';
+import '../../../notification/presentation/providers/notification_socket_service_provider.dart';
 import '../../../position/presentation/providers/positionListProvider.dart';
 import '../../data/datasources/auth_remote.dart';
 import '../../data/repo/auth_repository.dart';
@@ -95,8 +96,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   Future<void> verifyOtp(String email, String otp) async {
     print('Verifying OTP for email: $email with OTP: $otp');
+    final enteredField = state.value?.enteredField;
     state = const AsyncValue.loading();
-
     try {
       final user = await _repo.verifyOtp(email, otp);
       ref.invalidate(userProvider);
@@ -106,7 +107,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       ref.invalidate(positionListProvider);
       state = AsyncValue.data(AuthState.authenticated(user));
     } catch (e) {
-      final enteredField = state.value?.enteredField;
+
       state = AsyncValue.data(
         AuthState(
           status: AuthStatus.otpRequired,
@@ -173,6 +174,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   Future<void> logout() async {
     state = const AsyncValue.loading();
+    ref.read(notificationSocketServiceProvider).disconnect();
     await _tokenStorage.clear();
     state = AsyncValue.data(AuthState.unauthenticated());
   }

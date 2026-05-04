@@ -4,7 +4,7 @@ import 'package:hrms/feature/position/data/mapper/posittion_mapper.dart';
 import 'package:hrms/feature/position/domain/entities/position.dart';
 
 import '../../domain/entities/add_position_request.dart';
-import '../models/update_position_request.dart';
+import '../../domain/entities/update_position_request.dart';
 
 class PositionRepository {
   final PositionRemote remote;

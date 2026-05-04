@@ -1,16 +1,19 @@
 import {
   JobApplicationStatus,
   InterviewScheduleStatus,
+  NotificationType,
   OfferStatus,
   Prisma,
   RecruitmentJobStatus,
   Gender,
+  UserRole,
 } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { employeeService } from "./employee.service";
 import { ApiError } from "../utils/apiError";
 import { sendInterviewInvitationEmail, sendOfferEmail } from "../config/brevo";
 import { env } from "../config/env";
+import { notificationService } from "./notification.service";
 import { is } from "zod/locales";
 
 type CandidateProfileInput = {
@@ -308,6 +311,54 @@ const hoursAgo = (hours: number) =>
 
 const automaticDeclineNote =
   "Automatically declined because the candidate did not respond in time.";
+
+const recruitmentNotificationPermissionKeys = [
+  "RECRUITMENT_MANAGE_JOB",
+  "RECRUITMENT_VIEW_APPLICATION",
+  "RECRUITMENT_MANAGE_APPLICATION",
+  "RECRUITMENT_APPROVE_DIRECT",
+] as const;
+
+const getRecruitmentNotificationRecipientIds = async () => {
+  const [admins, recruitmentEmployees] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        role: UserRole.ADMIN,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.employee.findMany({
+      where: {
+        userId: {
+          not: null,
+        },
+        position: {
+          permissions: {
+            some: {
+              permission: {
+                key: {
+                  in: recruitmentNotificationPermissionKeys as unknown as string[],
+                },
+              },
+            },
+          },
+        },
+      },
+      select: {
+        userId: true,
+      },
+    }),
+  ]);
+
+  return [
+    ...admins.map((user) => user.id),
+    ...recruitmentEmployees
+      .map((employee) => employee.userId)
+      .filter((userId): userId is string => !!userId),
+  ];
+};
 
 const expirePendingRecruitmentResponses = async () => {
   const now = new Date();
@@ -850,7 +901,7 @@ export const recruitmentService = {
       throw new ApiError(404, "User not found", "USER_NOT_FOUND");
     }
 
-    return prisma.$transaction(async (tx) => {
+    const application = await prisma.$transaction(async (tx) => {
       const candidate = await tx.candidate.upsert({
         where: { userId },
         create: {
@@ -949,6 +1000,32 @@ export const recruitmentService = {
         select: applicationListSelect,
       });
     });
+
+    try {
+      const recipientIds = await getRecruitmentNotificationRecipientIds();
+
+      if (recipientIds.length > 0) {
+        await notificationService.createForUsers({
+          userIds: recipientIds,
+          type: NotificationType.RECRUITMENT,
+          title: "Có ứng viên mới ứng tuyển",
+          message: `${application.candidateName || "Một ứng viên"} vừa ứng tuyển vào vị trí ${application.recruitmentJob?.title || "tuyển dụng"}.`,
+          senderId: userId,
+          data: {
+            kind: "JOB_APPLICATION_CREATED",
+            applicationId: application.id,
+            recruitmentJobId: application.recruitmentJob?.id,
+            candidateId: application.candidateId,
+            positionId: application.position?.id,
+            departmentId: application.department?.id,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to create recruitment notification:", error);
+    }
+
+    return application;
   },
 
   async getMyApplications(userId: string) {

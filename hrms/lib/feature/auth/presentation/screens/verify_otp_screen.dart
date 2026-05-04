@@ -31,19 +31,18 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       previous,
       next,
     ) {
-      next.whenOrNull(
-        data: (state) {
-          if (state.status == AuthStatus.otpRequired && state.message != null) {
-            AppSnackbar.showError(context, state.message!);
-          }
-        },
-        error: (error, stackTrace) {
-          AppSnackbar.showError(
-            context,
-            'Xác thực thất bại. Vui lòng thử lại.',
-          );
-        },
-      );
+      final prevState = previous?.value;
+      final nextState = next.value;
+
+      if (nextState == null) return;
+
+      // chỉ show khi message thay đổi
+      if (nextState.message != null &&
+          nextState.message != prevState?.message) {
+        if (mounted) {
+          AppSnackbar.showError(context, nextState.message!);
+        }
+      }
     });
   }
 

@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/error/app_exception.dart';
-import '../../data/models/update_position_request.dart';
+import '../../domain/entities/update_position_request.dart';
 import '../../data/repo/position_repository.dart';
 import '../../domain/entities/position.dart';
 

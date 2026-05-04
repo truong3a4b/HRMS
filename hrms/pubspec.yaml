@@ -49,6 +49,7 @@ dependencies:
   state_notifier: ^1.0.0
   shared_preferences: ^2.2.2
   collection: ^1.17.0
+  socket_io_client: ^3.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

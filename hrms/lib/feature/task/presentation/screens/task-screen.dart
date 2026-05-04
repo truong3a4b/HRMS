@@ -149,6 +149,24 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                   ),
                 ],
               ),
+              TaskGroupCard(
+                title: 'Yêu cầu',
+                items: [
+                  TaskItemData(
+                      icon: 'assets/images/proposal.png',
+                      label: 'Yêu cầu của tôi',
+                  ),
+                  TaskItemData(
+                    icon: 'assets/images/validation.png',
+                    label: 'Yêu cầu cần phê duyệt',
+                  ),
+                  TaskItemData(
+                    icon: 'assets/images/target.png',
+                    label: 'Danh sách yêu cầu',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               const SizedBox(height: 12),
               TaskGroupCard(
                 title: 'Phòng ban',
@@ -159,22 +177,6 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                     onTap: (){
                       context.push('/department-list');
                     }
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/department.png',
-                    label: 'Thông tin phòng ban',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/target.png',
-                    label: 'Nhiệm vụ',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/asign_task.png',
-                    label: 'Giao nhiêm vụ',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/proposal.png',
-                    label: 'Đề xuất',
                   ),
                 ],
               ),

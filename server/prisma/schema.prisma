@@ -35,6 +35,11 @@ model User {
   refreshTokens RefreshToken[]
   candidate     Candidate?
   employee      Employee?
+  sentNotifications Notification[]          @relation("NotificationSender")
+  notifications     NotificationRecipient[]
+  requestedRequests Request[]                @relation("RequestRequester")
+  requestApprovals  RequestApproval[]        @relation("RequestApprover")
+  watchedRequests   RequestWatcher[]         @relation("RequestWatcherUser")
 }
 
 model PendingUser {
@@ -370,6 +375,15 @@ enum OfferStatus {
   DECLINED
 }
 
+enum NotificationType {
+  GENERAL
+  SYSTEM
+  RECRUITMENT
+  EMPLOYEE
+  AUTH
+  CUSTOM
+}
+
 model Offer {
   id               String      @id @default(uuid())
   jobApplicationId String
@@ -410,4 +424,147 @@ model EmployeeJobHistory {
   @@index([departmentId])
   @@index([positionId])
   @@map("employee_job_histories")
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  type        NotificationType  @default(GENERAL)
+  title       String
+  message     String
+  data        Json?
+  senderId    String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  sender      User?                    @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipients  NotificationRecipient[]
+
+  @@index([type, createdAt])
+  @@index([senderId])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  id             String       @id @default(uuid())
+  notificationId  String
+  userId          String
+  isRead          Boolean      @default(false)
+  readAt          DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, isRead])
+  @@index([notificationId])
+  @@map("notification_recipients")
+}
+
+enum RequestType {
+  LEAVE
+  ATTENDANCE_CORRECTION
+  OVERTIME
+  SCHEDULE_APPROVAL
+  TERMINATION
+}
+
+enum RequestStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+  CANCELLED
+  COMPLETED
+  FAILED
+}
+
+enum RequestApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalMode {
+  PARALLEL      // duyệt đồng thời
+  SEQUENTIAL   // duyệt lần lượt
+}
+
+model Request {
+  id           String           @id @default(uuid())
+  type         RequestType
+  title        String
+  description  String?
+  requesterId  String
+  approvalMode  ApprovalMode     @default(PARALLEL)
+  status       RequestStatus     @default(PENDING)
+  currentStep  Int              @default(1)
+  processingAt DateTime?
+  approvedAt   DateTime?
+  rejectedAt   DateTime?
+  cancelledAt  DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  requester    User              @relation("RequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  approvals    RequestApproval[]
+  watchers     RequestWatcher[]
+  leaveRequest LeaveRequest?
+
+  @@index([requesterId, status])
+  @@index([status, createdAt])
+  @@index([type])
+  @@map("requests")
+}
+
+model RequestApproval {
+  id         String                @id @default(uuid())
+  requestId  String
+  approverId String
+  stepOrder  Int
+  status     RequestApprovalStatus  @default(PENDING)
+  note       String?
+  decidedAt  DateTime?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  request    Request               @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approver   User                  @relation("RequestApprover", fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, approverId])
+  @@index([requestId, stepOrder])
+  @@index([approverId, status])
+  @@map("request_approvals")
+}
+
+model RequestWatcher {
+  id        String   @id @default(uuid())
+  requestId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user      User     @relation("RequestWatcherUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, userId])
+  @@index([userId])
+  @@index([requestId])
+  @@map("request_watchers")
+}
+
+model LeaveRequest {
+  id String @id @default(uuid())
+  requestId String @unique
+  startDate DateTime
+  endDate DateTime
+  leaveType String
+  reason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("leave_requests")
 }

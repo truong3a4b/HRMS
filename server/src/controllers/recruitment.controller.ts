@@ -28,9 +28,7 @@ export const recruitmentController = {
         req.user?.role === UserRole.ADMIN ||
         (req.user?.role === UserRole.EMPLOYEE &&
           req.user.permissions.some(
-            (permission) =>
-              permission === PERMISSIONS.RECRUITMENT_VIEW_JOB ||
-              permission === PERMISSIONS.RECRUITMENT_MANAGE_JOB,
+            (permission) => permission === PERMISSIONS.RECRUITMENT_MANAGE_JOB,
           ));
 
       const result = await recruitmentService.getJobs(

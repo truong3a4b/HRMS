@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../feature/notification/presentation/providers/notification_provider.dart';
 
 class BottomNavItem {
   final String label;
@@ -12,7 +15,7 @@ class BottomNavItem {
   });
 }
 
-class MainBottomNav extends StatelessWidget {
+class MainBottomNav extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
@@ -46,7 +49,10 @@ class MainBottomNav extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unreadAsync = ref.watch(unreadNotificationCountProvider);
+    final unreadCount = unreadAsync.value ?? 0;
+
     return Container(
       height: 66,
       decoration: const BoxDecoration(
@@ -84,10 +90,10 @@ class MainBottomNav extends StatelessWidget {
                             : const Color(0xFF9CA3AF),
                       ),
 
-                      if (index == 2)
+                      if (index == 2 && unreadCount > 0)
                         Positioned(
-                          right: -6,
-                          top: -4,
+                          right: -8,
+                          top: -6,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 4,
@@ -101,10 +107,12 @@ class MainBottomNav extends StatelessWidget {
                               minWidth: 14,
                               minHeight: 14,
                             ),
-                            child: const Text(
-                              '1',
+                            child: Text(
+                              unreadCount > 99
+                                  ? '99+'
+                                  : unreadCount.toString(),
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 9,
                                 fontWeight: FontWeight.w700,
@@ -119,7 +127,8 @@ class MainBottomNav extends StatelessWidget {
                     item.label,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight:
+                      selected ? FontWeight.w600 : FontWeight.w400,
                       height: 1.3,
                       color: selected
                           ? const Color(0xFF065CD8)

@@ -1,0 +1,17 @@
+.logo-section {
+  color: #fff;
+  text-align: center;
+}
+
+.logo-section__title {
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.logo-section__subtitle {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 500;
+}

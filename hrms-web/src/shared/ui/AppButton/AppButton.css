@@ -1,0 +1,51 @@
+.app-button {
+  display: inline-flex;
+  min-height: 50px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+  color: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.app-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  box-shadow: 0 5px 12px rgba(14, 103, 178, 0.24);
+  transform: translateY(-1px);
+}
+
+.app-button:focus-visible {
+  outline: 3px solid rgba(14, 103, 178, 0.24);
+  outline-offset: 2px;
+}
+
+.app-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.app-button__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 999px;
+  animation: app-button-spin 800ms linear infinite;
+}
+
+@keyframes app-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

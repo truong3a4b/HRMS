@@ -32,14 +32,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens RefreshToken[]
-  candidate     Candidate?
-  employee      Employee?
+  refreshTokens     RefreshToken[]
+  candidate         Candidate?
+  employee          Employee?
   sentNotifications Notification[]          @relation("NotificationSender")
   notifications     NotificationRecipient[]
-  requestedRequests Request[]                @relation("RequestRequester")
-  requestApprovals  RequestApproval[]        @relation("RequestApprover")
-  watchedRequests   RequestWatcher[]         @relation("RequestWatcherUser")
+  requestedRequests Request[]               @relation("RequestRequester")
+  requestApprovals  RequestApproval[]       @relation("RequestApprover")
+  watchedRequests   RequestWatcher[]        @relation("RequestWatcherUser")
 }
 
 model PendingUser {
@@ -273,6 +273,7 @@ model Employee {
   managedDepartment Department?          @relation("DepartmentManager")
   position          Position?            @relation(fields: [positionId], references: [id])
   jobHistories      EmployeeJobHistory[]
+  workSchedules     WorkSchedule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -427,17 +428,17 @@ model EmployeeJobHistory {
 }
 
 model Notification {
-  id          String           @id @default(uuid())
-  type        NotificationType  @default(GENERAL)
-  title       String
-  message     String
-  data        Json?
-  senderId    String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id        String           @id @default(uuid())
+  type      NotificationType @default(GENERAL)
+  title     String
+  message   String
+  data      Json?
+  senderId  String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
-  sender      User?                    @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
-  recipients  NotificationRecipient[]
+  sender     User?                   @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipients NotificationRecipient[]
 
   @@index([type, createdAt])
   @@index([senderId])
@@ -445,13 +446,13 @@ model Notification {
 }
 
 model NotificationRecipient {
-  id             String       @id @default(uuid())
-  notificationId  String
-  userId          String
-  isRead          Boolean      @default(false)
-  readAt          DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id             String    @id @default(uuid())
+  notificationId String
+  userId         String
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -487,31 +488,32 @@ enum RequestApprovalStatus {
 }
 
 enum ApprovalMode {
-  PARALLEL      // duyệt đồng thời
-  SEQUENTIAL   // duyệt lần lượt
+  PARALLEL // duyệt đồng thời
+  SEQUENTIAL // duyệt lần lượt
 }
 
 model Request {
-  id           String           @id @default(uuid())
+  id           String        @id @default(uuid())
   type         RequestType
   title        String
   description  String?
   requesterId  String
-  approvalMode  ApprovalMode     @default(PARALLEL)
-  status       RequestStatus     @default(PENDING)
-  currentStep  Int              @default(1)
+  approvalMode ApprovalMode  @default(PARALLEL)
+  status       RequestStatus @default(PENDING)
+  currentStep  Int           @default(1)
   processingAt DateTime?
   approvedAt   DateTime?
   rejectedAt   DateTime?
   cancelledAt  DateTime?
   completedAt  DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  requester    User              @relation("RequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  approvals    RequestApproval[]
-  watchers     RequestWatcher[]
-  leaveRequest LeaveRequest?
+  requester           User                 @relation("RequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  approvals           RequestApproval[]
+  watchers            RequestWatcher[]
+  leaveRequest        LeaveRequest?
+  workScheduleRequest WorkScheduleRequest?
 
   @@index([requesterId, status])
   @@index([status, createdAt])
@@ -524,14 +526,14 @@ model RequestApproval {
   requestId  String
   approverId String
   stepOrder  Int
-  status     RequestApprovalStatus  @default(PENDING)
+  status     RequestApprovalStatus @default(PENDING)
   note       String?
   decidedAt  DateTime?
   createdAt  DateTime              @default(now())
   updatedAt  DateTime              @updatedAt
 
-  request    Request               @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  approver   User                  @relation("RequestApprover", fields: [approverId], references: [id], onDelete: Cascade)
+  request  Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approver User    @relation("RequestApprover", fields: [approverId], references: [id], onDelete: Cascade)
 
   @@unique([requestId, approverId])
   @@index([requestId, stepOrder])
@@ -545,8 +547,8 @@ model RequestWatcher {
   userId    String
   createdAt DateTime @default(now())
 
-  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  user      User     @relation("RequestWatcherUser", fields: [userId], references: [id], onDelete: Cascade)
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User    @relation("RequestWatcherUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([requestId, userId])
   @@index([userId])
@@ -555,16 +557,100 @@ model RequestWatcher {
 }
 
 model LeaveRequest {
-  id String @id @default(uuid())
-  requestId String @unique
+  id        String   @id @default(uuid())
+  requestId String   @unique
   startDate DateTime
-  endDate DateTime
+  endDate   DateTime
   leaveType String
-  reason String?
+  reason    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@map("leave_requests")
+}
+
+model WorkShift {
+  id                    String  @id @default(uuid())
+  code                  String  @unique
+  name                  String
+  startTime             String
+  endTime               String
+  breakStartTime        String?
+  breakEndTime          String?
+  lateGracePeriod       Int? //phút cho phép đi muộn mà không bị tính là đi muộn
+  earlyLeaveGracePeriod Int? //phút cho phép về sớm mà không bị tính là về sớm
+
+  isOvertime         Boolean  @default(false) //ca làm thêm giờ
+  workUnits          Decimal  @db.Decimal(5, 2) //số đơn vị công cho ca này, ví dụ 1.0 cho ca bình thường, 1.5 cho ca làm thêm giờ
+  overtimeMultiplier Decimal? @db.Decimal(5, 2) //hệ số lương cho ca làm thêm giờ, ví dụ 1.5 cho ca làm thêm giờ
+
+  isActive          Boolean             @default(true)
+  workScheduleLinks WorkScheduleShift[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@map("work_shifts")
+}
+
+// Lịch làm việc của nhân viên, liên kết với ca làm việc cụ thể và trạng thái của lịch
+model WorkSchedule {
+  id         String   @id @default(uuid())
+  employeeId String
+  date       DateTime
+
+  employee   Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shiftLinks WorkScheduleShift[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([employeeId, date])
+  @@map("work_schedules")
+}
+
+model WorkScheduleShift {
+  id             String @id @default(uuid())
+  workScheduleId String
+  workShiftId    String
+
+  workSchedule WorkSchedule @relation(fields: [workScheduleId], references: [id], onDelete: Cascade)
+  workShift    WorkShift    @relation(fields: [workShiftId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workScheduleId, workShiftId])
+  @@index([workShiftId])
+  @@map("work_schedule_shifts")
+}
+
+// Lich su lap ke hoach lam viec 
+model WorkScheduleSetup {
+  id                    String  @id @default(uuid())
+  name                  String
+  description           String?
+  //danh sach phong ban va vi tri duoc ap dung mau lich lam viec nay
+  applicableDepartments Json? //danh sách departmentId áp dụng mẫu lịch này
+  applicablePositions   Json? //danh sách positionId áp dụng mẫu lịch này
+  //ca lam viec va danh sach ngay dc ap dung trong thang
+  scheduleDetails       Json //danh sách ca làm việc và ngày áp dụng, ví dụ: [{"date": "2024-07-01", "workShiftIds": ["shift1", "shift2"]}]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//Dang ky lich lam viec
+model WorkScheduleRequest {
+  id        String   @id @default(uuid())
+  requestId String   @unique
+  month     DateTime //tháng đăng ký lịch làm việc, chỉ lưu phần năm và tháng
+
+  scheduleDetails Json //danh sách ca làm việc và ngày áp dụng, ví dụ: [{"date": "2024-07-01", "workShiftIds": ["shift1", "shift2"]}]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
 }

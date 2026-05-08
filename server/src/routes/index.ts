@@ -7,6 +7,8 @@ import notificationRoutes from "./notification.routes";
 import requestRoutes from "./request.routes";
 import recruitmentRoutes from "./recruitment.routes";
 import positionRoutes from "./position.routes";
+import workShiftRoutes from "./work-shift.routes";
+import scheduleAssignmentRoutes from "./schedule-assignment.routes";
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use("/requests", requestRoutes);
 router.use("/candidates", candidateRoutes);
 router.use("/employees", employeeRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/work-shifts", workShiftRoutes);
+router.use("/schedule-assignments", scheduleAssignmentRoutes);
 
 export default router;

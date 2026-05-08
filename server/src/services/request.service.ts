@@ -7,6 +7,7 @@ import {
   UserRole,
 } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
+import { applyScheduleAssignments } from "./schedule-assignment.service";
 import { ApiError } from "../utils/apiError";
 
 const userSummarySelect = {
@@ -475,9 +476,11 @@ export const requestService = {
     role: UserRole,
     input: ReviewDecisionInput,
   ) {
+    //lấy request, kiểm tra quyền, kiểm tra trạng thái request, kiểm tra xem approver đã review chưa
     const request = await getRequestByIdWithDetails(requestId);
     assertCanActAsApprover(request, userId, role === UserRole.ADMIN);
 
+    // chỉ có thể review khi request chưa ở trạng thái cuối cùng
     if (finalRequestStatuses.has(request.status)) {
       throw new ApiError(
         400,
@@ -486,6 +489,7 @@ export const requestService = {
       );
     }
 
+    // tìm approval của approver đang review
     const approval = request.approvals.find(
       (item) => item.approverId === userId,
     );
@@ -513,6 +517,7 @@ export const requestService = {
     const decidedAt = new Date();
 
     return prisma.$transaction(async (tx) => {
+      // cập nhật quyết định của approver đang review
       await tx.requestApproval.update({
         where: {
           requestId_approverId: {
@@ -527,6 +532,7 @@ export const requestService = {
         },
       });
 
+      // lấy lại request sau khi đã cập nhật quyết định của approver
       const latestRequest = await tx.request.findUnique({
         where: {
           id: requestId,
@@ -538,10 +544,12 @@ export const requestService = {
         throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
       }
 
+      // sắp xếp approvals theo stepOrder để dễ dàng xử lý tiếp theo
       const sortedApprovals = [...latestRequest.approvals].sort(
         (left, right) => left.stepOrder - right.stepOrder,
       );
 
+      // nếu approver reject thì reject luôn request mà không cần quan tâm đến các approver khác
       if (input.decision === RequestApprovalStatus.REJECTED) {
         const updatedRequest = await tx.request.update({
           where: {
@@ -557,12 +565,15 @@ export const requestService = {
         return sortApprovals(updatedRequest);
       }
 
+      // nếu approver approve và approval mode là sequential thì cần kiểm tra xem có approver nào tiếp theo không, nếu có thì chuyển request sang approver đó, nếu không có thì approve request
       if (latestRequest.approvalMode === ApprovalMode.SEQUENTIAL) {
+        // tìm step tiếp theo có status là pending
         const nextStep = getNextSequentialStep(
           latestRequest,
           approval.stepOrder,
         );
 
+        // nếu có approver tiếp theo thì chuyển request sang approver đó, nếu không có approver tiếp theo nào thì approve request
         const updatedRequest = await tx.request.update({
           where: {
             id: requestId,
@@ -578,6 +589,55 @@ export const requestService = {
               },
           include: requestInclude,
         });
+
+        // nếu đã approve và là request phê duyệt lịch thì tiến hành áp dụng lịch làm việc
+        if (
+          updatedRequest.status === RequestStatus.APPROVED &&
+          latestRequest.type === RequestType.SCHEDULE_APPROVAL
+        ) {
+          const workScheduleRequest = await tx.workScheduleRequest.findUnique({
+            where: {
+              requestId,
+            },
+            select: {
+              scheduleDetails: true,
+            },
+          });
+
+          if (!workScheduleRequest) {
+            throw new ApiError(
+              400,
+              "Schedule request data is missing",
+              "WORK_SCHEDULE_REQUEST_NOT_FOUND",
+            );
+          }
+
+          const employee = await tx.employee.findUnique({
+            where: {
+              userId: latestRequest.requesterId,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          if (!employee) {
+            throw new ApiError(
+              400,
+              "Schedule requests can only be approved for employees",
+            );
+          }
+
+          await applyScheduleAssignments(
+            tx,
+            [employee.id],
+            workScheduleRequest.scheduleDetails as Array<{
+              date: string;
+              workShiftIds: string[];
+            }>,
+            decidedAt,
+          );
+        }
 
         return sortApprovals(updatedRequest);
       }
@@ -600,6 +660,54 @@ export const requestService = {
             },
         include: requestInclude,
       });
+
+      if (
+        updatedRequest.status === RequestStatus.APPROVED &&
+        latestRequest.type === RequestType.SCHEDULE_APPROVAL
+      ) {
+        const workScheduleRequest = await tx.workScheduleRequest.findUnique({
+          where: {
+            requestId,
+          },
+          select: {
+            scheduleDetails: true,
+          },
+        });
+
+        if (!workScheduleRequest) {
+          throw new ApiError(
+            400,
+            "Schedule request data is missing",
+            "WORK_SCHEDULE_REQUEST_NOT_FOUND",
+          );
+        }
+
+        const employee = await tx.employee.findUnique({
+          where: {
+            userId: latestRequest.requesterId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (!employee) {
+          throw new ApiError(
+            400,
+            "Schedule requests can only be approved for employees",
+          );
+        }
+
+        await applyScheduleAssignments(
+          tx,
+          [employee.id],
+          workScheduleRequest.scheduleDetails as Array<{
+            date: string;
+            workShiftIds: string[];
+          }>,
+          decidedAt,
+        );
+      }
 
       return sortApprovals(updatedRequest);
     });

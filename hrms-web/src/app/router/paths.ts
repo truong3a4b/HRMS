@@ -1,0 +1,41 @@
+export const paths = {
+  // Auth
+  login: '/login',
+  register: '/register',
+  verifyOtp: '/verify-otp',
+
+  // Home
+  home: '/home',
+
+  // Recruitment
+  recruitmentApplications: '/recruitment/applications',
+  recruitmentJobs: '/recruitment/jobs',
+  candidateApplications: '/candidate/applications',
+
+  // Employees
+  employees: '/employees',
+
+  // Attendance
+  attendanceCheckin: '/attendance/checkin',
+  attendanceHistory: '/attendance/history',
+  attendanceTimesheet: '/attendance/timesheet',
+  attendanceOvertime: '/attendance/overtime-request',
+
+  // Work Schedule
+  scheduleWeekly: '/schedule/weekly',
+  scheduleAssign: '/schedule/assign',
+  scheduleLeaveRequest: '/schedule/leave-request',
+
+  // Salary
+  salaryCurrent: '/salary/current',
+  salaryAdvance: '/salary/advance',
+  salaryAddition: '/salary/addition',
+  salaryDeduction: '/salary/deduction',
+  salarySlips: '/salary/slips',
+  salaryHistory: '/salary/history',
+
+  // Profile
+  profile: '/profile',
+  security: '/profile/security',
+  feedback: '/feedback',
+} as const

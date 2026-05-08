@@ -13,6 +13,9 @@ export const PERMISSIONS = {
   EMPLOYEE_UPDATE_BASIC: "EMPLOYEE_UPDATE_BASIC",
   EMPLOYEE_UPDATE_JOB: "EMPLOYEE_UPDATE_JOB",
   EMPLOYEE_UPDATE_SELF_BASIC: "EMPLOYEE_UPDATE_SELF_BASIC",
+  WORK_SCHEDULE_MANAGE: "WORK_SCHEDULE_MANAGE",
+  WORK_SCHEDULE_REGISTER: "WORK_SCHEDULE_REGISTER",
+  WORK_SCHEDULE_VIEW: "WORK_SCHEDULE_VIEW",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -91,5 +94,21 @@ export const PERMISSION_DEFINITIONS: Array<{
     key: PERMISSIONS.EMPLOYEE_UPDATE_SELF_BASIC,
     name: "Update Self Basic",
     description: "Update own basic information.",
+  },
+  {
+    key: PERMISSIONS.WORK_SCHEDULE_MANAGE,
+    name: "Manage Work Schedule",
+    description:
+      "Create, update, and delete work shifts and schedule assignments.",
+  },
+  {
+    key: PERMISSIONS.WORK_SCHEDULE_REGISTER,
+    name: "Register Work Schedule",
+    description: "Register work schedule changes for approval.",
+  },
+  {
+    key: PERMISSIONS.WORK_SCHEDULE_VIEW,
+    name: "View Work Schedule",
+    description: "View work shifts and schedule assignments.",
   },
 ];

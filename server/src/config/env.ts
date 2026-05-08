@@ -26,4 +26,5 @@ export const env = {
     process.env.RECRUITMENT_OFFER_RESPONSE_TIMEOUT_HOURS || 48,
   ),
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "123456",
+  WEB_ORIGIN: process.env.WEB_ORIGIN || "http://127.0.0.1:5173",
 };

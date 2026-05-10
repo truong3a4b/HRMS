@@ -92,9 +92,7 @@ const ensureUsersExist = async (userIds: string[]) => {
 };
 
 const getWorkShiftIdsFromDetails = (scheduleDetails: ScheduleDetail[]) =>
-  normalizeIds(
-    scheduleDetails.flatMap((detail) => detail.workShiftIds ?? []),
-  );
+  normalizeIds(scheduleDetails.flatMap((detail) => detail.workShiftIds ?? []));
 
 const ensureWorkShiftsExist = async (workShiftIds: string[]) => {
   if (workShiftIds.length === 0) {
@@ -112,7 +110,9 @@ const ensureWorkShiftsExist = async (workShiftIds: string[]) => {
     },
   });
 
-  const foundWorkShiftIds = new Set(workShifts.map((workShift) => workShift.id));
+  const foundWorkShiftIds = new Set(
+    workShifts.map((workShift) => workShift.id),
+  );
   const missingWorkShiftIds = workShiftIds.filter(
     (workShiftId) => !foundWorkShiftIds.has(workShiftId),
   );
@@ -253,7 +253,10 @@ export const scheduleAssignmentService = {
     const workShiftIds = getWorkShiftIdsFromDetails(futureScheduleDetails);
 
     if (futureScheduleDetails.length === 0) {
-      throw new ApiError(400, "At least one future schedule detail is required");
+      throw new ApiError(
+        400,
+        "At least one future schedule detail is required",
+      );
     }
 
     await ensureWorkShiftsExist(workShiftIds);
@@ -322,7 +325,10 @@ export const scheduleAssignmentService = {
     const watcherIds = normalizeIds(payload.watcherIds ?? []);
 
     if (futureScheduleDetails.length === 0) {
-      throw new ApiError(400, "At least one future schedule detail is required");
+      throw new ApiError(
+        400,
+        "At least one future schedule detail is required",
+      );
     }
 
     if (approverIds.length === 0) {
@@ -388,9 +394,19 @@ export const scheduleAssignmentService = {
 
     const items = await prisma.workSchedule.findMany({
       where: { employeeId, date: { gte: from, lt: to } },
-      include: {
+      select: {
+        id: true,
+        date: true,
         shiftLinks: {
-          include: { workShift: true },
+          include: {
+            workShift: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
           orderBy: { workShift: { startTime: "asc" } },
         },
       },

@@ -6,6 +6,7 @@ import morgan from "morgan";
 import { env } from "./config/env";
 import { prisma } from "./config/prisma";
 import { initializeSocket } from "./config/socket";
+import { attendanceMqttService } from "./services/attendanceMqtt.service";
 import routes from "./routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
 
@@ -59,6 +60,7 @@ initializeSocket(server);
 const startServer = async () => {
   try {
     await prisma.$connect();
+    await attendanceMqttService.initialize();
 
     server.listen(env.PORT, () => {
       console.log(`Server running at http://localhost:${env.PORT}`);

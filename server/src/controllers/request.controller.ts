@@ -248,22 +248,6 @@ export const requestController = {
     }
   },
 
-  async completeRequest(req: Request, res: Response, next: NextFunction) {
-    try {
-      const user = requireUser(req);
-      const requestId = getParamValue(req.params.id);
-      const result = await requestService.completeRequest(
-        requestId,
-        user.id,
-        user.role,
-      );
-
-      return sendResponse(res, 200, "Request completed successfully", result);
-    } catch (error) {
-      next(error);
-    }
-  },
-
   async cancelRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);

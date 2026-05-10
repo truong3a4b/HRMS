@@ -274,6 +274,9 @@ model Employee {
   position          Position?            @relation(fields: [positionId], references: [id])
   jobHistories      EmployeeJobHistory[]
   workSchedules     WorkSchedule[]
+  fingerprints      EmployeeFingerprint[]
+  attendanceLogs    AttendanceLog[]
+  attendanceRecords AttendanceRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -477,7 +480,6 @@ enum RequestStatus {
   APPROVED
   REJECTED
   CANCELLED
-  COMPLETED
   FAILED
 }
 
@@ -505,7 +507,6 @@ model Request {
   approvedAt   DateTime?
   rejectedAt   DateTime?
   cancelledAt  DateTime?
-  completedAt  DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -588,6 +589,7 @@ model WorkShift {
 
   isActive          Boolean             @default(true)
   workScheduleLinks WorkScheduleShift[]
+  attendanceRecordDetails AttendanceRecordDetail[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -653,4 +655,125 @@ model WorkScheduleRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model AttendanceDevice{
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  location    String?
+  isActive    Boolean  @default(true)
+  isConnected Boolean  @default(false)
+  lastHeartbeatAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  fingerprints EmployeeFingerprint[]
+  commands     AttendanceDeviceCommand[]
+  logs         AttendanceLog[]
+  @@map("attendance_devices")
+}
+
+model EmployeeFingerprint {
+  id          String   @id @default(uuid())
+  employeeId  String
+  deviceId    String
+  fingerId    Int //id luu tren thiet bi cham cong
+  fingerName  String? //ten ngon tay, ví dụ: "thumb", "index", "middle", "ring", "little"
+  isActive    Boolean  @default(true)
+
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  device   AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@unique([deviceId, fingerId])
+  @@map("employee_fingerprints")
+}
+
+model AttendanceDeviceCommand{
+  id          String   @id @default(uuid())
+  deviceId    String
+  command     String   //lenh gui den thiet bi, ví dụ: "sync_time", "get_logs", "restart"
+  payload     Json?    //du lieu kem theo lenh, ví dụ: {"timestamp": "2024-07-01T08:00:00Z"} cho lenh sync_time
+  status      String   //trang thai lenh, ví dụ: "pending", "sent", "success", "failed"
+  result      Json?    //ket qua tra ve tu thiet bi, ví dụ: {"logsSynced": 100} cho lenh get_logs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  device AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, status])
+  @@map("attendance_device_commands")
+}
+
+model AttendanceLog {
+  id          String   @id @default(uuid())
+  employeeId  String
+  deviceId    String
+  fingerId    Int
+  timestamp   DateTime
+
+  createdAt   DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  device   AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, timestamp])
+  @@index([deviceId, timestamp])
+  @@map("attendance_logs")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EARLY_LEAVE
+  ON_LEAVE
+}
+
+model AttendanceRecord {
+  id          String   @id @default(uuid())
+  employeeId  String
+  date        DateTime
+  
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  details  AttendanceRecordDetail[]
+
+  @@unique([employeeId, date])
+  @@index([employeeId, date])
+  @@map("attendance_records")
+}
+model AttendanceRecordDetail {
+  id                 String   @id @default(uuid())
+  attendanceRecordId String
+  workShiftId        String
+  //snapshot thong tin cua ca lam viec tai thoi diem cham cong, de truoc sau nay co thay doi lich lam viec thi van co thong tin cu de doi chieu
+  workShiftName      String
+  shiftStartTime    DateTime
+  shiftEndTime      DateTime
+  shiftLateGracePeriod Int?
+  shiftEarlyLeaveGracePeriod Int?
+
+  checkInTime        DateTime?
+  checkOutTime       DateTime?
+  status             AttendanceStatus
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  attendanceRecord AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+  workShift        WorkShift        @relation(fields: [workShiftId], references: [id], onDelete: Restrict)
+
+  @@unique([attendanceRecordId, workShiftId])
+  @@index([attendanceRecordId])
+  @@index([workShiftId])
+  @@map("attendance_record_details")
 }

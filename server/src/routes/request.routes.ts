@@ -74,11 +74,6 @@ router.post(
   requestController.decideRequest,
 );
 router.post(
-  "/:id/complete",
-  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
-  requestController.completeRequest,
-);
-router.post(
   "/:id/cancel",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   requestController.cancelRequest,

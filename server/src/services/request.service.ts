@@ -75,7 +75,7 @@ export type ReviewDecisionInput = {
 const finalRequestStatuses = new Set<RequestStatus>([
   RequestStatus.REJECTED,
   RequestStatus.CANCELLED,
-  RequestStatus.COMPLETED,
+  RequestStatus.APPROVED,
 ]);
 
 const normalizeIds = (values: string[]) =>
@@ -316,6 +316,143 @@ const getNextSequentialStep = (
       approval.status === RequestApprovalStatus.PENDING,
   )?.stepOrder ?? null;
 
+/**
+ * Thực thi logic cụ thể cho từng loại đơn khi đơn được duyệt
+ * Mỗi loại đơn có logic riêng để xử lý sau khi tất cả approver duyệt
+ */
+const executeRequestLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  switch (request.type) {
+    case RequestType.SCHEDULE_APPROVAL:
+      return await executeScheduleApprovalLogic(tx, request, decidedAt);
+    case RequestType.LEAVE:
+      return await executeLeaveLogic(tx, request, decidedAt);
+    case RequestType.ATTENDANCE_CORRECTION:
+      return await executeAttendanceCorrectionLogic(tx, request, decidedAt);
+    case RequestType.OVERTIME:
+      return await executeOvertimeLogic(tx, request, decidedAt);
+    case RequestType.TERMINATION:
+      return await executeTerminationLogic(tx, request, decidedAt);
+    default:
+      const _exhaustiveCheck: never = request.type;
+      return _exhaustiveCheck;
+  }
+};
+
+/**
+ * Xử lý logic cho đơn phê duyệt lịch làm việc
+ */
+const executeScheduleApprovalLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  const workScheduleRequest = await tx.workScheduleRequest.findUnique({
+    where: {
+      requestId: request.id,
+    },
+    select: {
+      scheduleDetails: true,
+    },
+  });
+
+  if (!workScheduleRequest) {
+    throw new ApiError(
+      400,
+      "Schedule request data is missing",
+      "WORK_SCHEDULE_REQUEST_NOT_FOUND",
+    );
+  }
+
+  const employee = await tx.employee.findUnique({
+    where: {
+      userId: request.requesterId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!employee) {
+    throw new ApiError(
+      400,
+      "Schedule requests can only be approved for employees",
+    );
+  }
+
+  await applyScheduleAssignments(
+    tx,
+    [employee.id],
+    workScheduleRequest.scheduleDetails as Array<{
+      date: string;
+      workShiftIds: string[];
+    }>,
+    decidedAt,
+  );
+};
+
+/**
+ * Xử lý logic cho đơn xin nghỉ phép
+ */
+const executeLeaveLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  // Tạo bản ghi leave khi đơn xin nghỉ được duyệt
+  const leaveRequest = await tx.leaveRequest.findUnique({
+    where: {
+      requestId: request.id,
+    },
+  });
+
+  if (!leaveRequest) {
+    throw new ApiError(
+      400,
+      "Leave request data is missing",
+      "LEAVE_REQUEST_NOT_FOUND",
+    );
+  }
+
+  // TODO: Xử lý logic cấp phép nghỉ (có thể cập nhật trạng thái nhân viên, tạo bản ghi nghỉ phép, v.v.)
+};
+
+/**
+ * Xử lý logic cho đơn sửa chữa chấm công
+ */
+const executeAttendanceCorrectionLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  // TODO: Xử lý logic sửa chữa chấm công
+};
+
+/**
+ * Xử lý logic cho đơn tăng ca
+ */
+const executeOvertimeLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  // TODO: Xử lý logic tăng ca
+};
+
+/**
+ * Xử lý logic cho đơn chấm dứt hợp đồng
+ */
+const executeTerminationLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  // TODO: Xử lý logic chấm dứt hợp đồng (có thể cập nhật trạng thái nhân viên, v.v.)
+};
+
 export const requestService = {
   async getRequests(
     userId: string,
@@ -476,11 +613,9 @@ export const requestService = {
     role: UserRole,
     input: ReviewDecisionInput,
   ) {
-    //lấy request, kiểm tra quyền, kiểm tra trạng thái request, kiểm tra xem approver đã review chưa
     const request = await getRequestByIdWithDetails(requestId);
     assertCanActAsApprover(request, userId, role === UserRole.ADMIN);
 
-    // chỉ có thể review khi request chưa ở trạng thái cuối cùng
     if (finalRequestStatuses.has(request.status)) {
       throw new ApiError(
         400,
@@ -489,7 +624,6 @@ export const requestService = {
       );
     }
 
-    // tìm approval của approver đang review
     const approval = request.approvals.find(
       (item) => item.approverId === userId,
     );
@@ -502,6 +636,7 @@ export const requestService = {
       throw new ApiError(400, "You have already reviewed this request");
     }
 
+    // Chuyển sang PROCESSING nếu còn ở PENDING
     if (request.status === RequestStatus.PENDING) {
       await prisma.request.update({
         where: {
@@ -517,7 +652,7 @@ export const requestService = {
     const decidedAt = new Date();
 
     return prisma.$transaction(async (tx) => {
-      // cập nhật quyết định của approver đang review
+      // Cập nhật quyết định của approver
       await tx.requestApproval.update({
         where: {
           requestId_approverId: {
@@ -532,7 +667,6 @@ export const requestService = {
         },
       });
 
-      // lấy lại request sau khi đã cập nhật quyết định của approver
       const latestRequest = await tx.request.findUnique({
         where: {
           id: requestId,
@@ -544,12 +678,11 @@ export const requestService = {
         throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
       }
 
-      // sắp xếp approvals theo stepOrder để dễ dàng xử lý tiếp theo
       const sortedApprovals = [...latestRequest.approvals].sort(
         (left, right) => left.stepOrder - right.stepOrder,
       );
 
-      // nếu approver reject thì reject luôn request mà không cần quan tâm đến các approver khác
+      // Nếu approver reject thì reject ngay đơn
       if (input.decision === RequestApprovalStatus.REJECTED) {
         const updatedRequest = await tx.request.update({
           where: {
@@ -565,185 +698,73 @@ export const requestService = {
         return sortApprovals(updatedRequest);
       }
 
-      // nếu approver approve và approval mode là sequential thì cần kiểm tra xem có approver nào tiếp theo không, nếu có thì chuyển request sang approver đó, nếu không có thì approve request
+      // Xử lý sequential approval mode
       if (latestRequest.approvalMode === ApprovalMode.SEQUENTIAL) {
-        // tìm step tiếp theo có status là pending
         const nextStep = getNextSequentialStep(
           latestRequest,
           approval.stepOrder,
         );
 
-        // nếu có approver tiếp theo thì chuyển request sang approver đó, nếu không có approver tiếp theo nào thì approve request
+        const updateData: Prisma.RequestUpdateInput = nextStep
+          ? {
+              status: RequestStatus.PROCESSING,
+              currentStep: nextStep,
+            }
+          : {
+              status: RequestStatus.APPROVED,
+              approvedAt: decidedAt,
+            };
+
         const updatedRequest = await tx.request.update({
           where: {
             id: requestId,
           },
-          data: nextStep
-            ? {
-                status: RequestStatus.PROCESSING,
-                currentStep: nextStep,
-              }
-            : {
-                status: RequestStatus.APPROVED,
-                approvedAt: decidedAt,
-              },
+          data: updateData,
           include: requestInclude,
         });
 
-        // nếu đã approve và là request phê duyệt lịch thì tiến hành áp dụng lịch làm việc
-        if (
-          updatedRequest.status === RequestStatus.APPROVED &&
-          latestRequest.type === RequestType.SCHEDULE_APPROVAL
-        ) {
-          const workScheduleRequest = await tx.workScheduleRequest.findUnique({
-            where: {
-              requestId,
-            },
-            select: {
-              scheduleDetails: true,
-            },
-          });
-
-          if (!workScheduleRequest) {
-            throw new ApiError(
-              400,
-              "Schedule request data is missing",
-              "WORK_SCHEDULE_REQUEST_NOT_FOUND",
-            );
-          }
-
-          const employee = await tx.employee.findUnique({
-            where: {
-              userId: latestRequest.requesterId,
-            },
-            select: {
-              id: true,
-            },
-          });
-
-          if (!employee) {
-            throw new ApiError(
-              400,
-              "Schedule requests can only be approved for employees",
-            );
-          }
-
-          await applyScheduleAssignments(
-            tx,
-            [employee.id],
-            workScheduleRequest.scheduleDetails as Array<{
-              date: string;
-              workShiftIds: string[];
-            }>,
-            decidedAt,
-          );
+        // Nếu đơn đã được duyệt hoàn toàn thì thực thi logic cụ thể
+        if (updatedRequest.status === RequestStatus.APPROVED) {
+          await executeRequestLogic(tx, updatedRequest, decidedAt);
         }
 
         return sortApprovals(updatedRequest);
       }
 
+      // Xử lý parallel approval mode
       const hasPendingApprovals = sortedApprovals.some(
         (item) => item.status === RequestApprovalStatus.PENDING,
       );
+
+      const updateData: Prisma.RequestUpdateInput = hasPendingApprovals
+        ? {
+            status: RequestStatus.PROCESSING,
+          }
+        : {
+            status: RequestStatus.APPROVED,
+            approvedAt: decidedAt,
+          };
 
       const updatedRequest = await tx.request.update({
         where: {
           id: requestId,
         },
-        data: hasPendingApprovals
-          ? {
-              status: RequestStatus.PROCESSING,
-            }
-          : {
-              status: RequestStatus.APPROVED,
-              approvedAt: decidedAt,
-            },
+        data: updateData,
         include: requestInclude,
       });
 
-      if (
-        updatedRequest.status === RequestStatus.APPROVED &&
-        latestRequest.type === RequestType.SCHEDULE_APPROVAL
-      ) {
-        const workScheduleRequest = await tx.workScheduleRequest.findUnique({
-          where: {
-            requestId,
-          },
-          select: {
-            scheduleDetails: true,
-          },
-        });
-
-        if (!workScheduleRequest) {
-          throw new ApiError(
-            400,
-            "Schedule request data is missing",
-            "WORK_SCHEDULE_REQUEST_NOT_FOUND",
-          );
-        }
-
-        const employee = await tx.employee.findUnique({
-          where: {
-            userId: latestRequest.requesterId,
-          },
-          select: {
-            id: true,
-          },
-        });
-
-        if (!employee) {
-          throw new ApiError(
-            400,
-            "Schedule requests can only be approved for employees",
-          );
-        }
-
-        await applyScheduleAssignments(
-          tx,
-          [employee.id],
-          workScheduleRequest.scheduleDetails as Array<{
-            date: string;
-            workShiftIds: string[];
-          }>,
-          decidedAt,
-        );
+      // Nếu đơn đã được duyệt hoàn toàn thì thực thi logic cụ thể
+      if (updatedRequest.status === RequestStatus.APPROVED) {
+        await executeRequestLogic(tx, updatedRequest, decidedAt);
       }
 
       return sortApprovals(updatedRequest);
     });
   },
 
-  async completeRequest(requestId: string, userId: string, role: UserRole) {
-    const request = await getRequestByIdWithDetails(requestId);
-    assertCanCompleteOrCancel(request, userId, role === UserRole.ADMIN);
-
-    if (request.status !== RequestStatus.APPROVED) {
-      throw new ApiError(
-        400,
-        "Only approved requests can be completed",
-        "REQUEST_NOT_APPROVED",
-      );
-    }
-
-    const completedAt = new Date();
-
-    return updateRequestWithDetails(requestId, {
-      status: RequestStatus.COMPLETED,
-      completedAt,
-    });
-  },
-
   async cancelRequest(requestId: string, userId: string, role: UserRole) {
     const request = await getRequestByIdWithDetails(requestId);
     assertCanCompleteOrCancel(request, userId, role === UserRole.ADMIN);
-
-    if (request.status === RequestStatus.COMPLETED) {
-      throw new ApiError(
-        400,
-        "Cannot cancel a completed request",
-        "REQUEST_ALREADY_COMPLETED",
-      );
-    }
 
     if (
       request.status === RequestStatus.CANCELLED ||

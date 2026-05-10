@@ -15,6 +15,16 @@ export const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
   CLOUDINARY_CV_FOLDER: process.env.CLOUDINARY_CV_FOLDER || "hrms/cvs",
+  MQTT_URL: process.env.MQTT_URL || "",
+  MQTT_CLIENT_ID: process.env.MQTT_CLIENT_ID || "hrms-server",
+  MQTT_USERNAME: process.env.MQTT_USERNAME || "",
+  MQTT_PASSWORD: process.env.MQTT_PASSWORD || "",
+  MQTT_KEEP_ALIVE_SECONDS: Number(process.env.MQTT_KEEP_ALIVE_SECONDS || 60),
+  ATTENDANCE_HEARTBEAT_TIMEOUT_SECONDS: Number(
+    process.env.ATTENDANCE_HEARTBEAT_TIMEOUT_SECONDS || 180,
+  ),
+  ATTENDANCE_TOPIC_PREFIX:
+    process.env.ATTENDANCE_TOPIC_PREFIX || "hrms/attendance/devices",
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "access_secret",
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "refresh_secret",
   ACCESS_TOKEN_EXPIRES_IN: process.env.ACCESS_TOKEN_EXPIRES_IN || "1d",

@@ -9,6 +9,7 @@ import recruitmentRoutes from "./recruitment.routes";
 import positionRoutes from "./position.routes";
 import workShiftRoutes from "./work-shift.routes";
 import scheduleAssignmentRoutes from "./schedule-assignment.routes";
+import attendanceDeviceRoutes from "./attendanceDevice.routes";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/employees", employeeRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/work-shifts", workShiftRoutes);
 router.use("/schedule-assignments", scheduleAssignmentRoutes);
+router.use("/attendance-devices", attendanceDeviceRoutes);
 
 export default router;

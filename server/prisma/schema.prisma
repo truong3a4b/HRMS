@@ -8,6 +8,7 @@
 //npx prisma generate
 //npx prisma format
 //npx prisma migrate reset
+//npx prisma db push --accept-data-loss
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -277,6 +278,8 @@ model Employee {
   fingerprints      EmployeeFingerprint[]
   attendanceLogs    AttendanceLog[]
   attendanceRecords AttendanceRecord[]
+  attendanceCorrectionRequests AttendanceCorrectionRequest[]
+  leaveBalances EmployeeLeaveBalance[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -514,6 +517,7 @@ model Request {
   approvals           RequestApproval[]
   watchers            RequestWatcher[]
   leaveRequest        LeaveRequest?
+  attendanceCorrectionRequest AttendanceCorrectionRequest?
   workScheduleRequest WorkScheduleRequest?
 
   @@index([requesterId, status])
@@ -572,6 +576,43 @@ model LeaveRequest {
   @@map("leave_requests")
 }
 
+model EmployeeLeaveBalance {
+  id String @id @default(uuid())
+  employeeId String @map("employee_id")
+  year Int
+  entitledLeaveDays Decimal @default(0) @map("entitled_leave_days") @db.Decimal(6, 2)
+  usedPaidLeaveDays Decimal @default(0) @map("used_paid_leave_days") @db.Decimal(6, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year])
+  @@index([year])
+  @@map("employee_leave_balances")
+}
+
+model AttendanceCorrectionRequest {
+  id              String   @id @default(uuid())
+  requestId       String   @unique
+  employeeId      String
+  attendanceDate  DateTime
+  workShiftId     String?
+  addedWorkUnits  Decimal  @db.Decimal(5, 2)
+  reason          String?
+  appliedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  request   Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workShift WorkShift? @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, attendanceDate])
+  @@index([workShiftId])
+  @@map("attendance_correction_requests")
+}
+
 model WorkShift {
   id                    String  @id @default(uuid())
   code                  String  @unique
@@ -583,6 +624,9 @@ model WorkShift {
   lateGracePeriod       Int? //phút cho phép đi muộn mà không bị tính là đi muộn
   earlyLeaveGracePeriod Int? //phút cho phép về sớm mà không bị tính là về sớm
 
+  checkInFlexibilityMinutes  Int? //thời gian dc check-in
+  checkOutFlexibilityMinutes Int? //thời gian dc check-out
+
   isOvertime         Boolean  @default(false) //ca làm thêm giờ
   workUnits          Decimal  @db.Decimal(5, 2) //số đơn vị công cho ca này, ví dụ 1.0 cho ca bình thường, 1.5 cho ca làm thêm giờ
   overtimeMultiplier Decimal? @db.Decimal(5, 2) //hệ số lương cho ca làm thêm giờ, ví dụ 1.5 cho ca làm thêm giờ
@@ -590,6 +634,7 @@ model WorkShift {
   isActive          Boolean             @default(true)
   workScheduleLinks WorkScheduleShift[]
   attendanceRecordDetails AttendanceRecordDetail[]
+  attendanceCorrectionRequests AttendanceCorrectionRequest[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -732,7 +777,10 @@ enum AttendanceStatus {
   ABSENT
   LATE
   EARLY_LEAVE
+  LATE_AND_EARLY_LEAVE
   ON_LEAVE
+  PAID_LEAVE
+  UNPAID_LEAVE
 }
 
 model AttendanceRecord {

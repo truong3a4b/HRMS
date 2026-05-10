@@ -75,6 +75,31 @@ type CreateRequestBody = {
   watcherIds?: string[];
 };
 
+type CreateLeaveRequestBody = {
+  startDate: string;
+  endDate: string;
+  leaveType: string;
+  reason?: string;
+  title?: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+type CreateLateEarlyRequestBody = {
+  date: string;
+  type: "LATE_ARRIVAL" | "EARLY_LEAVE";
+  startTime: string;
+  endTime: string;
+  reason: string;
+  title?: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
 type DecisionBody = {
   decision: RequestApprovalStatus;
   note?: string;
@@ -200,6 +225,40 @@ export const requestController = {
       });
 
       return sendResponse(res, 201, "Request created successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createLeaveRequest(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const body = req.body as CreateLeaveRequestBody;
+      const result = await requestService.createLeaveRequest(user.id, body);
+
+      return sendResponse(
+        res,
+        201,
+        "Leave request created successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createLateEarlyRequest(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const body = req.body as CreateLateEarlyRequestBody;
+      const result = await requestService.createLateEarlyRequest(user.id, body);
+
+      return sendResponse(
+        res,
+        201,
+        "Late arrival/early leave request created successfully",
+        result,
+      );
     } catch (error) {
       next(error);
     }

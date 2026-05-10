@@ -10,6 +10,8 @@ type CreateWorkShiftInput = {
   breakEndTime?: string;
   lateGracePeriod?: number;
   earlyLeaveGracePeriod?: number;
+  checkInFlexibilityMinutes?: number;
+  checkOutFlexibilityMinutes?: number;
   isOvertime?: boolean;
   workUnits: number; // Required
   overtimeMultiplier?: number;
@@ -50,6 +52,8 @@ export const workShiftService = {
         breakEndTime: data.breakEndTime,
         lateGracePeriod: data.lateGracePeriod,
         earlyLeaveGracePeriod: data.earlyLeaveGracePeriod,
+        checkInFlexibilityMinutes: data.checkInFlexibilityMinutes,
+        checkOutFlexibilityMinutes: data.checkOutFlexibilityMinutes,
         isOvertime: data.isOvertime ?? false,
         workUnits: data.workUnits,
         overtimeMultiplier: data.overtimeMultiplier ?? undefined,
@@ -89,6 +93,16 @@ export const workShiftService = {
           : {}),
         ...(data.earlyLeaveGracePeriod !== undefined
           ? { earlyLeaveGracePeriod: data.earlyLeaveGracePeriod }
+          : {}),
+        ...(data.checkInFlexibilityMinutes !== undefined
+          ? {
+              checkInFlexibilityMinutes: data.checkInFlexibilityMinutes,
+            }
+          : {}),
+        ...(data.checkOutFlexibilityMinutes !== undefined
+          ? {
+              checkOutFlexibilityMinutes: data.checkOutFlexibilityMinutes,
+            }
           : {}),
         ...(data.isOvertime !== undefined
           ? { isOvertime: data.isOvertime }

@@ -12,15 +12,18 @@
   "dependencies": {
     "@ant-design/icons": "^6.2.2",
     "@hookform/resolvers": "^5.2.2",
+    "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-query": "^5.100.9",
     "antd": "^6.3.7",
     "axios": "^1.16.0",
     "dayjs": "^1.11.20",
+    "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-hook-form": "^7.75.0",
     "react-router-dom": "^7.15.0",
     "recharts": "^3.8.1",
+    "tailwindcss": "^4.3.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },

@@ -18,6 +18,8 @@ export const PERMISSIONS = {
   WORK_SCHEDULE_VIEW: "WORK_SCHEDULE_VIEW",
   ATTENDANCE_DEVICE_VIEW: "ATTENDANCE_DEVICE_VIEW",
   ATTENDANCE_DEVICE_SETUP: "ATTENDANCE_DEVICE_SETUP",
+  ATTENDANCE_HISTORY_VIEW: "ATTENDANCE_HISTORY_VIEW",
+  ATTENDANCE_TIMESHEET_VIEW: "ATTENDANCE_TIMESHEET_VIEW",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -122,5 +124,15 @@ export const PERMISSION_DEFINITIONS: Array<{
     key: PERMISSIONS.ATTENDANCE_DEVICE_SETUP,
     name: "Setup Attendance Device",
     description: "Create and manage attendance devices.",
+  },
+  {
+    key: PERMISSIONS.ATTENDANCE_HISTORY_VIEW,
+    name: "View Attendance History",
+    description: "View employee attendance history.",
+  },
+  {
+    key: PERMISSIONS.ATTENDANCE_TIMESHEET_VIEW,
+    name: "View Attendance Timesheet",
+    description: "View employee monthly attendance timesheet.",
   },
 ];

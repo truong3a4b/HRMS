@@ -1,5 +1,6 @@
 import {
   ApprovalMode,
+  AttendanceStatus,
   Prisma,
   RequestApprovalStatus,
   RequestStatus,
@@ -35,6 +36,8 @@ const requestInclude = {
     },
   },
   leaveRequest: true,
+  attendanceCorrectionRequest: true,
+  workScheduleRequest: true,
 } satisfies Prisma.RequestInclude;
 
 export type RequestWithDetails = Prisma.RequestGetPayload<{
@@ -57,10 +60,36 @@ export type RequestListFilters = {
   scope?: RequestListScope;
   search?: string;
 };
-
 export type CreateRequestInput = {
   type: RequestType;
   title: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+export type CreateLeaveRequestInput = {
+  startDate: string;
+  endDate: string;
+  leaveType: string;
+  reason?: string;
+  title?: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+export type LateEarlyRequestType = "LATE_ARRIVAL" | "EARLY_LEAVE";
+
+export type CreateLateEarlyRequestInput = {
+  date: string;
+  type: LateEarlyRequestType;
+  startTime: string;
+  endTime: string;
+  reason: string;
+  title?: string;
   description?: string;
   approvalMode?: ApprovalMode;
   approverIds: string[];
@@ -78,10 +107,125 @@ const finalRequestStatuses = new Set<RequestStatus>([
   RequestStatus.APPROVED,
 ]);
 
+const lateEarlyLeaveTypes = new Set(["LATE_ARRIVAL", "EARLY_LEAVE"]);
+const paidLeaveStatus = "PAID_LEAVE" as AttendanceStatus;
+const unpaidLeaveStatus = "UNPAID_LEAVE" as AttendanceStatus;
+const leaveAttendanceStatuses = new Set<AttendanceStatus>([
+  paidLeaveStatus,
+  unpaidLeaveStatus,
+  AttendanceStatus.ON_LEAVE,
+]);
+const lateEarlyAttendanceStatuses = new Set<AttendanceStatus>([
+  AttendanceStatus.LATE,
+  AttendanceStatus.EARLY_LEAVE,
+  AttendanceStatus.LATE_AND_EARLY_LEAVE,
+]);
+
 const normalizeIds = (values: string[]) =>
   [...new Set(values.map((value) => value.trim()).filter(Boolean))].filter(
     Boolean,
   );
+
+const parseDateTime = (value: string, fieldName: string) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new ApiError(400, `${fieldName} is invalid`);
+  }
+
+  return date;
+};
+
+const parseDateOnly = (value: string, fieldName: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    throw new ApiError(400, `${fieldName} must be in YYYY-MM-DD format`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new ApiError(400, `${fieldName} is invalid`);
+  }
+
+  return date;
+};
+
+const parseTimeOnly = (value: string, fieldName: string) => {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+
+  if (!match) {
+    throw new ApiError(400, `${fieldName} must be in HH:mm format`);
+  }
+
+  return {
+    hours: Number(match[1]),
+    minutes: Number(match[2]),
+  };
+};
+
+const combineDateAndTime = (date: Date, time: string, fieldName: string) => {
+  const parsedTime = parseTimeOnly(time, fieldName);
+
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      parsedTime.hours,
+      parsedTime.minutes,
+      0,
+      0,
+    ),
+  );
+};
+
+const toUtcDateOnly = (date: Date) =>
+  new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+
+const addUtcDays = (date: Date, days: number) =>
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + days,
+    ),
+  );
+
+const buildDateTimeOnDate = (date: Date, time: string) => {
+  const parsedTime = parseTimeOnly(time, "shift time");
+
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      parsedTime.hours,
+      parsedTime.minutes,
+      0,
+      0,
+    ),
+  );
+};
+
+const rangesOverlap = (
+  leftStart: Date,
+  leftEnd: Date,
+  rightStart: Date,
+  rightEnd: Date,
+) =>
+  leftStart.getTime() < rightEnd.getTime() &&
+  rightStart.getTime() < leftEnd.getTime();
 
 const ensureUsersExist = async (userIds: string[]) => {
   if (userIds.length === 0) {
@@ -105,6 +249,132 @@ const ensureUsersExist = async (userIds: string[]) => {
   if (missingUserIds.length > 0) {
     throw new ApiError(400, `User not found: ${missingUserIds.join(", ")}`);
   }
+};
+
+const ensureEmployeeRequester = async (userId: string) => {
+  const employee = await prisma.employee.findUnique({
+    where: {
+      userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      employeeId: true,
+    },
+  });
+
+  if (!employee) {
+    throw new ApiError(400, "Only employees can create this request");
+  }
+
+  return employee;
+};
+
+const tryConsumePaidLeaveDays = async (
+  tx: Prisma.TransactionClient,
+  employeeId: string,
+  year: number,
+  days: number,
+) => {
+  if (days <= 0) {
+    return false;
+  }
+
+  const updatedRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    UPDATE employee_leave_balances
+    SET used_paid_leave_days = used_paid_leave_days + ${days},
+        updated_at = NOW()
+    WHERE employee_id = ${employeeId}
+      AND year = ${year}
+      AND entitled_leave_days - used_paid_leave_days >= ${days}
+    RETURNING id
+  `);
+
+  return updatedRows.length > 0;
+};
+
+const getEmployeeByUserId = async (
+  tx: Prisma.TransactionClient,
+  userId: string,
+) => {
+  const employee = await tx.employee.findUnique({
+    where: {
+      userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!employee) {
+    throw new ApiError(400, "Request can only be applied to employees");
+  }
+
+  return employee;
+};
+
+const createRequestWithApprovals = async (
+  userId: string,
+  input: {
+    type: RequestType;
+    title: string;
+    description?: string;
+    approvalMode?: ApprovalMode;
+    approverIds: string[];
+    watcherIds?: string[];
+    createExtra?: (
+      tx: Prisma.TransactionClient,
+      requestId: string,
+    ) => Promise<void>;
+  },
+) => {
+  const approverIds = normalizeIds(input.approverIds);
+  const watcherIds = normalizeIds(input.watcherIds ?? []);
+
+  if (approverIds.length === 0) {
+    throw new ApiError(400, "At least one approver is required");
+  }
+
+  if (approverIds.includes(userId) || watcherIds.includes(userId)) {
+    throw new ApiError(
+      400,
+      "Requester cannot be an approver or watcher of the same request",
+    );
+  }
+
+  await ensureUsersExist([...approverIds, ...watcherIds]);
+
+  const request = await prisma.$transaction(async (tx) => {
+    const createdRequest = await tx.request.create({
+      data: {
+        type: input.type,
+        title: input.title,
+        description: input.description,
+        requesterId: userId,
+        approvalMode: input.approvalMode ?? ApprovalMode.PARALLEL,
+        status: RequestStatus.PENDING,
+        currentStep: 1,
+        approvals: {
+          create: approverIds.map((approverId, index) => ({
+            approverId,
+            stepOrder: index + 1,
+          })),
+        },
+        watchers: {
+          create: watcherIds.map((watcherId) => ({
+            userId: watcherId,
+          })),
+        },
+      },
+      include: requestInclude,
+    });
+
+    await input.createExtra?.(tx, createdRequest.id);
+
+    return createdRequest;
+  });
+
+  return sortApprovals(request);
 };
 
 const sortApprovals = (request: RequestWithDetails) => ({
@@ -402,7 +672,6 @@ const executeLeaveLogic = async (
   request: RequestWithDetails,
   decidedAt: Date,
 ) => {
-  // Tạo bản ghi leave khi đơn xin nghỉ được duyệt
   const leaveRequest = await tx.leaveRequest.findUnique({
     where: {
       requestId: request.id,
@@ -417,7 +686,120 @@ const executeLeaveLogic = async (
     );
   }
 
-  // TODO: Xử lý logic cấp phép nghỉ (có thể cập nhật trạng thái nhân viên, tạo bản ghi nghỉ phép, v.v.)
+  const employee = await getEmployeeByUserId(tx, request.requesterId);
+
+  if (lateEarlyLeaveTypes.has(leaveRequest.leaveType)) {
+    await applyLateEarlyApproval(
+      tx,
+      employee.id,
+      leaveRequest.startDate,
+      leaveRequest.endDate,
+    );
+    return;
+  }
+
+  const startDate = toUtcDateOnly(leaveRequest.startDate);
+  const endDateExclusive = addUtcDays(toUtcDateOnly(leaveRequest.endDate), 1);
+  const schedules = await tx.workSchedule.findMany({
+    where: {
+      employeeId: employee.id,
+      date: {
+        gte: startDate,
+        lt: endDateExclusive,
+      },
+    },
+    include: {
+      shiftLinks: {
+        include: {
+          workShift: true,
+        },
+      },
+    },
+    orderBy: {
+      date: "asc",
+    },
+  });
+
+  for (const schedule of schedules) {
+    const attendanceRecord = await tx.attendanceRecord.upsert({
+      where: {
+        employeeId_date: {
+          employeeId: employee.id,
+          date: schedule.date,
+        },
+      },
+      create: {
+        employeeId: employee.id,
+        date: schedule.date,
+      },
+      update: {},
+    });
+
+    for (const shiftLink of schedule.shiftLinks) {
+      const shift = shiftLink.workShift;
+      const shiftStartAt = buildDateTimeOnDate(schedule.date, shift.startTime);
+      let shiftEndAt = buildDateTimeOnDate(schedule.date, shift.endTime);
+
+      if (shiftEndAt.getTime() <= shiftStartAt.getTime()) {
+        shiftEndAt = addUtcDays(shiftEndAt, 1);
+      }
+
+      if (
+        !rangesOverlap(
+          leaveRequest.startDate,
+          leaveRequest.endDate,
+          shiftStartAt,
+          shiftEndAt,
+        )
+      ) {
+        continue;
+      }
+
+      const workUnits = Number(shift.workUnits);
+      const isPaidLeave =
+        !shift.isOvertime &&
+        (await tryConsumePaidLeaveDays(
+          tx,
+          employee.id,
+          schedule.date.getUTCFullYear(),
+          workUnits,
+        ));
+      const status = isPaidLeave ? paidLeaveStatus : unpaidLeaveStatus;
+
+      await tx.attendanceRecordDetail.upsert({
+        where: {
+          attendanceRecordId_workShiftId: {
+            attendanceRecordId: attendanceRecord.id,
+            workShiftId: shift.id,
+          },
+        },
+        create: {
+          attendanceRecordId: attendanceRecord.id,
+          workShiftId: shift.id,
+          workShiftName: shift.name,
+          shiftStartTime: shiftStartAt,
+          shiftEndTime: shiftEndAt,
+          shiftLateGracePeriod: shift.lateGracePeriod,
+          shiftEarlyLeaveGracePeriod: shift.earlyLeaveGracePeriod,
+          checkInTime: null,
+          checkOutTime: null,
+          status,
+        },
+        update: {
+          workShiftName: shift.name,
+          shiftStartTime: shiftStartAt,
+          shiftEndTime: shiftEndAt,
+          shiftLateGracePeriod: shift.lateGracePeriod,
+          shiftEarlyLeaveGracePeriod: shift.earlyLeaveGracePeriod,
+          checkInTime: null,
+          checkOutTime: null,
+          status,
+        },
+      });
+    }
+  }
+
+  return;
 };
 
 /**
@@ -428,7 +810,65 @@ const executeAttendanceCorrectionLogic = async (
   request: RequestWithDetails,
   decidedAt: Date,
 ) => {
-  // TODO: Xử lý logic sửa chữa chấm công
+  const correctionRequest = await tx.attendanceCorrectionRequest.findUnique({
+    where: {
+      requestId: request.id,
+    },
+  });
+
+  if (!correctionRequest) {
+    throw new ApiError(
+      400,
+      "Attendance correction request data is missing",
+      "ATTENDANCE_CORRECTION_REQUEST_NOT_FOUND",
+    );
+  }
+
+  await tx.attendanceCorrectionRequest.update({
+    where: {
+      requestId: request.id,
+    },
+    data: {
+      appliedAt: decidedAt,
+    },
+  });
+
+  const attendanceRecord = await tx.attendanceRecord.findUnique({
+    where: {
+      employeeId_date: {
+        employeeId: correctionRequest.employeeId,
+        date: correctionRequest.attendanceDate,
+      },
+    },
+    include: {
+      details: true,
+    },
+  });
+
+  if (!attendanceRecord) {
+    return;
+  }
+
+  const details = attendanceRecord.details.filter((detail) => {
+    if (leaveAttendanceStatuses.has(detail.status)) {
+      return false;
+    }
+
+    return correctionRequest.workShiftId
+      ? detail.workShiftId === correctionRequest.workShiftId
+      : true;
+  });
+
+  for (const detail of details) {
+    await tx.attendanceRecordDetail.update({
+      where: {
+        id: detail.id,
+      },
+      data: {
+        status: AttendanceStatus.PRESENT,
+      },
+    });
+  }
 };
 
 /**
@@ -451,6 +891,61 @@ const executeTerminationLogic = async (
   decidedAt: Date,
 ) => {
   // TODO: Xử lý logic chấm dứt hợp đồng (có thể cập nhật trạng thái nhân viên, v.v.)
+};
+
+/**
+ * Áp dụng logic duyệt cho đơn đi muộn về sớm
+ */
+const applyLateEarlyApproval = async (
+  tx: Prisma.TransactionClient,
+  employeeId: string,
+  startDate: Date,
+  endDate: Date,
+) => {
+  const attendanceDate = toUtcDateOnly(startDate);
+  const attendanceRecord = await tx.attendanceRecord.findUnique({
+    where: {
+      employeeId_date: {
+        employeeId,
+        date: attendanceDate,
+      },
+    },
+    include: {
+      details: true,
+    },
+  });
+
+  if (!attendanceRecord) {
+    return;
+  }
+
+  const matchingDetails = attendanceRecord.details.filter((detail) => {
+    if (leaveAttendanceStatuses.has(detail.status)) {
+      return false;
+    }
+
+    if (!lateEarlyAttendanceStatuses.has(detail.status)) {
+      return false;
+    }
+
+    return rangesOverlap(
+      startDate,
+      endDate,
+      detail.shiftStartTime,
+      detail.shiftEndTime,
+    );
+  });
+
+  for (const detail of matchingDetails) {
+    await tx.attendanceRecordDetail.update({
+      where: {
+        id: detail.id,
+      },
+      data: {
+        status: AttendanceStatus.PRESENT,
+      },
+    });
+  }
 };
 
 export const requestService = {
@@ -526,51 +1021,86 @@ export const requestService = {
   },
 
   async createRequest(userId: string, input: CreateRequestInput) {
-    const approverIds = normalizeIds(input.approverIds);
-    const watcherIds = normalizeIds(input.watcherIds ?? []);
+    return createRequestWithApprovals(userId, input);
+  },
 
-    if (approverIds.length === 0) {
-      throw new ApiError(400, "At least one approver is required");
+  async createLeaveRequest(userId: string, input: CreateLeaveRequestInput) {
+    await ensureEmployeeRequester(userId);
+
+    const startDate = parseDateTime(input.startDate, "startDate");
+    const endDate = parseDateTime(input.endDate, "endDate");
+
+    if (endDate.getTime() <= startDate.getTime()) {
+      throw new ApiError(400, "endDate must be after startDate");
     }
 
-    if (approverIds.includes(userId) || watcherIds.includes(userId)) {
-      throw new ApiError(
-        400,
-        "Requester cannot be an approver or watcher of the same request",
-      );
-    }
+    const reason = input.reason?.trim();
+    const title =
+      input.title ??
+      `Leave request ${startDate.toISOString().slice(0, 10)} - ${endDate
+        .toISOString()
+        .slice(0, 10)}`;
 
-    await ensureUsersExist([...approverIds, ...watcherIds]);
-
-    const request = await prisma.$transaction(async (tx) => {
-      const createdRequest = await tx.request.create({
-        data: {
-          type: input.type,
-          title: input.title,
-          description: input.description,
-          requesterId: userId,
-          approvalMode: input.approvalMode ?? ApprovalMode.PARALLEL,
-          status: RequestStatus.PENDING,
-          currentStep: 1,
-          approvals: {
-            create: approverIds.map((approverId, index) => ({
-              approverId,
-              stepOrder: index + 1,
-            })),
+    return createRequestWithApprovals(userId, {
+      type: RequestType.LEAVE,
+      title,
+      description: input.description ?? reason,
+      approvalMode: input.approvalMode,
+      approverIds: input.approverIds,
+      watcherIds: input.watcherIds,
+      createExtra: async (tx, requestId) => {
+        await tx.leaveRequest.create({
+          data: {
+            requestId,
+            startDate,
+            endDate,
+            leaveType: input.leaveType,
+            reason,
           },
-          watchers: {
-            create: watcherIds.map((watcherId) => ({
-              userId: watcherId,
-            })),
-          },
-        },
-        include: requestInclude,
-      });
-
-      return createdRequest;
+        });
+      },
     });
+  },
 
-    return sortApprovals(request);
+  async createLateEarlyRequest(
+    userId: string,
+    input: CreateLateEarlyRequestInput,
+  ) {
+    await ensureEmployeeRequester(userId);
+
+    const date = parseDateOnly(input.date, "date");
+    const startDate = combineDateAndTime(date, input.startTime, "startTime");
+    const endDate = combineDateAndTime(date, input.endTime, "endTime");
+
+    if (endDate.getTime() <= startDate.getTime()) {
+      throw new ApiError(400, "endTime must be after startTime");
+    }
+
+    const typeLabel =
+      input.type === "LATE_ARRIVAL" ? "Late arrival" : "Early leave";
+    const title =
+      input.title ??
+      `${typeLabel} request ${input.date} ${input.startTime}-${input.endTime}`;
+
+    return createRequestWithApprovals(userId, {
+      type: RequestType.LEAVE,
+      title,
+      description: input.description ?? input.reason,
+      approvalMode: input.approvalMode,
+      approverIds: input.approverIds,
+      watcherIds: input.watcherIds,
+      createExtra: async (tx, requestId) => {
+        await tx.leaveRequest.create({
+          data: {
+            requestId,
+            startDate,
+            endDate,
+            leaveType: input.type,
+            reason: input.reason,
+          },
+        });
+      },
+    });
   },
 
   async startReview(requestId: string, userId: string, role: UserRole) {

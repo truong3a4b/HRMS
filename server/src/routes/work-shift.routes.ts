@@ -10,6 +10,7 @@ import {
 import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
+const MAX_SHIFT_FLEXIBILITY_MINUTES = 240;
 
 const createShiftSchema = z.object({
   code: z.string().min(1),
@@ -20,6 +21,18 @@ const createShiftSchema = z.object({
   breakEndTime: z.string().optional(),
   lateGracePeriod: z.number().int().optional(),
   earlyLeaveGracePeriod: z.number().int().optional(),
+  checkInFlexibilityMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
+    .optional(),
+  checkOutFlexibilityMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
+    .optional(),
   isOvertime: z.boolean().optional(),
   workUnits: z.number(), // Required
   overtimeMultiplier: z.number().optional(),
@@ -35,6 +48,18 @@ const updateShiftSchema = z
     breakEndTime: z.string().optional(),
     lateGracePeriod: z.number().int().optional(),
     earlyLeaveGracePeriod: z.number().int().optional(),
+    checkInFlexibilityMinutes: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
+      .optional(),
+    checkOutFlexibilityMinutes: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
+      .optional(),
     isOvertime: z.boolean().optional(),
     workUnits: z.number().optional(),
     overtimeMultiplier: z.number().optional(),

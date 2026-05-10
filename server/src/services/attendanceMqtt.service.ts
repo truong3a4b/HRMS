@@ -31,12 +31,48 @@ type PunchMessage = {
   recordedAt?: string;
 };
 
+type ShiftMatchWindow = {
+  shiftStartMinutes: number;
+  shiftEndMinutes: number;
+  checkInStartMinutes: number;
+  checkInEndMinutes: number;
+  checkOutStartMinutes: number;
+  checkOutEndMinutes: number;
+};
+
+type ShiftMatchCandidate = {
+  shiftLink: {
+    workShiftId: string;
+    workShift: {
+      name: string;
+      startTime: string;
+      endTime: string;
+      lateGracePeriod: number | null;
+      earlyLeaveGracePeriod: number | null;
+      checkInFlexibilityMinutes: number | null;
+      checkOutFlexibilityMinutes: number | null;
+    };
+  };
+  window: ShiftMatchWindow;
+  punchType: "CHECK_IN" | "CHECK_OUT";
+  score: number;
+};
+
+type AttendanceDetailSnapshot = {
+  checkInTime: Date | null;
+  checkOutTime: Date | null;
+};
+
+const DEFAULT_CHECK_IN_FLEXIBILITY_MINUTES = 90;
+const DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES = 120;
+
 const topicPrefix = env.ATTENDANCE_TOPIC_PREFIX.replace(/\/+$/, "");
 const heartbeatTimeoutMs = env.ATTENDANCE_HEARTBEAT_TIMEOUT_SECONDS * 1000;
 const offlineSweepIntervalMs = Math.min(
   Math.max(heartbeatTimeoutMs / 2, 30_000),
   60_000,
 );
+const absentSweepIntervalMs = 60_000;
 const mqttOptions = {
   clientId: env.MQTT_CLIENT_ID,
   keepalive: env.MQTT_KEEP_ALIVE_SECONDS,
@@ -48,6 +84,8 @@ const mqttOptions = {
 
 let mqttClient: MqttClient | null = null;
 let offlineSweepTimer: NodeJS.Timeout | null = null;
+let absentSweepTimer: NodeJS.Timeout | null = null;
+let isAbsentSweepRunning = false;
 
 const isObject = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -106,6 +144,143 @@ const buildDateTimeOnDate = (date: Date, time: string) => {
       0,
     ),
   );
+};
+
+const addUtcDays = (date: Date, days: number) =>
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + days,
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds(),
+      date.getUTCMilliseconds(),
+    ),
+  );
+
+const getShiftEndDateTime = (
+  date: Date,
+  startTime: string,
+  endTime: string,
+) => {
+  const shiftStartAt = buildDateTimeOnDate(date, startTime);
+  let shiftEndAt = buildDateTimeOnDate(date, endTime);
+
+  if (shiftEndAt.getTime() <= shiftStartAt.getTime()) {
+    shiftEndAt = addUtcDays(shiftEndAt, 1);
+  }
+
+  return shiftEndAt;
+};
+
+const resolveShiftMatchWindow = (workShift: {
+  startTime: string;
+  endTime: string;
+  checkInFlexibilityMinutes: number | null;
+  checkOutFlexibilityMinutes: number | null;
+}): ShiftMatchWindow | null => {
+  const shiftStartMinutes = parseClockToMinutes(workShift.startTime);
+  const shiftEndMinutes = parseClockToMinutes(workShift.endTime);
+
+  if (shiftStartMinutes === null || shiftEndMinutes === null) {
+    return null;
+  }
+
+  const checkInFlexibilityMinutes =
+    workShift.checkInFlexibilityMinutes ?? DEFAULT_CHECK_IN_FLEXIBILITY_MINUTES;
+  const checkOutFlexibilityMinutes =
+    workShift.checkOutFlexibilityMinutes ??
+    DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES;
+
+  return {
+    shiftStartMinutes,
+    shiftEndMinutes,
+    checkInStartMinutes: shiftStartMinutes - checkInFlexibilityMinutes,
+    checkInEndMinutes: shiftStartMinutes + checkInFlexibilityMinutes,
+    checkOutStartMinutes: shiftEndMinutes - checkOutFlexibilityMinutes,
+    checkOutEndMinutes: shiftEndMinutes + checkOutFlexibilityMinutes,
+  };
+};
+
+const resolveShiftMatchCandidates = (
+  shiftLink: ShiftMatchCandidate["shiftLink"],
+  punchMinutes: number,
+): ShiftMatchCandidate[] => {
+  const window = resolveShiftMatchWindow(shiftLink.workShift);
+
+  if (!window) {
+    return [];
+  }
+
+  const candidates: ShiftMatchCandidate[] = [];
+
+  if (
+    punchMinutes >= window.checkInStartMinutes &&
+    punchMinutes <= window.checkInEndMinutes
+  ) {
+    candidates.push({
+      shiftLink,
+      window,
+      punchType: "CHECK_IN",
+      score: Math.abs(punchMinutes - window.shiftStartMinutes),
+    });
+  }
+
+  if (
+    punchMinutes >= window.checkOutStartMinutes &&
+    punchMinutes <= window.checkOutEndMinutes
+  ) {
+    candidates.push({
+      shiftLink,
+      window,
+      punchType: "CHECK_OUT",
+      score: Math.abs(punchMinutes - window.shiftEndMinutes),
+    });
+  }
+
+  return candidates;
+};
+
+const resolveAttendanceStatus = (
+  detail: AttendanceDetailSnapshot,
+  shiftStartAt: Date,
+  shiftEndAt: Date,
+  lateGracePeriod: number | null,
+  earlyLeaveGracePeriod: number | null,
+) => {
+  if (!detail.checkInTime && !detail.checkOutTime) {
+    return AttendanceStatus.ABSENT;
+  }
+
+  const isLate = detail.checkInTime
+    ? detail.checkInTime.getTime() >
+      shiftStartAt.getTime() + (lateGracePeriod ?? 0) * 60_000
+    : false;
+  const isEarlyLeave = detail.checkOutTime
+    ? detail.checkOutTime.getTime() <
+      shiftEndAt.getTime() - (earlyLeaveGracePeriod ?? 0) * 60_000
+    : false;
+
+  if (detail.checkInTime && !detail.checkOutTime) {
+    return isLate
+      ? AttendanceStatus.LATE_AND_EARLY_LEAVE
+      : AttendanceStatus.EARLY_LEAVE;
+  }
+
+  if (isLate && isEarlyLeave) {
+    return AttendanceStatus.LATE_AND_EARLY_LEAVE;
+  }
+
+  if (isLate) {
+    return AttendanceStatus.LATE;
+  }
+
+  if (isEarlyLeave) {
+    return AttendanceStatus.EARLY_LEAVE;
+  }
+
+  return AttendanceStatus.PRESENT;
 };
 
 const resolveDeviceByCode = async (deviceCode: string) =>
@@ -204,6 +379,140 @@ const startOfflineSweep = () => {
   }, offlineSweepIntervalMs);
 };
 
+//hàm này sẽ được chạy định kỳ để tạo các bản ghi điểm danh với trạng thái vắng mặt cho những lịch làm việc đã kết thúc nhưng chưa có bản ghi điểm danh nào, giúp đảm bảo dữ liệu điểm danh luôn đầy đủ và chính xác ngay cả khi nhân viên quên chấm công hoặc có lỗi hệ thống
+const createAbsentDetailsForExpiredSchedules = async () => {
+  const now = new Date();
+  const today = toUtcDateOnly(now);
+  const fromDate = addUtcDays(today, -1);
+  const toDate = addUtcDays(today, 1);
+
+  const schedules = await prisma.workSchedule.findMany({
+    where: {
+      date: {
+        gte: fromDate,
+        lt: toDate,
+      },
+    },
+    include: {
+      shiftLinks: {
+        include: {
+          workShift: true,
+        },
+      },
+    },
+    orderBy: {
+      date: "asc",
+    },
+  });
+
+  for (const schedule of schedules) {
+    const expiredShiftLinks = schedule.shiftLinks.filter((shiftLink) => {
+      const shift = shiftLink.workShift;
+      const shiftEndAt = getShiftEndDateTime(
+        schedule.date,
+        shift.startTime,
+        shift.endTime,
+      );
+      const checkOutFlexibilityMinutes =
+        shift.checkOutFlexibilityMinutes ??
+        DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES;
+      const attendanceDeadline = new Date(
+        shiftEndAt.getTime() + checkOutFlexibilityMinutes * 60_000,
+      );
+
+      return attendanceDeadline.getTime() <= now.getTime();
+    });
+
+    if (expiredShiftLinks.length === 0) {
+      continue;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const attendanceRecord = await tx.attendanceRecord.upsert({
+        where: {
+          employeeId_date: {
+            employeeId: schedule.employeeId,
+            date: schedule.date,
+          },
+        },
+        create: {
+          employeeId: schedule.employeeId,
+          date: schedule.date,
+        },
+        update: {},
+        include: {
+          details: {
+            select: {
+              workShiftId: true,
+            },
+          },
+        },
+      });
+      const existingWorkShiftIds = new Set(
+        attendanceRecord.details.map((detail) => detail.workShiftId),
+      );
+
+      for (const shiftLink of expiredShiftLinks) {
+        if (existingWorkShiftIds.has(shiftLink.workShiftId)) {
+          continue;
+        }
+
+        const shift = shiftLink.workShift;
+        const shiftStartAt = buildDateTimeOnDate(
+          schedule.date,
+          shift.startTime,
+        );
+        const shiftEndAt = getShiftEndDateTime(
+          schedule.date,
+          shift.startTime,
+          shift.endTime,
+        );
+
+        await tx.attendanceRecordDetail.create({
+          data: {
+            attendanceRecordId: attendanceRecord.id,
+            workShiftId: shiftLink.workShiftId,
+            workShiftName: shift.name,
+            shiftStartTime: shiftStartAt,
+            shiftEndTime: shiftEndAt,
+            shiftLateGracePeriod: shift.lateGracePeriod,
+            shiftEarlyLeaveGracePeriod: shift.earlyLeaveGracePeriod,
+            checkInTime: null,
+            checkOutTime: null,
+            status: AttendanceStatus.ABSENT,
+          },
+        });
+      }
+    });
+  }
+};
+
+const startAbsentSweep = () => {
+  if (absentSweepTimer) {
+    return;
+  }
+
+  const runSweep = async () => {
+    if (isAbsentSweepRunning) {
+      return;
+    }
+
+    isAbsentSweepRunning = true;
+    try {
+      await createAbsentDetailsForExpiredSchedules();
+    } catch (error) {
+      console.error("Failed to create absent attendance records:", error);
+    } finally {
+      isAbsentSweepRunning = false;
+    }
+  };
+
+  void runSweep();
+  absentSweepTimer = setInterval(() => {
+    void runSweep();
+  }, absentSweepIntervalMs);
+};
+
 const handleHeartbeatMessage = async (deviceCode: string) => {
   await prisma.attendanceDevice.updateMany({
     where: { code: deviceCode, isActive: true },
@@ -215,6 +524,7 @@ const handleHeartbeatMessage = async (deviceCode: string) => {
 };
 
 const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
+  //Phân tích payload và validate dữ liệu cơ bản trước khi truy vấn database để tối ưu hiệu suất
   const payload = parseJson(message);
   if (!payload) {
     console.warn(`Invalid punch payload from ${deviceCode}`);
@@ -236,6 +546,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
     return;
   }
 
+  // Truy vấn database để tìm thiết bị và vân tay, sau đó xử lý logic chấm công
   const device = await prisma.attendanceDevice.findUnique({
     where: { code: deviceCode },
     include: {
@@ -263,6 +574,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
   const attendanceDate = toUtcDateOnly(recordedAtValue);
 
   await prisma.$transaction(async (tx) => {
+    // Ghi lại log chấm công thô trước, sau đó mới cập nhật record tổng hợp để đảm bảo không bỏ sót dữ liệu nào dù có lỗi ở bước sau
     await tx.attendanceLog.create({
       data: {
         employeeId: fingerprint.employeeId,
@@ -272,6 +584,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       },
     });
 
+    // Sử dụng upsert để tạo hoặc cập nhật attendance record và detail
     const attendanceRecord = await tx.attendanceRecord.upsert({
       where: {
         employeeId_date: {
@@ -296,6 +609,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       },
     });
 
+    // Tìm lịch làm việc của nhân viên trong ngày và so khớp với thời gian chấm công để xác định ca làm việc và trạng thái điểm danh
     const workSchedule = await tx.workSchedule.findUnique({
       where: {
         employeeId_date: {
@@ -316,6 +630,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       return;
     }
 
+    // Chuyển thời gian chấm công sang đơn vị phút để dễ so sánh với thời gian ca làm việc
     const punchMinutes =
       recordedAtValue.getUTCHours() * 60 + recordedAtValue.getUTCMinutes();
     const orderedShifts = [...workSchedule.shiftLinks].sort((left, right) => {
@@ -324,18 +639,63 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       return leftStart - rightStart;
     });
 
-    const matchedShiftLink =
-      orderedShifts.find((shiftLink) => {
-        const shiftStart = parseClockToMinutes(shiftLink.workShift.startTime);
-        const shiftEnd = parseClockToMinutes(shiftLink.workShift.endTime);
-        if (shiftStart === null || shiftEnd === null) {
-          return false;
+    const matchedCandidates = orderedShifts
+      .flatMap((shiftLink) =>
+        resolveShiftMatchCandidates(shiftLink, punchMinutes),
+      )
+      .sort((left, right) => {
+        if (left.score !== right.score) {
+          return left.score - right.score;
         }
 
-        const lowerBound = shiftStart - 90;
-        const upperBound = shiftEnd + 120;
-        return punchMinutes >= lowerBound && punchMinutes <= upperBound;
-      }) ?? orderedShifts[0];
+        return left.window.shiftStartMinutes - right.window.shiftStartMinutes;
+      });
+
+    // Tìm ca làm việc phù hợp nhất với thời gian chấm công, cho phép linh hoạt trước và sau giờ làm để xử lý trường hợp quên chấm hoặc chấm nhầm ca
+    const resolvedPunch = matchedCandidates
+      .map((candidate) => {
+        const existingDetail = attendanceRecord.details.find(
+          (detail) => detail.workShiftId === candidate.shiftLink.workShiftId,
+        );
+        const currentCheckInTime = existingDetail?.checkInTime ?? null;
+        const currentCheckOutTime = existingDetail?.checkOutTime ?? null;
+
+        if (candidate.punchType === "CHECK_IN") {
+          return {
+            candidate,
+            nextCheckInTime:
+              currentCheckInTime &&
+              currentCheckInTime.getTime() < recordedAtValue.getTime()
+                ? currentCheckInTime
+                : recordedAtValue,
+            nextCheckOutTime: currentCheckOutTime,
+          };
+        }
+
+        if (
+          !currentCheckInTime ||
+          recordedAtValue.getTime() <= currentCheckInTime.getTime()
+        ) {
+          return null;
+        }
+
+        return {
+          candidate,
+          nextCheckInTime: currentCheckInTime,
+          nextCheckOutTime:
+            currentCheckOutTime &&
+            currentCheckOutTime.getTime() > recordedAtValue.getTime()
+              ? currentCheckOutTime
+              : recordedAtValue,
+        };
+      })
+      .find((value): value is NonNullable<typeof value> => value !== null);
+
+    if (!resolvedPunch) {
+      return;
+    }
+
+    const matchedShiftLink = resolvedPunch.candidate.shiftLink;
 
     const shiftStartAt = buildDateTimeOnDate(
       attendanceDate,
@@ -345,30 +705,17 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       attendanceDate,
       matchedShiftLink.workShift.endTime,
     );
-    const existingDetail = attendanceRecord.details.find(
-      (detail) => detail.workShiftId === matchedShiftLink.workShiftId,
+    // Nếu đã có chi tiết điểm danh cho ca này rồi thì sẽ cập nhật lại thời gian check-in/check-out và trạng thái, nếu chưa có thì tạo mới. Logic check-in/check-out dựa trên việc đã có thời gian check-in hay chưa, và so sánh với giờ vào/ra của ca để xác định trạng thái đi trễ, về sớm hay đúng giờ
+    const status = resolveAttendanceStatus(
+      {
+        checkInTime: resolvedPunch.nextCheckInTime,
+        checkOutTime: resolvedPunch.nextCheckOutTime,
+      },
+      shiftStartAt,
+      shiftEndAt,
+      matchedShiftLink.workShift.lateGracePeriod,
+      matchedShiftLink.workShift.earlyLeaveGracePeriod,
     );
-
-    const nextCheckInTime = existingDetail?.checkInTime ?? recordedAtValue;
-    const nextCheckOutTime =
-      existingDetail?.checkInTime && !existingDetail.checkOutTime
-        ? recordedAtValue
-        : (existingDetail?.checkOutTime ?? null);
-
-    const isCheckOutPunch = Boolean(
-      existingDetail?.checkInTime && !existingDetail.checkOutTime,
-    );
-    const status = isCheckOutPunch
-      ? recordedAtValue.getTime() <
-        shiftEndAt.getTime() -
-          (matchedShiftLink.workShift.earlyLeaveGracePeriod ?? 0) * 60_000
-        ? AttendanceStatus.EARLY_LEAVE
-        : AttendanceStatus.PRESENT
-      : recordedAtValue.getTime() >
-          shiftStartAt.getTime() +
-            (matchedShiftLink.workShift.lateGracePeriod ?? 0) * 60_000
-        ? AttendanceStatus.LATE
-        : AttendanceStatus.PRESENT;
 
     await tx.attendanceRecordDetail.upsert({
       where: {
@@ -386,8 +733,8 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
         shiftLateGracePeriod: matchedShiftLink.workShift.lateGracePeriod,
         shiftEarlyLeaveGracePeriod:
           matchedShiftLink.workShift.earlyLeaveGracePeriod,
-        checkInTime: recordedAtValue,
-        checkOutTime: null,
+        checkInTime: resolvedPunch.nextCheckInTime,
+        checkOutTime: resolvedPunch.nextCheckOutTime,
         status,
       },
       update: {
@@ -397,8 +744,8 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
         shiftLateGracePeriod: matchedShiftLink.workShift.lateGracePeriod,
         shiftEarlyLeaveGracePeriod:
           matchedShiftLink.workShift.earlyLeaveGracePeriod,
-        checkInTime: nextCheckInTime,
-        checkOutTime: nextCheckOutTime,
+        checkInTime: resolvedPunch.nextCheckInTime,
+        checkOutTime: resolvedPunch.nextCheckOutTime,
         status,
       },
     });
@@ -507,6 +854,7 @@ export const attendanceMqttService = {
     if (!client) {
       console.warn("MQTT_URL is not configured; attendance MQTT is disabled.");
     }
+    startAbsentSweep();
     return true;
   },
 
@@ -537,6 +885,11 @@ export const attendanceMqttService = {
     if (offlineSweepTimer) {
       clearInterval(offlineSweepTimer);
       offlineSweepTimer = null;
+    }
+
+    if (absentSweepTimer) {
+      clearInterval(absentSweepTimer);
+      absentSweepTimer = null;
     }
 
     if (mqttClient) {

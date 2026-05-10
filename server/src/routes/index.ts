@@ -5,6 +5,7 @@ import departmentRoutes from "./department.routes";
 import employeeRoutes from "./employee.routes";
 import notificationRoutes from "./notification.routes";
 import requestRoutes from "./request.routes";
+import attendanceRoutes from "./attendance.routes";
 import recruitmentRoutes from "./recruitment.routes";
 import positionRoutes from "./position.routes";
 import workShiftRoutes from "./work-shift.routes";
@@ -24,5 +25,6 @@ router.use("/notifications", notificationRoutes);
 router.use("/work-shifts", workShiftRoutes);
 router.use("/schedule-assignments", scheduleAssignmentRoutes);
 router.use("/attendance-devices", attendanceDeviceRoutes);
+router.use("/attendance", attendanceRoutes);
 
 export default router;

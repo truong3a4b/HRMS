@@ -34,7 +34,7 @@ const createShiftSchema = z.object({
     .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
     .optional(),
   isOvertime: z.boolean().optional(),
-  workUnits: z.number(), // Required
+  workUnits: z.number().min(0).optional(), // Required
   overtimeMultiplier: z.number().optional(),
 });
 

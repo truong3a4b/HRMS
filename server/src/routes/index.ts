@@ -11,6 +11,8 @@ import positionRoutes from "./position.routes";
 import workShiftRoutes from "./work-shift.routes";
 import scheduleAssignmentRoutes from "./schedule-assignment.routes";
 import attendanceDeviceRoutes from "./attendanceDevice.routes";
+import payrollPolicyRoutes from "./payroll-policy.routes";
+import payrollRoutes from "./payroll.routes";
 
 const router = Router();
 
@@ -26,5 +28,7 @@ router.use("/work-shifts", workShiftRoutes);
 router.use("/schedule-assignments", scheduleAssignmentRoutes);
 router.use("/attendance-devices", attendanceDeviceRoutes);
 router.use("/attendance", attendanceRoutes);
+router.use("/payroll-policies", payrollPolicyRoutes);
+router.use("/payrolls", payrollRoutes);
 
 export default router;

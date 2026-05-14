@@ -20,6 +20,13 @@ export const PERMISSIONS = {
   ATTENDANCE_DEVICE_SETUP: "ATTENDANCE_DEVICE_SETUP",
   ATTENDANCE_HISTORY_VIEW: "ATTENDANCE_HISTORY_VIEW",
   ATTENDANCE_TIMESHEET_VIEW: "ATTENDANCE_TIMESHEET_VIEW",
+  PAYROLL_POLICY_VIEW: "PAYROLL_POLICY_VIEW",
+  PAYROLL_POLICY_SETUP: "PAYROLL_POLICY_SETUP",
+  PAYROLL_VIEW: "PAYROLL_VIEW",
+  PAYROLL_MANAGE: "PAYROLL_MANAGE",
+  PAYROLL_APPROVE: "PAYROLL_APPROVE",
+  PAYROLL_PAY: "PAYROLL_PAY",
+  PAYROLL_VIEW_SELF: "PAYROLL_VIEW_SELF",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -134,5 +141,40 @@ export const PERMISSION_DEFINITIONS: Array<{
     key: PERMISSIONS.ATTENDANCE_TIMESHEET_VIEW,
     name: "View Attendance Timesheet",
     description: "View employee monthly attendance timesheet.",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_POLICY_VIEW,
+    name: "View Payroll Policy",
+    description: "View salary insurance, tax, and attendance bonus policies.",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_POLICY_SETUP,
+    name: "Setup Payroll Policy",
+    description: "Create, update, delete, and assign salary policies.",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_VIEW,
+    name: "View Payroll",
+    description: "View employee payrolls.",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_MANAGE,
+    name: "Manage Payroll",
+    description: "Create payrolls and request payroll approval.",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_APPROVE,
+    name: "Approve Payroll",
+    description: "Approve payrolls before employees can view them.",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_PAY,
+    name: "Pay Payroll",
+    description: "Mark payrolls as paid.",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_VIEW_SELF,
+    name: "View Own Payroll",
+    description: "View approved or paid payrolls for the current employee.",
   },
 ];

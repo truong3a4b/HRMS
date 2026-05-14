@@ -58,6 +58,28 @@ Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerSerial);
 const int FINGERPRINT_MIN_ID = 1;
 const int FINGERPRINT_MAX_ID = 127;
 const int FINGERPRINT_SCAN_RETRIES = 3;
+const int FINGERPRINT_RX_PIN = 18;
+const int FINGERPRINT_TX_PIN = 19;
+const int FINGERPRINT_VERIFY_RETRIES = 3;
+const uint32_t FINGERPRINT_BAUD_RATES[] = {
+  57600,
+  9600,
+  19200,
+  38400,
+  115200
+};
+const int FINGERPRINT_BAUD_RATE_COUNT = sizeof(FINGERPRINT_BAUD_RATES) / sizeof(FINGERPRINT_BAUD_RATES[0]);
+struct FingerprintSerialPins {
+  const char* label;
+  int rx;
+  int tx;
+};
+const FingerprintSerialPins FINGERPRINT_PIN_SETS[] = {
+  { "normal", FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN },
+  { "swapped", FINGERPRINT_TX_PIN, FINGERPRINT_RX_PIN }
+};
+const int FINGERPRINT_PIN_SET_COUNT = sizeof(FINGERPRINT_PIN_SETS) / sizeof(FINGERPRINT_PIN_SETS[0]);
+uint32_t activeFingerprintBaudRate = 0;
 const int FP_COMMAND_REGISTER = 1;
 const int FP_COMMAND_DELETE = 2;
 const int COMMAND_ID_SIZE = 48;
@@ -369,19 +391,66 @@ void handleMQTT() {
 
 //==================== AS608 CONFIG =================
 bool initFingerprintSensor() {
-  fingerSerial.begin(57600, SERIAL_8N1, 18, 19);
+  delay(1000);
 
-  finger.begin(57600);
+  for (int pinSetIndex = 0; pinSetIndex < FINGERPRINT_PIN_SET_COUNT; pinSetIndex++) {
+    FingerprintSerialPins pinSet = FINGERPRINT_PIN_SETS[pinSetIndex];
 
-  if (finger.verifyPassword()) {
-    Serial.println("AS608 found");
+    for (int i = 0; i < FINGERPRINT_BAUD_RATE_COUNT; i++) {
+      uint32_t baudRate = FINGERPRINT_BAUD_RATES[i];
 
-    showMessage(
-      "Fingerprint OK",
-      "Templates: " + String(finger.templateCount)
-    );
+      Serial.print("Trying AS608 ");
+      Serial.print(pinSet.label);
+      Serial.print(" RX=");
+      Serial.print(pinSet.rx);
+      Serial.print(" TX=");
+      Serial.print(pinSet.tx);
+      Serial.print(" baud=");
+      Serial.println(baudRate);
 
-    return true;
+      showMessage(
+        "AS608 scanning",
+        String(pinSet.label),
+        "RX" + String(pinSet.rx) + " TX" + String(pinSet.tx),
+        "Baud: " + String(baudRate)
+      );
+
+      fingerSerial.end();
+      delay(150);
+      fingerSerial.begin(baudRate, SERIAL_8N1, pinSet.rx, pinSet.tx);
+      finger.begin(baudRate);
+      delay(300);
+
+      for (int retry = 1; retry <= FINGERPRINT_VERIFY_RETRIES; retry++) {
+        Serial.print("verifyPassword retry ");
+        Serial.println(retry);
+
+        if (finger.verifyPassword()) {
+          activeFingerprintBaudRate = baudRate;
+          finger.getTemplateCount();
+
+          Serial.print("AS608 found, pins=");
+          Serial.print(pinSet.label);
+          Serial.print(", RX=");
+          Serial.print(pinSet.rx);
+          Serial.print(", TX=");
+          Serial.print(pinSet.tx);
+          Serial.print(", baud=");
+          Serial.println(activeFingerprintBaudRate);
+
+          showMessage(
+            "Fingerprint OK",
+            String(pinSet.label),
+            "Baud: " + String(activeFingerprintBaudRate),
+            "Templates: " + String(finger.templateCount)
+          );
+
+          return true;
+        }
+
+        delay(300);
+      }
+    }
   }
 
   Serial.println("AS608 not found");

@@ -1,30 +1,35 @@
-import { BriefcaseBusiness, CalendarDays, ClipboardCheck, FileText } from 'lucide-react'
+import {
+  BriefcaseBusiness,
+  CalendarDays,
+  ClipboardCheck,
+  FileText,
+} from "lucide-react";
 import type {
   ApprovalRequest,
   HomeData,
   JobApplication,
   RecruitmentJob,
   WorkSchedule,
-} from '../types/homeApi.types'
-import { HomeDashboard } from './HomeDashboard'
+} from "../types/homeApi.types";
+import { HomeDashboard } from "./HomeDashboard";
 
 type HomeRoleContentProps = {
-  data: HomeData
-}
+  data: HomeData;
+};
 
-const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-})
+const dateFormatter = new Intl.DateTimeFormat("vi-VN", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 function formatDate(value?: string | null) {
   if (!value) {
-    return '-'
+    return "-";
   }
 
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date)
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
 }
 
 function Section({
@@ -32,9 +37,9 @@ function Section({
   children,
   action,
 }: {
-  title: string
-  children: React.ReactNode
-  action?: React.ReactNode
+  title: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   return (
     <section className="rounded-[10px] border border-[#ebedf2] bg-white p-5 shadow-[0_18px_38px_rgba(17,24,39,0.04)]">
@@ -44,7 +49,7 @@ function Section({
       </div>
       {children}
     </section>
-  )
+  );
 }
 
 function EmptyState({ text }: { text: string }) {
@@ -52,7 +57,7 @@ function EmptyState({ text }: { text: string }) {
     <div className="flex min-h-40 items-center justify-center rounded-lg border border-dashed border-[#d7dde8] bg-[#fbfcff] text-[#667085]">
       {text}
     </div>
-  )
+  );
 }
 
 function CandidateJobCard({ job }: { job: RecruitmentJob }) {
@@ -64,25 +69,27 @@ function CandidateJobCard({ job }: { job: RecruitmentJob }) {
         </div>
         <div className="min-w-0">
           <strong className="block truncate text-base text-[#172033]">
-            {job.title ?? 'Vị trí tuyển dụng'}
+            {job.title ?? "Vị trí tuyển dụng"}
           </strong>
           <span className="text-sm text-[#667085]">
-            {[job.position?.name, job.department?.name].filter(Boolean).join(' | ') || '-'}
+            {[job.position?.name, job.department?.name]
+              .filter(Boolean)
+              .join(" | ") || "-"}
           </span>
         </div>
       </div>
       <div className="flex items-center justify-between text-sm text-[#667085]">
         <span>Hạn: {formatDate(job.deadline)}</span>
         <span className="rounded-full bg-[#e9f3ff] px-2.5 py-1 font-semibold text-[#0e67a7]">
-          {job.applied ? 'Đã ứng tuyển' : job.status ?? 'OPEN'}
+          {job.applied ? "Đã ứng tuyển" : (job.status ?? "OPEN")}
         </span>
       </div>
     </article>
-  )
+  );
 }
 
 function ApplicationCard({ application }: { application: JobApplication }) {
-  const job = application.job ?? application.recruitmentJob
+  const job = application.job ?? application.recruitmentJob;
 
   return (
     <article className="rounded-lg border border-[#edf0f5] bg-white p-4">
@@ -92,25 +99,33 @@ function ApplicationCard({ application }: { application: JobApplication }) {
         </div>
         <div className="min-w-0">
           <strong className="block truncate text-base text-[#172033]">
-            {job?.title ?? application.candidate?.name ?? application.candidate?.fullName ?? 'Đơn ứng tuyển'}
+            {job?.title ??
+              application.candidate?.name ??
+              application.candidate?.fullName ??
+              "Đơn ứng tuyển"}
           </strong>
           <span className="text-sm text-[#667085]">
-            {[application.position?.name, application.department?.name].filter(Boolean).join(' | ') || 'Ứng tuyển'}
+            {[application.position?.name, application.department?.name]
+              .filter(Boolean)
+              .join(" | ") || "Ứng tuyển"}
           </span>
         </div>
       </div>
       <div className="flex items-center justify-between text-sm text-[#667085]">
         <span>{formatDate(application.appliedAt)}</span>
         <span className="rounded-full bg-[#f2f4f7] px-2.5 py-1 font-semibold text-[#344054]">
-          {application.status ?? 'PENDING'}
+          {application.status ?? "PENDING"}
         </span>
       </div>
     </article>
-  )
+  );
 }
 
 function ScheduleCard({ schedule }: { schedule: WorkSchedule }) {
-  const shifts = schedule.shifts ?? schedule.shiftLinks?.map((item) => item.workShift ?? {}) ?? []
+  const shifts =
+    schedule.shifts ??
+    schedule.shiftLinks?.map((item) => item.workShift ?? {}) ??
+    [];
 
   return (
     <article className="rounded-lg border border-[#edf0f5] bg-[#fbfcff] p-4">
@@ -125,10 +140,14 @@ function ScheduleCard({ schedule }: { schedule: WorkSchedule }) {
       <div className="space-y-2 text-sm text-[#667085]">
         {shifts.length > 0 ? (
           shifts.map((shift, index) => (
-            <div className="flex justify-between gap-4" key={`${shift.name ?? 'shift'}-${index}`}>
-              <span>{shift.name ?? 'Ca làm việc'}</span>
+            <div
+              className="flex justify-between gap-4"
+              key={`${shift.name ?? "shift"}-${index}`}
+            >
+              <span>{shift.name ?? "Ca làm việc"}</span>
               <span>
-                {[shift.startTime, shift.endTime].filter(Boolean).join(' - ') || '-'}
+                {[shift.startTime, shift.endTime].filter(Boolean).join(" - ") ||
+                  "-"}
               </span>
             </div>
           ))
@@ -137,7 +156,7 @@ function ScheduleCard({ schedule }: { schedule: WorkSchedule }) {
         )}
       </div>
     </article>
-  )
+  );
 }
 
 function ApprovalCard({ request }: { request: ApprovalRequest }) {
@@ -149,26 +168,29 @@ function ApprovalCard({ request }: { request: ApprovalRequest }) {
         </div>
         <div className="min-w-0">
           <strong className="block truncate text-base text-[#172033]">
-            {request.title ?? 'Yêu cầu cần duyệt'}
+            {request.title ?? "Yêu cầu cần duyệt"}
           </strong>
           <span className="text-sm text-[#667085]">
-            {request.requester?.name ?? request.requester?.fullName ?? request.type ?? '-'}
+            {request.requester?.name ??
+              request.requester?.fullName ??
+              request.type ??
+              "-"}
           </span>
         </div>
       </div>
       <div className="flex items-center justify-between text-sm text-[#667085]">
         <span>{formatDate(request.createdAt)}</span>
         <span className="rounded-full bg-[#fff4e5] px-2.5 py-1 font-semibold text-[#b54708]">
-          {request.status ?? 'PENDING'}
+          {request.status ?? "PENDING"}
         </span>
       </div>
     </article>
-  )
+  );
 }
 
 function CandidateHome({ data }: HomeRoleContentProps) {
   return (
-    <main className="space-y-6 overflow-hidden px-6 py-6">
+    <main className="flex flex-1 flex-col space-y-6 overflow-y-auto px-6 py-6">
       <Section title="Việc làm đang tuyển">
         {data.jobs.length ? (
           <div className="grid grid-cols-2 gap-4 max-[1180px]:grid-cols-1">
@@ -192,12 +214,12 @@ function CandidateHome({ data }: HomeRoleContentProps) {
         )}
       </Section>
     </main>
-  )
+  );
 }
 
 function EmployeeHome({ data }: HomeRoleContentProps) {
   return (
-    <main className="space-y-6 overflow-hidden px-6 py-6">
+    <main className="flex flex-1 flex-col space-y-6 overflow-y-auto px-6 py-6">
       <Section title="Lịch làm việc tháng này">
         {data.schedules.length ? (
           <div className="grid grid-cols-2 gap-4 max-[1180px]:grid-cols-1">
@@ -219,12 +241,12 @@ function EmployeeHome({ data }: HomeRoleContentProps) {
         </Section>
       ) : null}
     </main>
-  )
+  );
 }
 
 function AdminHome({ data }: HomeRoleContentProps) {
   return (
-    <div>
+    <main className="flex flex-1 flex-col overflow-y-auto">
       <HomeDashboard />
       {data.pendingApprovals.length ? (
         <div className="px-6 pb-6">
@@ -237,18 +259,18 @@ function AdminHome({ data }: HomeRoleContentProps) {
           </Section>
         </div>
       ) : null}
-    </div>
-  )
+    </main>
+  );
 }
 
 export function HomeRoleContent({ data }: HomeRoleContentProps) {
-  if (data.role === 'CANDIDATE') {
-    return <CandidateHome data={data} />
+  if (data.role === "CANDIDATE") {
+    return <CandidateHome data={data} />;
   }
 
-  if (data.role === 'ADMIN') {
-    return <AdminHome data={data} />
+  if (data.role === "ADMIN") {
+    return <AdminHome data={data} />;
   }
 
-  return <EmployeeHome data={data} />
+  return <EmployeeHome data={data} />;
 }

@@ -14,6 +14,13 @@ export const paths = {
 
   // Employees
   employees: '/employees',
+  employeeDetail: '/employees/:id',
+
+  // Categories
+  departments: '/categories/departments',
+  positions: '/categories/positions',
+  branches: '/categories/branches',
+  workShifts: '/categories/work-shifts',
 
   // Attendance
   attendanceCheckin: '/attendance/checkin',
@@ -24,6 +31,7 @@ export const paths = {
   // Work Schedule
   scheduleWeekly: '/schedule/weekly',
   scheduleAssign: '/schedule/assign',
+  scheduleRegister: '/schedule/register',
   scheduleLeaveRequest: '/schedule/leave-request',
 
   // Salary

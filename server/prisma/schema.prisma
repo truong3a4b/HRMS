@@ -268,18 +268,22 @@ model Employee {
   departmentId String?
   positionId   String?
 
-  user              User?                @relation(fields: [userId], references: [id])
-  candidate         Candidate?           @relation(fields: [candidateId], references: [id], onDelete: SetNull)
-  department        Department?          @relation("DepartmentEmployees", fields: [departmentId], references: [id])
-  managedDepartment Department?          @relation("DepartmentManager")
-  position          Position?            @relation(fields: [positionId], references: [id])
-  jobHistories      EmployeeJobHistory[]
-  workSchedules     WorkSchedule[]
-  fingerprints      EmployeeFingerprint[]
-  attendanceLogs    AttendanceLog[]
-  attendanceRecords AttendanceRecord[]
+  user                         User?                         @relation(fields: [userId], references: [id])
+  candidate                    Candidate?                    @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  department                   Department?                   @relation("DepartmentEmployees", fields: [departmentId], references: [id])
+  managedDepartment            Department?                   @relation("DepartmentManager")
+  position                     Position?                     @relation(fields: [positionId], references: [id])
+  jobHistories                 EmployeeJobHistory[]
+  workSchedules                WorkSchedule[]
+  fingerprints                 EmployeeFingerprint[]
+  attendanceLogs               AttendanceLog[]
+  attendanceRecords            AttendanceRecord[]
   attendanceCorrectionRequests AttendanceCorrectionRequest[]
-  leaveBalances EmployeeLeaveBalance[]
+  leaveBalances                EmployeeLeaveBalance[]
+  allowances                   EmployeeAllowance[]
+  payrollProfile               EmployeePayrollProfile?
+  payrollBonusPenalties        PayrollBonusPenalty[]
+  payrolls                     Payroll[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -513,12 +517,12 @@ model Request {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  requester           User                 @relation("RequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  approvals           RequestApproval[]
-  watchers            RequestWatcher[]
-  leaveRequest        LeaveRequest?
+  requester                   User                         @relation("RequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  approvals                   RequestApproval[]
+  watchers                    RequestWatcher[]
+  leaveRequest                LeaveRequest?
   attendanceCorrectionRequest AttendanceCorrectionRequest?
-  workScheduleRequest WorkScheduleRequest?
+  workScheduleRequest         WorkScheduleRequest?
 
   @@index([requesterId, status])
   @@index([status, createdAt])
@@ -577,13 +581,13 @@ model LeaveRequest {
 }
 
 model EmployeeLeaveBalance {
-  id String @id @default(uuid())
-  employeeId String @map("employee_id")
-  year Int
-  entitledLeaveDays Decimal @default(0) @map("entitled_leave_days") @db.Decimal(6, 2)
-  usedPaidLeaveDays Decimal @default(0) @map("used_paid_leave_days") @db.Decimal(6, 2)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid())
+  employeeId        String   @map("employee_id")
+  year              Int
+  entitledLeaveDays Decimal  @default(0) @map("entitled_leave_days") @db.Decimal(6, 2)
+  usedPaidLeaveDays Decimal  @default(0) @map("used_paid_leave_days") @db.Decimal(6, 2)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -593,19 +597,19 @@ model EmployeeLeaveBalance {
 }
 
 model AttendanceCorrectionRequest {
-  id              String   @id @default(uuid())
-  requestId       String   @unique
-  employeeId      String
-  attendanceDate  DateTime
-  workShiftId     String?
-  addedWorkUnits  Decimal  @db.Decimal(5, 2)
-  reason          String?
-  appliedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(uuid())
+  requestId      String    @unique
+  employeeId     String
+  attendanceDate DateTime
+  workShiftId    String?
+  addedWorkUnits Decimal   @db.Decimal(5, 2)
+  reason         String?
+  appliedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  request   Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  request   Request    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  employee  Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   workShift WorkShift? @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, attendanceDate])
@@ -631,12 +635,13 @@ model WorkShift {
   workUnits          Decimal  @db.Decimal(5, 2) //số đơn vị công cho ca này, ví dụ 1.0 cho ca bình thường, 1.5 cho ca làm thêm giờ
   overtimeMultiplier Decimal? @db.Decimal(5, 2) //hệ số lương cho ca làm thêm giờ, ví dụ 1.5 cho ca làm thêm giờ
 
-  isActive          Boolean             @default(true)
-  workScheduleLinks WorkScheduleShift[]
-  attendanceRecordDetails AttendanceRecordDetail[]
+  isActive                     Boolean                       @default(true)
+  workScheduleLinks            WorkScheduleShift[]
+  attendanceRecordDetails      AttendanceRecordDetail[]
   attendanceCorrectionRequests AttendanceCorrectionRequest[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  payrollOvertimeLines         PayrollOvertimeLine[]
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 
   @@map("work_shifts")
 }
@@ -702,52 +707,52 @@ model WorkScheduleRequest {
   request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
 }
 
-model AttendanceDevice{
-  id          String   @id @default(uuid())
-  name        String
-  code        String   @unique
-  location    String?
-  isActive    Boolean  @default(true)
-  isConnected Boolean  @default(false)
+model AttendanceDevice {
+  id              String    @id @default(uuid())
+  name            String
+  code            String    @unique
+  location        String?
+  isActive        Boolean   @default(true)
+  isConnected     Boolean   @default(false)
   lastHeartbeatAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   fingerprints EmployeeFingerprint[]
   commands     AttendanceDeviceCommand[]
   logs         AttendanceLog[]
+
   @@map("attendance_devices")
 }
 
 model EmployeeFingerprint {
-  id          String   @id @default(uuid())
-  employeeId  String
-  deviceId    String
-  fingerId    Int //id luu tren thiet bi cham cong
-  fingerName  String? //ten ngon tay, ví dụ: "thumb", "index", "middle", "ring", "little"
-  isActive    Boolean  @default(true)
+  id         String  @id @default(uuid())
+  employeeId String
+  deviceId   String
+  fingerId   Int //id luu tren thiet bi cham cong
+  fingerName String? //ten ngon tay, ví dụ: "thumb", "index", "middle", "ring", "little"
+  isActive   Boolean @default(true)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   device   AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  @@index([employeeId])
   @@unique([deviceId, fingerId])
+  @@index([employeeId])
   @@map("employee_fingerprints")
 }
 
-model AttendanceDeviceCommand{
-  id          String   @id @default(uuid())
-  deviceId    String
-  command     String   //lenh gui den thiet bi, ví dụ: "sync_time", "get_logs", "restart"
-  payload     Json?    //du lieu kem theo lenh, ví dụ: {"timestamp": "2024-07-01T08:00:00Z"} cho lenh sync_time
-  status      String   //trang thai lenh, ví dụ: "pending", "sent", "success", "failed"
-  result      Json?    //ket qua tra ve tu thiet bi, ví dụ: {"logsSynced": 100} cho lenh get_logs
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model AttendanceDeviceCommand {
+  id        String   @id @default(uuid())
+  deviceId  String
+  command   String //lenh gui den thiet bi, ví dụ: "sync_time", "get_logs", "restart"
+  payload   Json? //du lieu kem theo lenh, ví dụ: {"timestamp": "2024-07-01T08:00:00Z"} cho lenh sync_time
+  status    String //trang thai lenh, ví dụ: "pending", "sent", "success", "failed"
+  result    Json? //ket qua tra ve tu thiet bi, ví dụ: {"logsSynced": 100} cho lenh get_logs
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   device AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
@@ -756,15 +761,15 @@ model AttendanceDeviceCommand{
 }
 
 model AttendanceLog {
-  id          String   @id @default(uuid())
-  employeeId  String
-  deviceId    String
-  fingerId    Int
-  timestamp   DateTime
+  id         String   @id @default(uuid())
+  employeeId String
+  deviceId   String
+  fingerId   Int
+  timestamp  DateTime
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   device   AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, timestamp])
@@ -784,38 +789,38 @@ enum AttendanceStatus {
 }
 
 model AttendanceRecord {
-  id          String   @id @default(uuid())
-  employeeId  String
-  date        DateTime
-  
+  id         String   @id @default(uuid())
+  employeeId String
+  date       DateTime
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   details  AttendanceRecordDetail[]
 
   @@unique([employeeId, date])
   @@index([employeeId, date])
   @@map("attendance_records")
 }
+
 model AttendanceRecordDetail {
-  id                 String   @id @default(uuid())
-  attendanceRecordId String
-  workShiftId        String
+  id                         String   @id @default(uuid())
+  attendanceRecordId         String
+  workShiftId                String
   //snapshot thong tin cua ca lam viec tai thoi diem cham cong, de truoc sau nay co thay doi lich lam viec thi van co thong tin cu de doi chieu
-  workShiftName      String
-  shiftStartTime    DateTime
-  shiftEndTime      DateTime
-  shiftLateGracePeriod Int?
+  workShiftName              String
+  shiftStartTime             DateTime
+  shiftEndTime               DateTime
+  shiftLateGracePeriod       Int?
   shiftEarlyLeaveGracePeriod Int?
 
-  checkInTime        DateTime?
-  checkOutTime       DateTime?
-  status             AttendanceStatus
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  status       AttendanceStatus
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   attendanceRecord AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
   workShift        WorkShift        @relation(fields: [workShiftId], references: [id], onDelete: Restrict)
@@ -825,3 +830,302 @@ model AttendanceRecordDetail {
   @@index([workShiftId])
   @@map("attendance_record_details")
 }
+
+//bang luu thong tin ve chinh sach bao hiem, bao gom ty le dong cua nguoi lao dong va cong ty, thoi gian hieu luc, de sau nay co the thay doi va luu lai lich su thay doi
+model InsurancePolicy {
+  id   String @id @default(uuid())
+  name String
+
+  employeeSocialRate       Decimal // BHXH NLĐ đóng, ví dụ 8
+  employeeHealthRate       Decimal // BHYT, ví dụ 1.5
+  employeeUnemploymentRate Decimal // BHTN, ví dụ 1
+
+  employerSocialRate       Decimal? // phần công ty đóng
+  employerHealthRate       Decimal?
+  employerUnemploymentRate Decimal?
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payrollProfiles EmployeePayrollProfile[]
+
+  @@index([isActive, effectiveFrom])
+  @@map("insurance_policies")
+}
+
+model TaxPolicy {
+  id   String @id @default(uuid())
+  name String
+
+  personalDeduction  Decimal // 11_000_000
+  dependentDeduction Decimal // 4_400_000
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+
+  brackets TaxBracket[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payrollProfiles EmployeePayrollProfile[]
+
+  @@index([isActive, effectiveFrom])
+  @@map("tax_policies")
+}
+
+model TaxBracket {
+  id       String @id @default(uuid())
+  policyId String
+
+  fromAmount Decimal
+  toAmount   Decimal?
+  rate       Decimal
+
+  policy TaxPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@map("tax_brackets")
+}
+
+model AttendanceBonusPolicy {
+  id String @id @default(uuid())
+
+  name   String
+  amount Decimal @db.Decimal(15, 2) // số tiền thưởng
+
+  requiredWorkDays Decimal? //số ngày làm việc yêu cầu trong tháng để được thưởng, ví dụ 22.5
+  maxLateMinutes   Int? //số phút đi muộn tối đa được tính vào thưởng
+  maxEarlyMinutes  Int? //số phút nghỉ sớm tối đa được tính vào thưởng
+  maxAbsentDays    Decimal? //số ngày vắng mặt tối đa được tính vào thưởng
+
+  isActive Boolean @default(true)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payrollProfiles EmployeePayrollProfile[]
+
+  @@index([isActive, effectiveFrom])
+  @@map("attendance_bonus_policies")
+}
+
+model AllowancePolicy {
+  id            String    @id @default(uuid())
+  name          String
+  description   String?
+  amount        Decimal   @db.Decimal(15, 2)
+  isActive      Boolean   @default(true)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  employeeAllowances EmployeeAllowance[]
+  payrollLines       PayrollAllowanceLine[]
+
+  @@index([isActive, effectiveFrom])
+  @@map("allowance_policies")
+}
+
+model EmployeeAllowance {
+  id                String @id @default(uuid())
+  employeeId        String
+  allowancePolicyId String
+
+  employee        Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  allowancePolicy AllowancePolicy @relation(fields: [allowancePolicyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, allowancePolicyId])
+  @@index([employeeId])
+  @@index([allowancePolicyId])
+  @@map("employee_allowances")
+}
+
+model EmployeePayrollProfile {
+  id         String @id @default(uuid())
+  employeeId String @unique
+
+  insurancePolicyId       String?
+  taxPolicyId             String?
+  attendanceBonusPolicyId String?
+
+  isInsuranceApplicable       Boolean @default(false)
+  isTaxApplicable             Boolean @default(false)
+  isAttendanceBonusApplicable Boolean @default(false)
+
+  insuranceSalary Decimal? //mức lương để tính bảo hiểm, nếu khác với lương thực tế thì sẽ dùng mức này để tính
+  dependentCount  Int      @default(0) //số người phụ thuộc để tính thuế
+  taxCode         String? //mã số thuế cá nhân, nếu có
+
+  employee              Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  insurancePolicy       InsurancePolicy?       @relation(fields: [insurancePolicyId], references: [id])
+  taxPolicy             TaxPolicy?             @relation(fields: [taxPolicyId], references: [id])
+  attendanceBonusPolicy AttendanceBonusPolicy? @relation(fields: [attendanceBonusPolicyId], references: [id])
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([insurancePolicyId])
+  @@index([taxPolicyId])
+  @@index([attendanceBonusPolicyId])
+  @@map("employee_payroll_profiles")
+}
+
+model PayrollBonusPenalty {
+  id         String   @id @default(uuid())
+  employeeId String
+  month      DateTime //tháng áp dụng, chỉ lưu phần năm và tháng
+  amount     Decimal  @db.Decimal(15, 2)
+  isBonus    Boolean  @default(true) //true là thưởng, false là phạt
+  reason     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employee     Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollLines PayrollBonusPenaltyLine[]
+
+  @@index([employeeId, month])
+  @@map("payroll_bonus_penalties")
+}
+
+model Payroll {
+  id         String @id @default(uuid())
+  employeeId String
+
+  month Int
+  year  Int
+
+  // Lương & công
+  baseSalary       Decimal @default(0)
+  standardWorkDays Decimal @default(0)
+  actualWorkDays   Decimal @default(0)
+  actualSalary     Decimal @default(0) // lương thực/lương chính theo công
+
+  // Tổng OT
+  totalOvertimeWorkDays Decimal @default(0)
+  totalOvertimeHours    Decimal @default(0)
+  totalOvertimePay      Decimal @default(0)
+
+  // Tổng phụ cấp/thưởng/phạt
+  totalAllowance Decimal @default(0)
+  totalBonus     Decimal @default(0)
+  totalPenalty   Decimal @default(0)
+
+  // Bảo hiểm
+  socialInsurance        Decimal @default(0) // BHXH
+  healthInsurance        Decimal @default(0) // BHYT
+  unemploymentInsurance  Decimal @default(0) // BHTN
+  laborAccidentInsurance Decimal @default(0) // BHLD/BNN neu co
+
+  // Thuế
+  personalIncomeTax Decimal @default(0)
+
+  // Tổng kết
+  grossSalary    Decimal @default(0)
+  totalDeduction Decimal @default(0)
+  netSalary      Decimal @default(0)
+
+  status PayrollStatus @default(DRAFT)
+
+  generatedAt DateTime  @default(now())
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  overtimeLines     PayrollOvertimeLine[]
+  allowanceLines    PayrollAllowanceLine[]
+  bonusPenaltyLines PayrollBonusPenaltyLine[]
+
+  @@unique([employeeId, month, year])
+  @@index([year, month])
+  @@index([status])
+  @@map("payrolls")
+}
+
+enum PayrollStatus {
+  DRAFT
+  WAITING_APPROVAL
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+model PayrollOvertimeLine {
+  id        String @id @default(uuid())
+  payrollId String
+
+  workShiftId   String?
+  workShiftCode String?
+  workShiftName String
+
+  workDays Decimal @default(0) @db.Decimal(8, 2)
+  hours    Decimal @default(0) @db.Decimal(8, 2)
+
+  baseHourlyRate Decimal @default(0) @db.Decimal(15, 2)
+  multiplier     Decimal @default(1) @db.Decimal(6, 2)
+  amount         Decimal @default(0) @db.Decimal(15, 2)
+
+  payroll   Payroll    @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  workShift WorkShift? @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([payrollId])
+  @@index([workShiftId])
+  @@map("payroll_overtime_lines")
+}
+
+model PayrollAllowanceLine {
+  id        String @id @default(uuid())
+  payrollId String
+
+  allowancePolicyId String?
+  allowanceName     String
+  amount            Decimal @default(0) @db.Decimal(15, 2)
+
+  payroll         Payroll          @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  allowancePolicy AllowancePolicy? @relation(fields: [allowancePolicyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([payrollId])
+  @@index([allowancePolicyId])
+  @@map("payroll_allowance_lines")
+}
+
+model PayrollBonusPenaltyLine {
+  id        String @id @default(uuid())
+  payrollId String
+
+  payrollBonusPenaltyId String?
+  isBonus               Boolean @default(true)
+  reason                String?
+  amount                Decimal @default(0) @db.Decimal(15, 2)
+
+  payroll             Payroll              @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  payrollBonusPenalty PayrollBonusPenalty? @relation(fields: [payrollBonusPenaltyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([payrollId])
+  @@index([payrollBonusPenaltyId])
+  @@map("payroll_bonus_penalty_lines")
+}
+

@@ -8,10 +8,7 @@ export type ScheduleDetailPayload = {
 export type WorkScheduleItem = {
   id: string;
   date: string;
-  workShifts: Array<
-    Pick<WorkShift, "id" | "code" | "name"> &
-      Partial<Pick<WorkShift, "startTime" | "endTime">>
-  >;
+  workShifts: Array<Pick<WorkShift, "id" | "code" | "name"> & Partial<WorkShift>>;
 };
 
 export type CreateScheduleSetupPayload = {

@@ -619,7 +619,7 @@ model AttendanceCorrectionRequest {
 
 model WorkShift {
   id                    String  @id @default(uuid())
-  code                  String  @unique
+  code                  String
   name                  String
   startTime             String
   endTime               String
@@ -643,6 +643,7 @@ model WorkShift {
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
+  @@index([code])
   @@map("work_shifts")
 }
 

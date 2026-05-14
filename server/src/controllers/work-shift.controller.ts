@@ -23,7 +23,10 @@ export const workShiftController = {
   },
 
   async getAll(req: Request, res: Response) {
-    const shifts = await workShiftService.getAll();
+    const includeInactive =
+      typeof req.query.includeInactive === "string" &&
+      req.query.includeInactive.toLowerCase() === "true";
+    const shifts = await workShiftService.getAllByStatus(includeInactive);
     return sendResponse(res, 200, "OK", shifts);
   },
 

@@ -94,9 +94,21 @@ const ensureUsersExist = async (userIds: string[]) => {
 const getWorkShiftIdsFromDetails = (scheduleDetails: ScheduleDetail[]) =>
   normalizeIds(scheduleDetails.flatMap((detail) => detail.workShiftIds ?? []));
 
-const ensureWorkShiftsExist = async (workShiftIds: string[]) => {
+type WorkShiftInfo = {
+  id: string;
+  code: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+};
+
+const getWorkShiftsByIds = async (
+  workShiftIds: string[],
+  requireActive = true,
+) => {
   if (workShiftIds.length === 0) {
-    return;
+    return new Map<string, WorkShiftInfo>();
   }
 
   const workShifts = await prisma.workShift.findMany({
@@ -107,6 +119,11 @@ const ensureWorkShiftsExist = async (workShiftIds: string[]) => {
     },
     select: {
       id: true,
+      code: true,
+      name: true,
+      startTime: true,
+      endTime: true,
+      isActive: true,
     },
   });
 
@@ -123,13 +140,94 @@ const ensureWorkShiftsExist = async (workShiftIds: string[]) => {
       `Work shift not found: ${missingWorkShiftIds.join(", ")}`,
     );
   }
+
+  if (requireActive) {
+    const inactive = workShifts
+      .filter((shift) => !shift.isActive)
+      .map((shift) => shift.code || shift.id);
+
+    if (inactive.length > 0) {
+      throw new ApiError(400, `Work shifts inactive: ${inactive.join(", ")}`);
+    }
+  }
+
+  return new Map(workShifts.map((workShift) => [workShift.id, workShift]));
 };
 
-const parseDate = (value: string) => {
-  const date = new Date(value);
+const MINUTES_PER_DAY = 24 * 60;
 
-  if (Number.isNaN(date.getTime())) {
-    throw new ApiError(400, `Invalid schedule date: ${value}`);
+const parseClockToMinutes = (value: string, label: string) => {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+
+  if (!match) {
+    throw new ApiError(400, `Invalid ${label} time: ${value}`);
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  return hours * 60 + minutes;
+};
+
+const ensureNoOverlappingWorkShifts = (
+  scheduleDetails: ScheduleDetail[],
+  workShiftsById: Map<string, WorkShiftInfo>,
+) => {
+  for (const detail of scheduleDetails) {
+    const intervals = detail.workShiftIds.flatMap((workShiftId) => {
+      const shift = workShiftsById.get(workShiftId);
+
+      if (!shift) {
+        throw new ApiError(400, `Work shift not found: ${workShiftId}`);
+      }
+
+      const start = parseClockToMinutes(shift.startTime, "start");
+      const endRaw = parseClockToMinutes(shift.endTime, "end");
+
+      if (endRaw <= start) {
+        return [
+          { start, end: MINUTES_PER_DAY, shift },
+          { start: 0, end: endRaw, shift },
+        ];
+      }
+
+      return [{ start, end: endRaw, shift }];
+    });
+
+    const sortedIntervals = [...intervals].sort((a, b) => a.start - b.start);
+
+    for (let index = 1; index < sortedIntervals.length; index += 1) {
+      const previous = sortedIntervals[index - 1];
+      const current = sortedIntervals[index];
+
+      if (current.start < previous.end) {
+        throw new ApiError(
+          400,
+          `Work shifts overlap on ${detail.date}: ${previous.shift.code} (${previous.shift.startTime}-${previous.shift.endTime}) and ${current.shift.code} (${current.shift.startTime}-${current.shift.endTime})`,
+        );
+      }
+    }
+  }
+};
+
+const parseDateOnly = (value: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    throw new ApiError(400, "date must be in YYYY-MM-DD format");
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new ApiError(400, "date is invalid");
   }
 
   return date;
@@ -159,7 +257,7 @@ const ensureScheduleDetailsInMonth = (
   const year = monthStart.getUTCFullYear();
   const month = monthStart.getUTCMonth();
   const invalidDates = scheduleDetails
-    .map((detail) => parseDate(detail.date))
+    .map((detail) => parseDateOnly(detail.date))
     .filter(
       (date) => date.getUTCFullYear() !== year || date.getUTCMonth() !== month,
     )
@@ -175,16 +273,34 @@ const ensureScheduleDetailsInMonth = (
   }
 };
 
+const ensureEmployeeExists = async (employeeId: string) => {
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { id: true },
+  });
+
+  if (!employee) {
+    throw new ApiError(404, "Employee not found");
+  }
+};
+
 const normalizeFutureScheduleDetails = (
   scheduleDetails: ScheduleDetail[],
   referenceTime = new Date(),
 ) => {
   const detailsByDate = new Map<string, Set<string>>();
+  const referenceDate = new Date(
+    Date.UTC(
+      referenceTime.getUTCFullYear(),
+      referenceTime.getUTCMonth(),
+      referenceTime.getUTCDate(),
+    ),
+  );
 
   for (const detail of scheduleDetails) {
-    const date = parseDate(detail.date);
+    const date = parseDateOnly(detail.date);
 
-    if (date.getTime() <= referenceTime.getTime()) {
+    if (date.getTime() <= referenceDate.getTime()) {
       continue;
     }
 
@@ -246,6 +362,36 @@ export const applyScheduleAssignments = async (
 };
 
 export const scheduleAssignmentService = {
+  async applyForEmployee(
+    employeeId: string,
+    scheduleDetails: ScheduleDetail[],
+  ) {
+    const futureScheduleDetails =
+      normalizeFutureScheduleDetails(scheduleDetails);
+    const workShiftIds = getWorkShiftIdsFromDetails(futureScheduleDetails);
+
+    if (futureScheduleDetails.length === 0) {
+      throw new ApiError(
+        400,
+        "At least one future schedule detail is required",
+      );
+    }
+
+    await ensureEmployeeExists(employeeId);
+
+    const workShiftsById = await getWorkShiftsByIds(workShiftIds);
+    ensureNoOverlappingWorkShifts(futureScheduleDetails, workShiftsById);
+
+    await prisma.$transaction(async (tx) => {
+      await applyScheduleAssignments(tx, [employeeId], futureScheduleDetails);
+    });
+
+    return {
+      employeeId,
+      appliedDates: futureScheduleDetails.map((detail) => detail.date),
+    };
+  },
+
   async createSetupAndApply(payload: CreateSetupInput) {
     const futureScheduleDetails = normalizeFutureScheduleDetails(
       payload.scheduleDetails,
@@ -259,7 +405,8 @@ export const scheduleAssignmentService = {
       );
     }
 
-    await ensureWorkShiftsExist(workShiftIds);
+    const workShiftsById = await getWorkShiftsByIds(workShiftIds);
+    ensureNoOverlappingWorkShifts(futureScheduleDetails, workShiftsById);
 
     const setup = await prisma.workScheduleSetup.create({
       data: {
@@ -343,7 +490,8 @@ export const scheduleAssignmentService = {
     }
 
     await ensureUsersExist([requesterId, ...approverIds, ...watcherIds]);
-    await ensureWorkShiftsExist(workShiftIds);
+    const workShiftsById = await getWorkShiftsByIds(workShiftIds);
+    ensureNoOverlappingWorkShifts(futureScheduleDetails, workShiftsById);
 
     const request = await prisma.$transaction(async (tx) => {
       const createdRequest = await tx.request.create({
@@ -417,5 +565,47 @@ export const scheduleAssignmentService = {
       ...schedule,
       workShifts: shiftLinks.map((link) => link.workShift),
     }));
+  },
+
+  async getEmployeeScheduleByDate(employeeId: string, dateValue: string) {
+    const date = parseDateOnly(dateValue);
+    const from = date;
+    const to = new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate() + 1,
+      ),
+    );
+
+    const item = await prisma.workSchedule.findFirst({
+      where: { employeeId, date: { gte: from, lt: to } },
+      select: {
+        id: true,
+        date: true,
+        shiftLinks: {
+          include: {
+            workShift: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { workShift: { startTime: "asc" } },
+        },
+      },
+    });
+
+    if (!item) {
+      return null;
+    }
+
+    return {
+      id: item.id,
+      date: item.date,
+      workShifts: item.shiftLinks.map((link) => link.workShift),
+    };
   },
 };

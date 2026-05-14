@@ -23,8 +23,53 @@ import { paths } from "../../../app/router/paths";
 
 const drawerIconClass = "h-5 w-5";
 
-export function getDrawerItems(userRole?: string): DrawerItem[] {
+export function getDrawerItems(
+  userRole?: string,
+  permissions: string[] = [],
+): DrawerItem[] {
   const isCandidate = userRole?.toUpperCase() === "CANDIDATE";
+  const isAdmin = userRole?.toUpperCase() === "ADMIN";
+  const permissionSet = new Set(permissions);
+  const hasPermission = (permission: string) =>
+    isAdmin || permissionSet.has(permission);
+  const scheduleChildren = [
+    ...(!isCandidate
+      ? [
+          {
+            key: "schedule-mine",
+            label: "Lịch của tôi",
+            path: paths.scheduleMine,
+          },
+        ]
+      : []),
+    ...(hasPermission("WORK_SCHEDULE_VIEW")
+      ? [
+          {
+            key: "schedule-weekly",
+            label: "Lịch nhân viên",
+            path: paths.scheduleWeekly,
+          },
+        ]
+      : []),
+    ...(hasPermission("WORK_SCHEDULE_MANAGE")
+      ? [
+          {
+            key: "schedule-assign",
+            label: "Áp lịch",
+            path: paths.scheduleAssign,
+          },
+        ]
+      : []),
+    ...(hasPermission("WORK_SCHEDULE_REGISTER")
+      ? [
+          {
+            key: "schedule-register",
+            label: "Đăng ký lịch",
+            path: paths.scheduleRegister,
+          },
+        ]
+      : []),
+  ];
 
   return [
     {
@@ -72,29 +117,17 @@ export function getDrawerItems(userRole?: string): DrawerItem[] {
       icon: <Users className={drawerIconClass} />,
       path: paths.employees,
     },
-    {
-      key: "schedules",
-      label: "Lịch làm việc",
-      icon: <CalendarDays className={drawerIconClass} />,
-      expandable: true,
-      children: [
-        {
-          key: "schedule-weekly",
-          label: "Xem lịch",
-          path: paths.scheduleWeekly,
-        },
-        {
-          key: "schedule-assign",
-          label: "Áp lịch",
-          path: paths.scheduleAssign,
-        },
-        {
-          key: "schedule-register",
-          label: "Đăng ký lịch",
-          path: paths.scheduleRegister,
-        },
-      ],
-    },
+    ...(scheduleChildren.length
+      ? [
+          {
+            key: "schedules",
+            label: "Lịch làm việc",
+            icon: <CalendarDays className={drawerIconClass} />,
+            expandable: true,
+            children: scheduleChildren,
+          },
+        ]
+      : []),
     {
       key: "attendance",
       label: "Chấm công",

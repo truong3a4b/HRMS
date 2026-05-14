@@ -29,6 +29,7 @@ export const paths = {
   attendanceOvertime: '/attendance/overtime-request',
 
   // Work Schedule
+  scheduleMine: '/schedule/me',
   scheduleWeekly: '/schedule/weekly',
   scheduleAssign: '/schedule/assign',
   scheduleRegister: '/schedule/register',

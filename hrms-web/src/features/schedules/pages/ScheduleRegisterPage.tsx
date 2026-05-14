@@ -19,6 +19,7 @@ import {
   type DateShiftMap,
 } from "../components/ScheduleDateShiftPicker";
 import { scheduleService } from "../services/scheduleService";
+import { getScheduleErrorMessage } from "../utils/scheduleErrorMessages";
 import {
   currentMonthKey,
   detailsFromDateShiftMap,
@@ -28,21 +29,6 @@ const fieldClass =
   "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
 
 const labelClass = "mb-1.5 block text-sm font-medium text-[#344054]";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "response" in error &&
-    typeof error.response === "object" &&
-    error.response !== null &&
-    "data" in error.response
-  ) {
-    const data = error.response.data as { message?: string };
-    if (data.message) return data.message;
-  }
-  return fallback;
-}
 
 /* ── Custom multi-select dropdown ─────────────────────────── */
 interface MultiSelectOption {
@@ -308,7 +294,7 @@ export function ScheduleRegisterPage() {
       setSuccessMessage("Đã gửi yêu cầu đăng ký lịch làm việc.");
     } catch (error) {
       setErrorMessage(
-        getErrorMessage(error, "Không thể gửi yêu cầu đăng ký lịch"),
+        getScheduleErrorMessage(error, "Không thể gửi yêu cầu đăng ký lịch"),
       );
     } finally {
       setIsSubmitting(false);

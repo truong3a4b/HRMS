@@ -89,10 +89,18 @@ export function AppRouter() {
         }
       />
       <Route
+        path={paths.scheduleMine}
+        element={
+          <ProtectedRoute>
+            <ScheduleWeeklyPage scope="self" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path={paths.scheduleWeekly}
         element={
           <ProtectedRoute>
-            <ScheduleWeeklyPage />
+            <ScheduleWeeklyPage scope="employees" />
           </ProtectedRoute>
         }
       />

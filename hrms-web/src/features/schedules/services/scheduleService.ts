@@ -19,6 +19,15 @@ const removeEmptyArrays = <T extends Record<string, unknown>>(payload: T) =>
   ) as T;
 
 export const scheduleService = {
+  async getMySchedule(month: string) {
+    const response = await apiClient.get<ApiResponse<WorkScheduleItem[]>>(
+      "/schedule-assignments/me",
+      { params: { month } },
+    );
+
+    return response.data.data ?? [];
+  },
+
   async getEmployeeSchedule(employeeId: string, month: string) {
     const response = await apiClient.get<ApiResponse<WorkScheduleItem[]>>(
       `/schedule-assignments/employee/${employeeId}`,
@@ -26,6 +35,18 @@ export const scheduleService = {
     );
 
     return response.data.data ?? [];
+  },
+
+  async applyEmployeeSchedule(
+    employeeId: string,
+    scheduleDetails: RegisterSchedulePayload["scheduleDetails"],
+  ) {
+    const response = await apiClient.post<ApiResponse<unknown>>(
+      `/schedule-assignments/employee/${employeeId}/apply`,
+      { scheduleDetails },
+    );
+
+    return response.data.data;
   },
 
   async createSetup(payload: CreateScheduleSetupPayload) {

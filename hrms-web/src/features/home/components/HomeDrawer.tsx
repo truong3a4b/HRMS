@@ -13,7 +13,7 @@ export function HomeDrawer({ isOpen, onToggle }: HomeDrawerProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const drawerItems = getDrawerItems(user?.role);
+  const drawerItems = getDrawerItems(user?.role, user?.permissions ?? []);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => {
     const initial = new Set<string>();
 

@@ -11,7 +11,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [accountOpen, setAccountOpen] = useState(false);
 
   return (
-    <div className="flex h-dvh overflow-hidden min-w-0 flex-col bg-[#f7f7f7] text-[#243247]">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-slate-50 text-slate-900 selection:bg-blue-100 selection:text-blue-900">
       <HomeHeader
         notificationOpen={notificationOpen}
         onToggleNotifications={() => {

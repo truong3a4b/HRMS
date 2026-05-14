@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Modal } from "antd";
-import { Briefcase, CheckSquare, Edit2, Plus, RefreshCcw, Search, Shield, Trash2 } from "lucide-react";
+import {
+  Briefcase,
+  CheckSquare,
+  Edit2,
+  Plus,
+  RefreshCcw,
+  Search,
+  Shield,
+  Trash2,
+} from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import {
   extractPermissionKeys,
@@ -143,7 +152,9 @@ function PositionFormModal({
         code: position?.code ?? "",
         description: position?.description ?? "",
       });
-      setSelectedPermissions(new Set(position ? extractPermissionKeys(position) : []));
+      setSelectedPermissions(
+        new Set(position ? extractPermissionKeys(position) : []),
+      );
       setError(null);
     }
   }, [open, position]);
@@ -230,17 +241,24 @@ function PositionFormModal({
         <div className="mb-5">
           <div className="mb-3 flex items-center gap-2">
             <div className="h-4 w-1 rounded-full bg-[#006fd5]" />
-            <span className="text-sm font-semibold text-[#243247]">Thông tin chức vụ</span>
+            <span className="text-sm font-semibold text-[#243247]">
+              Thông tin chức vụ
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-4 max-[680px]:grid-cols-1">
             <label>
-              <span className={labelClass}>Tên chức vụ <span className="text-[#f04438]">*</span></span>
+              <span className={labelClass}>
+                Tên chức vụ <span className="text-[#f04438]">*</span>
+              </span>
               <input
                 className={fieldClass}
                 placeholder="VD: Trưởng phòng, Nhân viên..."
                 value={form.name}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, name: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
                 }
               />
             </label>
@@ -251,7 +269,10 @@ function PositionFormModal({
                 value={form.code}
                 placeholder="Tự sinh nếu để trống"
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, code: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    code: event.target.value,
+                  }))
                 }
               />
             </label>
@@ -262,7 +283,10 @@ function PositionFormModal({
                 placeholder="Mô tả ngắn về chức vụ này..."
                 value={form.description}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, description: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
                 }
               />
             </label>
@@ -274,7 +298,9 @@ function PositionFormModal({
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="h-4 w-1 rounded-full bg-[#006fd5]" />
-              <span className="text-sm font-semibold text-[#243247]">Phân quyền</span>
+              <span className="text-sm font-semibold text-[#243247]">
+                Phân quyền
+              </span>
               <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-xs font-medium text-[#006fd5]">
                 {selectedPermissions.size}/{permissions.length}
               </span>
@@ -284,7 +310,9 @@ function PositionFormModal({
               type="button"
               onClick={() =>
                 setSelectedPermissions(
-                  allSelected ? new Set() : new Set(permissions.map((item) => item.key)),
+                  allSelected
+                    ? new Set()
+                    : new Set(permissions.map((item) => item.key)),
                 )
               }
             >
@@ -294,7 +322,9 @@ function PositionFormModal({
           </div>
           <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
             {Object.entries(groupedPermissions).map(([group, items]) => {
-              const selectedCount = items.filter((item) => selectedPermissions.has(item.key)).length;
+              const selectedCount = items.filter((item) =>
+                selectedPermissions.has(item.key),
+              ).length;
               const allGroupSelected = selectedCount === items.length;
               const partialSelected = selectedCount > 0 && !allGroupSelected;
 
@@ -322,8 +352,12 @@ function PositionFormModal({
                       type="checkbox"
                       className="h-4 w-4 accent-[#006fd5]"
                       checked={allGroupSelected}
-                      ref={(el) => { if (el) el.indeterminate = partialSelected; }}
-                      onChange={(event) => toggleGroup(items, event.target.checked)}
+                      ref={(el) => {
+                        if (el) el.indeterminate = partialSelected;
+                      }}
+                      onChange={(event) =>
+                        toggleGroup(items, event.target.checked)
+                      }
                     />
                   </label>
                   <div className="border-t border-[#edf0f5] pt-2">
@@ -342,7 +376,10 @@ function PositionFormModal({
                             className="h-4 w-4 shrink-0 accent-[#006fd5]"
                             checked={selectedPermissions.has(permission.key)}
                             onChange={(event) =>
-                              togglePermission(permission.key, event.target.checked)
+                              togglePermission(
+                                permission.key,
+                                event.target.checked,
+                              )
                             }
                           />
                           <span className="text-sm font-medium text-[#344054]">
@@ -371,7 +408,11 @@ function PositionFormModal({
             type="submit"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Đang lưu..." : position ? "Cập nhật" : "Thêm chức vụ"}
+            {isSubmitting
+              ? "Đang lưu..."
+              : position
+                ? "Cập nhật"
+                : "Thêm chức vụ"}
           </button>
         </div>
       </form>
@@ -387,7 +428,9 @@ export function PositionListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
-  const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<Position | null>(
+    null,
+  );
 
   const filteredPositions = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
@@ -411,7 +454,9 @@ export function PositionListPage() {
       setPositions(result);
     } catch (error) {
       setPositions([]);
-      setErrorMessage(getErrorMessage(error, "Không tải được danh sách chức vụ"));
+      setErrorMessage(
+        getErrorMessage(error, "Không tải được danh sách chức vụ"),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -563,10 +608,16 @@ export function PositionListPage() {
                     {filteredPositions.map((position, index) => {
                       const permissionKeys = extractPermissionKeys(position);
                       const permissionNames = permissionKeys
-                        .map((key) => getViName(key, permissions.find((p) => p.key === key)?.name))
+                        .map((key) =>
+                          getViName(
+                            key,
+                            permissions.find((p) => p.key === key)?.name,
+                          ),
+                        )
                         .filter(Boolean);
                       const visibleNames = permissionNames.slice(0, 3);
-                      const remaining = permissionNames.length - visibleNames.length;
+                      const remaining =
+                        permissionNames.length - visibleNames.length;
 
                       return (
                         <tr
@@ -603,7 +654,9 @@ export function PositionListPage() {
                                 </span>
                               )}
                               {permissionNames.length === 0 && (
-                                <span className="text-xs text-[#98a2b3]">Chưa có quyền</span>
+                                <span className="text-xs text-[#98a2b3]">
+                                  Chưa có quyền
+                                </span>
                               )}
                             </div>
                           </td>

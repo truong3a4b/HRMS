@@ -7,15 +7,15 @@ import { ApiError } from "../utils/apiError";
 
 type CreatePositionInput = {
   name: string;
-  code?: string;
-  description?: string;
+  code?: string | null;
+  description?: string | null;
   permissionKeys: PermissionKey[];
 };
 
 type UpdatePositionInput = {
   name?: string;
-  code?: string;
-  description?: string;
+  code?: string | null;
+  description?: string | null;
   permissionKeys?: PermissionKey[];
 };
 
@@ -206,9 +206,11 @@ export const positionService = {
     return prisma.position.update({
       where: { id },
       data: {
-        name: data.name,
-        code: data.code,
-        description: data.description,
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.code !== undefined ? { code: data.code } : {}),
+        ...(data.description !== undefined
+          ? { description: data.description }
+          : {}),
         ...(permissionUpdates && { permissions: permissionUpdates }),
       },
       include: {

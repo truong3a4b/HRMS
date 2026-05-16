@@ -8,6 +8,7 @@ import {
   EditEmployeeModal,
 } from "../components/EmployeeModals";
 import { EmployeeTable } from "../components/EmployeeTable";
+import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { employeeService } from "../services/employeeService";
 import type {
   CreateEmployeePayload,
@@ -240,8 +241,8 @@ export function EmployeeListPage() {
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-3 rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-            <div className="relative min-w-[220px] flex-1">
+          <div className="flex gap-3 overflow-x-auto rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+            <div className="relative min-w-[200px] flex-1">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#667085]" />
               <input
                 type="text"
@@ -254,38 +255,32 @@ export function EmployeeListPage() {
                 className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-10 pr-4 text-sm text-[#344054] placeholder-[#98a2b3] transition-colors focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
               />
             </div>
-            <select
-              className="min-w-44 flex-1 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] transition-colors hover:border-[#b0b0b0] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10 sm:flex-none"
+            <SearchableSelect
+              className="min-w-[160px] flex-1"
               value={departmentId}
-              onChange={(event) => {
-                setDepartmentId(event.target.value);
+              onChange={(value) => {
+                setDepartmentId(value);
                 resetToFirstPage();
               }}
-            >
-              <option value="">Tất cả bộ phận</option>
-              {departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="min-w-40 flex-1 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] transition-colors hover:border-[#b0b0b0] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10 sm:flex-none"
+              options={[
+                { value: "", label: "Tất cả bộ phận" },
+                ...departments.map((department) => ({ value: department.id, label: department.name }))
+              ]}
+            />
+            <SearchableSelect
+              className="min-w-[160px] flex-1"
               value={positionId}
-              onChange={(event) => {
-                setPositionId(event.target.value);
+              onChange={(value) => {
+                setPositionId(value);
                 resetToFirstPage();
               }}
-            >
-              <option value="">Tất cả chức vụ</option>
-              {positions.map((position) => (
-                <option key={position.id} value={position.id}>
-                  {position.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Tất cả chức vụ" },
+                ...positions.map((position) => ({ value: position.id, label: position.name }))
+              ]}
+            />
             <select
-              className="min-w-42 flex-1 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] transition-colors hover:border-[#b0b0b0] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10 sm:flex-none"
+              className="min-w-[160px] flex-1 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] transition-colors hover:border-[#b0b0b0] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
               value={status}
               onChange={(event) => {
                 setStatus(event.target.value as EmployeeStatus | "");

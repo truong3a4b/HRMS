@@ -15,6 +15,11 @@ const removeEmptyParams = (params: Record<string, unknown>) =>
     Object.entries(params).filter(([, value]) => value !== "" && value != null),
   );
 
+const removeEmptyStrings = (params: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(params).filter(([, value]) => value !== ""),
+  );
+
 export const employeeService = {
   async getEmployees(filters: EmployeeFilters) {
     const response = await apiClient.get<ApiResponse<EmployeeListData>>(
@@ -54,7 +59,7 @@ export const employeeService = {
   async updateEmployeeBasic(id: string, payload: UpdateEmployeeBasicPayload) {
     const response = await apiClient.patch<ApiResponse<Employee>>(
       `/employees/${id}/basic`,
-      removeEmptyParams(payload),
+      removeEmptyStrings(payload),
     );
 
     return response.data.data;

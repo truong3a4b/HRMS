@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { useAuth } from "../../auth/services/useAuth";
+import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { employeeService } from "../../employees/services/employeeService";
 import type { EmployeeOption } from "../../employees/types/employee.types";
 import { recruitmentService } from "../services/recruitmentService";
@@ -163,11 +164,31 @@ function JobFormModal({
     <Modal
       open={open}
       title={job ? "Chỉnh sửa vị trí tuyển dụng" : "Thêm vị trí tuyển dụng"}
-      footer={null}
-      width={820}
       onCancel={onClose}
+      width={820}
+      centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
+      footer={
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+          <button
+            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
+            type="button"
+            onClick={onClose}
+          >
+            Hủy
+          </button>
+          <button
+            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] disabled:opacity-60"
+            type="submit"
+            form="jobForm"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Đang lưu..." : "Lưu"}
+          </button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit}>
+      <form id="jobForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
             {error}
@@ -184,33 +205,25 @@ function JobFormModal({
           </label>
           <label>
             <span className={labelClass}>Chức vụ</span>
-            <select
-              className={fieldClass}
+            <SearchableSelect
               value={form.positionId}
-              onChange={(event) => update("positionId", event.target.value)}
-            >
-              <option value="">Chọn chức vụ</option>
-              {positions.map((position) => (
-                <option key={position.id} value={position.id}>
-                  {position.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => update("positionId", value)}
+              options={[
+                { value: "", label: "Chọn chức vụ" },
+                ...positions.map((position) => ({ value: position.id, label: position.name }))
+              ]}
+            />
           </label>
           <label>
             <span className={labelClass}>Bộ phận</span>
-            <select
-              className={fieldClass}
+            <SearchableSelect
               value={form.departmentId}
-              onChange={(event) => update("departmentId", event.target.value)}
-            >
-              <option value="">Chọn bộ phận</option>
-              {departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => update("departmentId", value)}
+              options={[
+                { value: "", label: "Chọn bộ phận" },
+                ...departments.map((department) => ({ value: department.id, label: department.name }))
+              ]}
+            />
           </label>
           <label>
             <span className={labelClass}>Lương tối thiểu</span>
@@ -267,22 +280,6 @@ function JobFormModal({
               />
             </label>
           ))}
-        </div>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
-          <button
-            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-            type="button"
-            onClick={onClose}
-          >
-            Hủy
-          </button>
-          <button
-            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] disabled:opacity-60"
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Đang lưu..." : "Lưu"}
-          </button>
         </div>
       </form>
     </Modal>
@@ -346,11 +343,31 @@ function ApplyJobModal({
     <Modal
       open={open}
       title={job ? `Ứng tuyển: ${job.title}` : "Ứng tuyển"}
-      footer={null}
-      width={680}
       onCancel={onClose}
+      width={680}
+      centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
+      footer={
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+          <button
+            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
+            type="button"
+            onClick={onClose}
+          >
+            Hủy
+          </button>
+          <button
+            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] disabled:opacity-60"
+            type="submit"
+            form="applyForm"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Đang gửi..." : "Ứng tuyển"}
+          </button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit}>
+      <form id="applyForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
             {error}
@@ -436,22 +453,6 @@ function ApplyJobModal({
             />
           </label>
         </div>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
-          <button
-            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-            type="button"
-            onClick={onClose}
-          >
-            Hủy
-          </button>
-          <button
-            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] disabled:opacity-60"
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Đang gửi..." : "Ứng tuyển"}
-          </button>
-        </div>
       </form>
     </Modal>
   );
@@ -482,9 +483,51 @@ function JobDetailModal({
     <Modal
       open={open}
       title="Chi tiết tuyển dụng"
-      footer={null}
       width={820}
       onCancel={onClose}
+      centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
+      footer={job ? (
+        <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+          {canManage && job.status === "OPEN" ? (
+            <>
+              <button
+                className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
+                type="button"
+                onClick={() => onEdit(job)}
+              >
+                Chỉnh sửa
+              </button>
+              <button
+                className="rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
+                type="button"
+                onClick={() => onCloseJob(job)}
+              >
+                Đóng tin
+              </button>
+            </>
+          ) : null}
+          {canManage && job.status === "CLOSED" ? (
+            <button
+              className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8]"
+              type="button"
+              onClick={() => onReopenJob(job)}
+            >
+              Mở lại
+            </button>
+          ) : null}
+          {isCandidate && job.status === "OPEN" ? (
+            <button
+              className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] disabled:opacity-60"
+              type="button"
+              disabled={job.applied}
+              onClick={() => onApply(job)}
+            >
+              {job.applied ? "Đã ứng tuyển" : "Ứng tuyển ngay"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     >
       {job ? (
         <div className="grid gap-4">
@@ -519,45 +562,6 @@ function JobDetailModal({
               {job.benefits}
             </p>
           </DetailCard>
-          <div className="flex flex-wrap justify-end gap-3 border-t border-[#edf0f5] pt-4">
-            {canManage && job.status === "OPEN" ? (
-              <>
-                <button
-                  className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-                  type="button"
-                  onClick={() => onEdit(job)}
-                >
-                  Chỉnh sửa
-                </button>
-                <button
-                  className="rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
-                  type="button"
-                  onClick={() => onCloseJob(job)}
-                >
-                  Đóng tin
-                </button>
-              </>
-            ) : null}
-            {canManage && job.status === "CLOSED" ? (
-              <button
-                className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8]"
-                type="button"
-                onClick={() => onReopenJob(job)}
-              >
-                Mở lại
-              </button>
-            ) : null}
-            {isCandidate && job.status === "OPEN" ? (
-              <button
-                className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] disabled:opacity-60"
-                type="button"
-                disabled={job.applied}
-                onClick={() => onApply(job)}
-              >
-                {job.applied ? "Đã ứng tuyển" : "Ứng tuyển ngay"}
-              </button>
-            ) : null}
-          </div>
         </div>
       ) : (
         <div className="py-10 text-center text-[#667085]">Không có dữ liệu</div>
@@ -689,8 +693,8 @@ export function RecruitmentJobListPage() {
             ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-3 rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-            <div className="relative min-w-[220px] flex-1">
+          <div className="flex gap-3 overflow-x-auto rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+            <div className="relative min-w-[200px] flex-1">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#667085]" />
               <input
                 className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-10 pr-4 text-sm text-[#344054] placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
@@ -702,36 +706,30 @@ export function RecruitmentJobListPage() {
                 }}
               />
             </div>
-            <select
-              className="min-w-44 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
+            <SearchableSelect
+              className="min-w-[160px] flex-1"
               value={departmentId}
-              onChange={(event) => {
-                setDepartmentId(event.target.value);
+              onChange={(value) => {
+                setDepartmentId(value);
                 setCurrentPage(1);
               }}
-            >
-              <option value="">Tất cả bộ phận</option>
-              {departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="min-w-40 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
+              options={[
+                { value: "", label: "Tất cả bộ phận" },
+                ...departments.map((department) => ({ value: department.id, label: department.name }))
+              ]}
+            />
+            <SearchableSelect
+              className="min-w-[160px] flex-1"
               value={positionId}
-              onChange={(event) => {
-                setPositionId(event.target.value);
+              onChange={(value) => {
+                setPositionId(value);
                 setCurrentPage(1);
               }}
-            >
-              <option value="">Tất cả chức vụ</option>
-              {positions.map((position) => (
-                <option key={position.id} value={position.id}>
-                  {position.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Tất cả chức vụ" },
+                ...positions.map((position) => ({ value: position.id, label: position.name }))
+              ]}
+            />
             <button
               className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#d0d5dd] text-[#344054] hover:bg-[#f9fafb]"
               type="button"

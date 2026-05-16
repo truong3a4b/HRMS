@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
+import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { useAuth } from "../../auth/services/useAuth";
 import { employeeService } from "../../employees/services/employeeService";
 import type { EmployeeOption } from "../../employees/types/employee.types";
@@ -98,15 +99,15 @@ function ActionFormModal({
   onSubmit: (event: FormEvent) => void;
 }) {
   return (
-    <Modal open={open} title={title} footer={null} width={620} onCancel={onClose}>
-      <form onSubmit={onSubmit}>
-        {error ? (
-          <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
-            {error}
-          </div>
-        ) : null}
-        <div className="grid gap-4">{children}</div>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
+    <Modal
+      open={open}
+      title={title}
+      onCancel={onClose}
+      width={620}
+      centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
+      footer={
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
           <button
             className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
             type="button"
@@ -117,11 +118,21 @@ function ActionFormModal({
           <button
             className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] disabled:opacity-60"
             type="submit"
+            form="actionForm"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Đang lưu..." : submitText}
           </button>
         </div>
+      }
+    >
+      <form id="actionForm" onSubmit={onSubmit}>
+        {error ? (
+          <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
+            {error}
+          </div>
+        ) : null}
+        <div className="grid gap-4">{children}</div>
       </form>
     </Modal>
   );
@@ -297,9 +308,94 @@ function ApplicationDetailModal({
       <Modal
         open={open}
         title="Chi tiết đơn ứng tuyển"
-        footer={null}
         width={860}
         onCancel={onClose}
+        centered
+        styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
+        footer={
+          <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+            {canManage && !isFinal ? (
+              <>
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
+                  type="button"
+                  onClick={() => setAction("interview")}
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Lên lịch
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
+                  type="button"
+                  onClick={() => setAction("evaluation")}
+                >
+                  <FileCheck2 className="h-4 w-4" />
+                  Đánh giá
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
+                  type="button"
+                  onClick={() =>
+                    Modal.confirm({
+                      title: "Từ chối ứng viên",
+                      content: "Bạn có chắc chắn muốn từ chối ứng viên này?",
+                      okText: "Từ chối",
+                      cancelText: "Hủy",
+                      okButtonProps: { danger: true },
+                      onOk: async () => {
+                        await recruitmentService.rejectApplication(application.id);
+                        await onRefresh();
+                      },
+                    })
+                  }
+                >
+                  <XCircle className="h-4 w-4" />
+                  Từ chối
+                </button>
+              </>
+            ) : null}
+            {canOffer && !isFinal ? (
+              <button
+                className="inline-flex items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] [&_*]:!text-white"
+                type="button"
+                onClick={() => setAction("offer")}
+              >
+                <Gift className="h-4 w-4" />
+                Gửi offer
+              </button>
+            ) : null}
+            {isCandidate && application.status === "OFFER_SENT" ? (
+              <button
+                className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8]"
+                type="button"
+                onClick={() => setAction("offerResponse")}
+              >
+                Phản hồi offer
+              </button>
+            ) : null}
+            {isCandidate && !isFinal ? (
+              <button
+                className="rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
+                type="button"
+                onClick={() =>
+                  Modal.confirm({
+                    title: "Hủy đơn ứng tuyển",
+                    content: "Bạn có chắc chắn muốn hủy đơn ứng tuyển này?",
+                    okText: "Hủy đơn",
+                    cancelText: "Đóng",
+                    okButtonProps: { danger: true },
+                    onOk: async () => {
+                      await recruitmentService.cancelApplication(application.id);
+                      await onRefresh();
+                    },
+                  })
+                }
+              >
+                Hủy đơn
+              </button>
+            ) : null}
+          </div>
+        }
       >
         <div className="grid gap-4">
           <DetailCard title="Thông tin ứng viên">
@@ -515,90 +611,8 @@ function ApplicationDetailModal({
               <div className="text-sm text-[#667085]">Chưa có offer</div>
             )}
           </DetailCard>
-
-          <div className="flex flex-wrap justify-end gap-3 border-t border-[#edf0f5] pt-4">
-            {canManage && !isFinal ? (
-              <>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-                  type="button"
-                  onClick={() => setAction("interview")}
-                >
-                  <CalendarPlus className="h-4 w-4" />
-                  Lên lịch
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-                  type="button"
-                  onClick={() => setAction("evaluation")}
-                >
-                  <FileCheck2 className="h-4 w-4" />
-                  Đánh giá
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
-                  type="button"
-                  onClick={() =>
-                    Modal.confirm({
-                      title: "Từ chối ứng viên",
-                      content: "Bạn có chắc chắn muốn từ chối ứng viên này?",
-                      okText: "Từ chối",
-                      cancelText: "Hủy",
-                      okButtonProps: { danger: true },
-                      onOk: async () => {
-                        await recruitmentService.rejectApplication(application.id);
-                        await onRefresh();
-                      },
-                    })
-                  }
-                >
-                  <XCircle className="h-4 w-4" />
-                  Từ chối
-                </button>
-              </>
-            ) : null}
-            {canOffer && !isFinal ? (
-              <button
-                className="inline-flex items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] [&_*]:!text-white"
-                type="button"
-                onClick={() => setAction("offer")}
-              >
-                <Gift className="h-4 w-4" />
-                Gửi offer
-              </button>
-            ) : null}
-            {isCandidate && application.status === "OFFER_SENT" ? (
-              <button
-                className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8]"
-                type="button"
-                onClick={() => setAction("offerResponse")}
-              >
-                Phản hồi offer
-              </button>
-            ) : null}
-            {isCandidate && !isFinal ? (
-              <button
-                className="rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
-                type="button"
-                onClick={() =>
-                  Modal.confirm({
-                    title: "Hủy đơn ứng tuyển",
-                    content: "Bạn có chắc chắn muốn hủy đơn ứng tuyển này?",
-                    okText: "Hủy đơn",
-                    cancelText: "Đóng",
-                    okButtonProps: { danger: true },
-                    onOk: async () => {
-                      await recruitmentService.cancelApplication(application.id);
-                      await onRefresh();
-                    },
-                  })
-                }
-              >
-                Hủy đơn
-              </button>
-            ) : null}
-          </div>
         </div>
+
       </Modal>
 
       <ActionFormModal
@@ -780,6 +794,8 @@ function ApplicationDetailModal({
         footer={null}
         width={680}
         onCancel={() => setAction(null)}
+        centered
+        styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
       >
         {selectedEvaluation ? (
           <div className="grid gap-4">
@@ -896,23 +912,19 @@ function ApplicationDetailModal({
       >
         <label>
           <span className={labelClass}>Bộ phận nhận việc</span>
-          <select
-            className={fieldClass}
+          <SearchableSelect
             value={offerForm.departmentId}
-            onChange={(event) =>
+            onChange={(value) =>
               setOfferForm((current) => ({
                 ...current,
-                departmentId: event.target.value,
+                departmentId: value,
               }))
             }
-          >
-            <option value="">Chọn bộ phận</option>
-            {departments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "Chọn bộ phận" },
+              ...departments.map((department) => ({ value: department.id, label: department.name }))
+            ]}
+          />
         </label>
         <label>
           <span className={labelClass}>Lương đề xuất</span>
@@ -1109,8 +1121,8 @@ export function RecruitmentApplicationListPage({
           </div>
 
           {!mine ? (
-            <div className="flex flex-wrap gap-3 rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-              <div className="relative min-w-[220px] flex-1">
+            <div className="flex gap-3 overflow-x-auto rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+              <div className="relative min-w-[200px] flex-1">
                 <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#667085]" />
                 <input
                   className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-10 pr-4 text-sm text-[#344054] placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
@@ -1123,7 +1135,7 @@ export function RecruitmentApplicationListPage({
                 />
               </div>
               <select
-                className="min-w-44 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
+                className="min-w-[160px] flex-1 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
                 value={status}
                 onChange={(event) => {
                   setStatus(event.target.value as JobApplicationStatus | "");

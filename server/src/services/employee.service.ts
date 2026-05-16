@@ -57,25 +57,25 @@ type CreateEmployeeFromCandidateInput = {
 
 type UpdateEmployeeBasicInput = {
   name?: string;
-  phone?: string;
-  avatar?: string;
-  dateOfBirth?: Date;
-  gender?: "MALE" | "FEMALE" | "OTHER";
-  address?: string;
-  province?: LookupValue;
-  ward?: LookupValue;
-  bankAccount?: string;
-  bank?: LookupValue;
+  phone?: string | null;
+  avatar?: string | null;
+  dateOfBirth?: Date | null;
+  gender?: "MALE" | "FEMALE" | "OTHER" | null;
+  address?: string | null;
+  province?: LookupValue | null;
+  ward?: LookupValue | null;
+  bankAccount?: string | null;
+  bank?: LookupValue | null;
 };
 
 type UpdateEmployeeAdditionalInput = {
-  maritalStatus?: string;
-  nationality?: string;
-  religion?: string;
-  identityCardNumber?: string;
-  identityCardIssueDate?: Date;
-  frontIdentityCardImage?: string;
-  backIdentityCardImage?: string;
+  maritalStatus?: string | null;
+  nationality?: string | null;
+  religion?: string | null;
+  identityCardNumber?: string | null;
+  identityCardIssueDate?: Date | null;
+  frontIdentityCardImage?: string | null;
+  backIdentityCardImage?: string | null;
 };
 
 type UpdateEmployeeJobInput = {
@@ -97,6 +97,20 @@ const employeeInclude = {
   },
   department: true,
   position: true,
+};
+
+const toNullableJson = (
+  value: LookupValue | null | undefined,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return Prisma.DbNull;
+  }
+
+  return value;
 };
 
 const ensureEmployeeExists = async (id: string) => {
@@ -385,7 +399,24 @@ export const employeeService = {
 
     return prisma.employee.update({
       where: { id },
-      data,
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.phone !== undefined ? { phone: data.phone } : {}),
+        ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
+        ...(data.dateOfBirth !== undefined
+          ? { dateOfBirth: data.dateOfBirth }
+          : {}),
+        ...(data.gender !== undefined ? { gender: data.gender } : {}),
+        ...(data.address !== undefined ? { address: data.address } : {}),
+        ...(data.province !== undefined
+          ? { province: toNullableJson(data.province) }
+          : {}),
+        ...(data.ward !== undefined ? { ward: toNullableJson(data.ward) } : {}),
+        ...(data.bankAccount !== undefined
+          ? { bankAccount: data.bankAccount }
+          : {}),
+        ...(data.bank !== undefined ? { bank: toNullableJson(data.bank) } : {}),
+      },
       include: employeeInclude,
     });
   },
@@ -395,7 +426,27 @@ export const employeeService = {
 
     return prisma.employee.update({
       where: { id },
-      data,
+      data: {
+        ...(data.maritalStatus !== undefined
+          ? { maritalStatus: data.maritalStatus }
+          : {}),
+        ...(data.nationality !== undefined
+          ? { nationality: data.nationality }
+          : {}),
+        ...(data.religion !== undefined ? { religion: data.religion } : {}),
+        ...(data.identityCardNumber !== undefined
+          ? { identityCardNumber: data.identityCardNumber }
+          : {}),
+        ...(data.identityCardIssueDate !== undefined
+          ? { identityCardIssueDate: data.identityCardIssueDate }
+          : {}),
+        ...(data.frontIdentityCardImage !== undefined
+          ? { frontIdentityCardImage: data.frontIdentityCardImage }
+          : {}),
+        ...(data.backIdentityCardImage !== undefined
+          ? { backIdentityCardImage: data.backIdentityCardImage }
+          : {}),
+      },
       include: employeeInclude,
     });
   },

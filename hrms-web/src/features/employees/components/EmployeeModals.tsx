@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Modal } from "antd";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
+import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import type {
   CreateEmployeePayload,
   Employee,
@@ -69,6 +70,19 @@ function toDateInput(value?: string | null) {
   return value ? value.slice(0, 10) : "";
 }
 
+function toNullableString(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function toNullableDate(value: string) {
+  return value ? value : null;
+}
+
+function toNullableGender(value: string) {
+  return value ? (value as UpdateEmployeeBasicPayload["gender"]) : null;
+}
+
 function todayInput() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -105,13 +119,15 @@ function FormActions({
   submitText,
   isSubmitting,
   onClose,
+  formId,
 }: {
   submitText: string;
   isSubmitting: boolean;
   onClose: () => void;
+  formId?: string;
 }) {
   return (
-    <div className="mt-6 flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
+    <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
       <button
         className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
         type="button"
@@ -122,6 +138,7 @@ function FormActions({
       <button
         className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
         type="submit"
+        form={formId}
         disabled={isSubmitting}
       >
         {isSubmitting ? "Đang lưu..." : submitText}
@@ -199,11 +216,26 @@ export function AddEmployeeModal({
     <Modal
       open={open}
       title="Thêm nhân viên"
-      footer={null}
       onCancel={onClose}
       width={760}
+      centered
+      styles={{
+        body: {
+          maxHeight: "calc(100vh - 200px)",
+          overflowY: "auto",
+          paddingRight: "8px",
+        },
+      }}
+      footer={
+        <FormActions
+          submitText="Thêm nhân viên"
+          isSubmitting={isSubmitting}
+          onClose={onClose}
+          formId="addEmployeeForm"
+        />
+      }
     >
-      <form onSubmit={handleSubmit}>
+      <form id="addEmployeeForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
             {error}
@@ -260,32 +292,30 @@ export function AddEmployeeModal({
             />
           </Field>
           <Field label="Bộ phận">
-            <select
-              className={fieldClass}
+            <SearchableSelect
               value={form.departmentId}
-              onChange={(e) => update("departmentId", e.target.value)}
-            >
-              <option value="">Chọn bộ phận</option>
-              {departments.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => update("departmentId", value)}
+              options={[
+                { value: "", label: "Chọn bộ phận" },
+                ...departments.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                })),
+              ]}
+            />
           </Field>
           <Field label="Chức vụ">
-            <select
-              className={fieldClass}
+            <SearchableSelect
               value={form.positionId}
-              onChange={(e) => update("positionId", e.target.value)}
-            >
-              <option value="">Chọn chức vụ</option>
-              {positions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => update("positionId", value)}
+              options={[
+                { value: "", label: "Chọn chức vụ" },
+                ...positions.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                })),
+              ]}
+            />
           </Field>
           <Field label="Ngày vào làm">
             <input
@@ -312,11 +342,6 @@ export function AddEmployeeModal({
             />
           </Field>
         </div>
-        <FormActions
-          submitText="Thêm nhân viên"
-          isSubmitting={isSubmitting}
-          onClose={onClose}
-        />
       </form>
     </Modal>
   );
@@ -351,9 +376,36 @@ export function EmployeeDetailModal({
     <Modal
       open={open}
       title="Chi tiết nhân viên"
-      footer={null}
       onCancel={onClose}
       width={720}
+      centered
+      styles={{
+        body: {
+          maxHeight: "calc(100vh - 200px)",
+          overflowY: "auto",
+          paddingRight: "8px",
+        },
+      }}
+      footer={
+        employee ? (
+          <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+            <button
+              className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
+              type="button"
+              onClick={onClose}
+            >
+              Đóng
+            </button>
+            <button
+              className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8]"
+              type="button"
+              onClick={() => onEdit(employee)}
+            >
+              Chỉnh sửa
+            </button>
+          </div>
+        ) : null
+      }
     >
       {employee ? (
         <>
@@ -385,22 +437,6 @@ export function EmployeeDetailModal({
                 </strong>
               </div>
             ))}
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054]"
-              type="button"
-              onClick={onClose}
-            >
-              Đóng
-            </button>
-            <button
-              className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white"
-              type="button"
-              onClick={() => onEdit(employee)}
-            >
-              Chỉnh sửa
-            </button>
           </div>
         </>
       ) : (
@@ -474,12 +510,11 @@ export function EditEmployeeModal({
         employee.id,
         {
           name: form.name.trim(),
-          phone: form.phone.trim() || undefined,
-          dateOfBirth: form.dateOfBirth || undefined,
-          gender: (form.gender ||
-            undefined) as UpdateEmployeeBasicPayload["gender"],
-          address: form.address.trim() || undefined,
-          bankAccount: form.bankAccount.trim() || undefined,
+          phone: toNullableString(form.phone),
+          dateOfBirth: toNullableDate(form.dateOfBirth),
+          gender: toNullableGender(form.gender),
+          address: toNullableString(form.address),
+          bankAccount: toNullableString(form.bankAccount),
         },
         {
           departmentId: form.departmentId,
@@ -501,11 +536,26 @@ export function EditEmployeeModal({
     <Modal
       open={open}
       title="Chỉnh sửa nhân viên"
-      footer={null}
       onCancel={onClose}
       width={760}
+      centered
+      styles={{
+        body: {
+          maxHeight: "calc(100vh - 200px)",
+          overflowY: "auto",
+          paddingRight: "8px",
+        },
+      }}
+      footer={
+        <FormActions
+          submitText="Lưu thay đổi"
+          isSubmitting={isSubmitting}
+          onClose={onClose}
+          formId="editEmployeeForm"
+        />
+      }
     >
-      <form onSubmit={handleSubmit}>
+      <form id="editEmployeeForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
             {error}
@@ -575,32 +625,30 @@ export function EditEmployeeModal({
             />
           </Field>
           <Field label="Bộ phận">
-            <select
-              className={fieldClass}
+            <SearchableSelect
               value={form.departmentId}
-              onChange={(e) => update("departmentId", e.target.value)}
-            >
-              <option value="">Chọn bộ phận</option>
-              {departments.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => update("departmentId", value)}
+              options={[
+                { value: "", label: "Chọn bộ phận" },
+                ...departments.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                })),
+              ]}
+            />
           </Field>
           <Field label="Chức vụ">
-            <select
-              className={fieldClass}
+            <SearchableSelect
               value={form.positionId}
-              onChange={(e) => update("positionId", e.target.value)}
-            >
-              <option value="">Chọn chức vụ</option>
-              {positions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => update("positionId", value)}
+              options={[
+                { value: "", label: "Chọn chức vụ" },
+                ...positions.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                })),
+              ]}
+            />
           </Field>
           <Field label="Ngày vào làm">
             <input
@@ -639,11 +687,6 @@ export function EditEmployeeModal({
             />
           </Field>
         </div>
-        <FormActions
-          submitText="Lưu thay đổi"
-          isSubmitting={isSubmitting}
-          onClose={onClose}
-        />
       </form>
     </Modal>
   );

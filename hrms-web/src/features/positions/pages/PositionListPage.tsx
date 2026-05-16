@@ -225,11 +225,35 @@ function PositionFormModal({
           <span>{position ? "Chỉnh sửa chức vụ" : "Thêm chức vụ"}</span>
         </div>
       }
-      footer={null}
       onCancel={onClose}
       width={860}
+      centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
+      footer={
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+          <button
+            className="rounded-lg border border-[#d0d5dd] px-5 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
+            type="button"
+            onClick={onClose}
+          >
+            Hủy
+          </button>
+          <button
+            className="rounded-lg bg-[#006fd5] px-5 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
+            type="submit"
+            form="positionForm"
+            disabled={isSubmitting}
+          >
+            {isSubmitting
+              ? "Đang lưu..."
+              : position
+                ? "Cập nhật"
+                : "Thêm chức vụ"}
+          </button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit}>
+      <form id="positionForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
             <span className="mt-0.5 shrink-0">⚠️</span>
@@ -395,26 +419,6 @@ function PositionFormModal({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
-          <button
-            className="rounded-lg border border-[#d0d5dd] px-5 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
-            type="button"
-            onClick={onClose}
-          >
-            Hủy
-          </button>
-          <button
-            className="rounded-lg bg-[#006fd5] px-5 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting
-              ? "Đang lưu..."
-              : position
-                ? "Cập nhật"
-                : "Thêm chức vụ"}
-          </button>
-        </div>
       </form>
     </Modal>
   );

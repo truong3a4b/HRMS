@@ -3,7 +3,7 @@
 #include <Preferences.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <Adafruit_SH110X.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
@@ -109,7 +109,7 @@ int activeEnrollErrorCode = 0;
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 
-Adafruit_SSD1306 display(
+Adafruit_SH1106G display(
   SCREEN_WIDTH,
   SCREEN_HEIGHT,
   &Wire,
@@ -120,7 +120,7 @@ void showMessage(String line1, String line2 = "", String line3 = "", String line
   display.clearDisplay();
 
   display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
+  display.setTextColor(SH110X_WHITE);
 
   display.setCursor(0, 0);
   display.println(line1);
@@ -138,9 +138,10 @@ void showMessage(String line1, String line2 = "", String line3 = "", String line
 }
 
 void initOLED() {
-  Wire.begin(21, 22);
+  Wire.begin(21, 22); // SDA = 21, SCL = 22
+  Wire.setClock(100000);
 
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+  if (!display.begin(0x3C, true)) {
     Serial.println("OLED init failed");
     return;
   }

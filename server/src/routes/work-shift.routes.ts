@@ -10,66 +10,65 @@ import {
 import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
-const MAX_SHIFT_FLEXIBILITY_MINUTES = 240;
 const timeSchema = z
   .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "time must be in HH:mm format");
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Thời gian phải có định dạng HH:mm");
+const optionalTimeSchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  timeSchema.nullable().optional(),
+);
+const optionalNonNegativeIntSchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  z
+    .number()
+    .int("Giá trị phải là số nguyên")
+    .min(0, "Giá trị không được âm")
+    .optional(),
+);
+const optionalPositiveNumberSchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  z.number().positive("Giá trị phải lớn hơn 0").optional(),
+);
 
 const createShiftSchema = z.object({
-  code: z.string().trim().min(1),
-  name: z.string().trim().min(1),
+  code: z.string().trim().min(1, "Vui lòng nhập mã ca"),
+  name: z.string().trim().min(1, "Vui lòng nhập tên ca"),
   startTime: timeSchema,
   endTime: timeSchema,
-  breakStartTime: timeSchema.optional(),
-  breakEndTime: timeSchema.optional(),
-  lateGracePeriod: z.number().int().min(0).optional(),
-  earlyLeaveGracePeriod: z.number().int().min(0).optional(),
-  checkInFlexibilityMinutes: z
-    .number()
-    .int()
-    .min(0)
-    .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
-    .optional(),
-  checkOutFlexibilityMinutes: z
-    .number()
-    .int()
-    .min(0)
-    .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
-    .optional(),
+  breakStartTime: optionalTimeSchema,
+  breakEndTime: optionalTimeSchema,
+  lateGracePeriod: optionalNonNegativeIntSchema,
+  earlyLeaveGracePeriod: optionalNonNegativeIntSchema,
+  checkInStartTime: optionalTimeSchema,
+  checkInEndTime: optionalTimeSchema,
+  checkOutStartTime: optionalTimeSchema,
+  checkOutEndTime: optionalTimeSchema,
   isOvertime: z.boolean().optional(),
-  workUnits: z.number().positive(),
-  overtimeMultiplier: z.number().positive().optional(),
+  workUnits: z.number().positive("Đơn vị công phải lớn hơn 0"),
+  overtimeMultiplier: optionalPositiveNumberSchema,
 });
 
 const updateShiftSchema = z
   .object({
-    code: z.string().trim().min(1).optional(),
-    name: z.string().trim().min(1).optional(),
+    code: z.string().trim().min(1, "Vui lòng nhập mã ca").optional(),
+    name: z.string().trim().min(1, "Vui lòng nhập tên ca").optional(),
     startTime: timeSchema.optional(),
     endTime: timeSchema.optional(),
-    breakStartTime: timeSchema.optional(),
-    breakEndTime: timeSchema.optional(),
-    lateGracePeriod: z.number().int().min(0).optional(),
-    earlyLeaveGracePeriod: z.number().int().min(0).optional(),
-    checkInFlexibilityMinutes: z
-      .number()
-      .int()
-      .min(0)
-      .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
-      .optional(),
-    checkOutFlexibilityMinutes: z
-      .number()
-      .int()
-      .min(0)
-      .max(MAX_SHIFT_FLEXIBILITY_MINUTES)
-      .optional(),
+    breakStartTime: optionalTimeSchema,
+    breakEndTime: optionalTimeSchema,
+    lateGracePeriod: optionalNonNegativeIntSchema,
+    earlyLeaveGracePeriod: optionalNonNegativeIntSchema,
+    checkInStartTime: optionalTimeSchema,
+    checkInEndTime: optionalTimeSchema,
+    checkOutStartTime: optionalTimeSchema,
+    checkOutEndTime: optionalTimeSchema,
     isOvertime: z.boolean().optional(),
-    workUnits: z.number().positive().optional(),
-    overtimeMultiplier: z.number().positive().optional(),
+    workUnits: optionalPositiveNumberSchema,
+    overtimeMultiplier: optionalPositiveNumberSchema,
     isActive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
-    message: "At least one field is required",
+    message: "Vui lòng nhập ít nhất một thông tin cần cập nhật",
   });
 
 router.get(

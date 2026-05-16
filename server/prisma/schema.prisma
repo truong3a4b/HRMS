@@ -625,15 +625,17 @@ model WorkShift {
   endTime               String
   breakStartTime        String?
   breakEndTime          String?
-  lateGracePeriod       Int? //phút cho phép đi muộn mà không bị tính là đi muộn
-  earlyLeaveGracePeriod Int? //phút cho phép về sớm mà không bị tính là về sớm
+  lateGracePeriod       Int @default(0) //phút cho phép đi muộn mà không bị tính là đi muộn
+  earlyLeaveGracePeriod Int @default(0) //phút cho phép về sớm mà không bị tính là về sớm
 
-  checkInFlexibilityMinutes  Int? //thời gian dc check-in
-  checkOutFlexibilityMinutes Int? //thời gian dc check-out
+  checkInStartTime  String? //thời gian bắt đầu được check-in
+  checkInEndTime    String? //thời gian kết thúc được check-in
+  checkOutStartTime String? //thời gian bắt đầu được check-out
+  checkOutEndTime   String? //thời gian kết thúc được check-out
 
   isOvertime         Boolean  @default(false) //ca làm thêm giờ
-  workUnits          Decimal  @db.Decimal(5, 2) //số đơn vị công cho ca này, ví dụ 1.0 cho ca bình thường, 1.5 cho ca làm thêm giờ
-  overtimeMultiplier Decimal? @db.Decimal(5, 2) //hệ số lương cho ca làm thêm giờ, ví dụ 1.5 cho ca làm thêm giờ
+  workUnits          Decimal  @db.Decimal(5, 2) @default(1.0) //số đơn vị công cho ca này, ví dụ 1.0 cho ca bình thường, 1.5 cho ca làm thêm giờ
+  overtimeMultiplier Decimal @db.Decimal(5, 2) @default(1.0)//hệ số lương cho ca làm thêm giờ, ví dụ 1.5 cho ca làm thêm giờ
 
   isActive                     Boolean                       @default(true)
   workScheduleLinks            WorkScheduleShift[]
@@ -1129,4 +1131,3 @@ model PayrollBonusPenaltyLine {
   @@index([payrollBonusPenaltyId])
   @@map("payroll_bonus_penalty_lines")
 }
-

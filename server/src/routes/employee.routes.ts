@@ -17,7 +17,7 @@ import { validate } from "../middlewares/validate.middleware";
 const router = Router();
 
 const emptyToUndefined = (value: unknown) => {
-  if (value === "" || value === null || value === undefined) {
+  if (value === "" || value === undefined) {
     return undefined;
   }
 
@@ -26,10 +26,10 @@ const emptyToUndefined = (value: unknown) => {
 
 const optionalDateSchema = z.preprocess(
   emptyToUndefined,
-  z.coerce.date().optional(),
+  z.coerce.date().nullable().optional(),
 );
 const nullableDateSchema = z.preprocess(
-  (value) => (value === "" || value === undefined ? null : value),
+  (value) => (value === "" ? null : value),
   z.coerce.date().nullable().optional(),
 );
 
@@ -40,35 +40,43 @@ const lookupSchema = z.object({
 
 const optionalLookupSchema = z.preprocess(
   emptyToUndefined,
-  lookupSchema.optional(),
+  lookupSchema.nullable().optional(),
 );
 const optionalPhoneSchema = z.preprocess(
   emptyToUndefined,
-  z.string().min(8, "Số điện thoại phải có ít nhất 8 ký tự").optional(),
+  z
+    .string()
+    .min(8, "Số điện thoại phải có ít nhất 8 ký tự")
+    .nullable()
+    .optional(),
 );
 const optionalAvatarSchema = z.preprocess(
   emptyToUndefined,
-  z.string().url("Avatar phải là URL hợp lệ").optional(),
+  z.string().url("Avatar phải là URL hợp lệ").nullable().optional(),
 );
 const optionalAddressSchema = z.preprocess(
   emptyToUndefined,
-  z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
+  z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").nullable().optional(),
 );
 const optionalStringSchema = z.preprocess(
   emptyToUndefined,
-  z.string().optional(),
+  z.string().nullable().optional(),
 );
 const optionalUrlSchema = z.preprocess(
   emptyToUndefined,
-  z.string().url().optional(),
+  z.string().url().nullable().optional(),
 );
 const optionalMin2StringSchema = z.preprocess(
   emptyToUndefined,
   z.string().min(2).optional(),
 );
+const nullableMin2StringSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().min(2).nullable().optional(),
+);
 const optionalMin6StringSchema = z.preprocess(
   emptyToUndefined,
-  z.string().min(6).optional(),
+  z.string().min(6).nullable().optional(),
 );
 
 const createEmployeeSchema = z.object({
@@ -95,7 +103,7 @@ const updateBasicSchema = z
     phone: optionalPhoneSchema,
     avatar: optionalUrlSchema,
     dateOfBirth: optionalDateSchema,
-    gender: z.nativeEnum(Gender).optional(),
+    gender: z.nativeEnum(Gender).nullable().optional(),
     address: optionalAddressSchema,
     province: optionalLookupSchema,
     ward: optionalLookupSchema,
@@ -108,9 +116,9 @@ const updateBasicSchema = z
 
 const updateAdditionalSchema = z
   .object({
-    maritalStatus: optionalMin2StringSchema,
-    nationality: optionalMin2StringSchema,
-    religion: optionalMin2StringSchema,
+    maritalStatus: nullableMin2StringSchema,
+    nationality: nullableMin2StringSchema,
+    religion: nullableMin2StringSchema,
     identityCardNumber: optionalMin6StringSchema,
     identityCardIssueDate: optionalDateSchema,
     frontIdentityCardImage: optionalUrlSchema,
@@ -125,12 +133,10 @@ const updateJobSchema = z
     departmentId: z.string().uuid().nullable().optional(),
     positionId: z.string().uuid().nullable().optional(),
     hireDate: nullableDateSchema,
-    salary: z
-      .preprocess(
-        (value) => (value === "" || value === undefined ? null : value),
-        z.coerce.number().nonnegative().nullable().optional(),
-      )
-      .optional(),
+    salary: z.preprocess(
+      (value) => (value === "" ? null : value),
+      z.coerce.number().nonnegative().nullable().optional(),
+    ),
     status: z.nativeEnum(EmployeeStatus).optional(),
     effectiveFrom: z.coerce.date(),
   })

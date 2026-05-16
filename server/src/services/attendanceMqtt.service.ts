@@ -49,8 +49,10 @@ type ShiftMatchCandidate = {
       endTime: string;
       lateGracePeriod: number | null;
       earlyLeaveGracePeriod: number | null;
-      checkInFlexibilityMinutes: number | null;
-      checkOutFlexibilityMinutes: number | null;
+      checkInStartTime: string | null;
+      checkInEndTime: string | null;
+      checkOutStartTime: string | null;
+      checkOutEndTime: string | null;
     };
   };
   window: ShiftMatchWindow;
@@ -65,6 +67,7 @@ type AttendanceDetailSnapshot = {
 
 const DEFAULT_CHECK_IN_FLEXIBILITY_MINUTES = 90;
 const DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES = 120;
+const MINUTES_PER_DAY = 24 * 60;
 
 const topicPrefix = env.ATTENDANCE_TOPIC_PREFIX.replace(/\/+$/, "");
 const heartbeatTimeoutMs = env.ATTENDANCE_HEARTBEAT_TIMEOUT_SECONDS * 1000;
@@ -126,6 +129,9 @@ const parseClockToMinutes = (time: string) => {
   return hours * 60 + minutes;
 };
 
+const normalizeClockMinutes = (minutes: number) =>
+  ((minutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+
 const toUtcDateOnly = (date: Date) =>
   new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
@@ -174,11 +180,46 @@ const getShiftEndDateTime = (
   return shiftEndAt;
 };
 
+const buildWindowDateTime = (date: Date, time: string, shiftStartTime: string) => {
+  const shiftStartMinutes = parseClockToMinutes(shiftStartTime);
+  const windowMinutes = parseClockToMinutes(time);
+  let windowAt = buildDateTimeOnDate(date, time);
+
+  if (
+    shiftStartMinutes !== null &&
+    windowMinutes !== null &&
+    windowMinutes < shiftStartMinutes
+  ) {
+    windowAt = addUtcDays(windowAt, 1);
+  }
+
+  return windowAt;
+};
+
+const isMinutesInWindow = (
+  punchMinutes: number,
+  startMinutes: number,
+  endMinutes: number,
+) => {
+  if (startMinutes <= endMinutes) {
+    return punchMinutes >= startMinutes && punchMinutes <= endMinutes;
+  }
+
+  return punchMinutes >= startMinutes || punchMinutes <= endMinutes;
+};
+
+const getClockDistance = (left: number, right: number) => {
+  const rawDistance = Math.abs(left - right);
+  return Math.min(rawDistance, MINUTES_PER_DAY - rawDistance);
+};
+
 const resolveShiftMatchWindow = (workShift: {
   startTime: string;
   endTime: string;
-  checkInFlexibilityMinutes: number | null;
-  checkOutFlexibilityMinutes: number | null;
+  checkInStartTime: string | null;
+  checkInEndTime: string | null;
+  checkOutStartTime: string | null;
+  checkOutEndTime: string | null;
 }): ShiftMatchWindow | null => {
   const shiftStartMinutes = parseClockToMinutes(workShift.startTime);
   const shiftEndMinutes = parseClockToMinutes(workShift.endTime);
@@ -187,19 +228,42 @@ const resolveShiftMatchWindow = (workShift: {
     return null;
   }
 
-  const checkInFlexibilityMinutes =
-    workShift.checkInFlexibilityMinutes ?? DEFAULT_CHECK_IN_FLEXIBILITY_MINUTES;
-  const checkOutFlexibilityMinutes =
-    workShift.checkOutFlexibilityMinutes ??
-    DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES;
+  const checkInStartMinutes = workShift.checkInStartTime
+    ? parseClockToMinutes(workShift.checkInStartTime)
+    : null;
+  const checkInEndMinutes = workShift.checkInEndTime
+    ? parseClockToMinutes(workShift.checkInEndTime)
+    : null;
+  const checkOutStartMinutes = workShift.checkOutStartTime
+    ? parseClockToMinutes(workShift.checkOutStartTime)
+    : null;
+  const checkOutEndMinutes = workShift.checkOutEndTime
+    ? parseClockToMinutes(workShift.checkOutEndTime)
+    : null;
 
   return {
     shiftStartMinutes,
     shiftEndMinutes,
-    checkInStartMinutes: shiftStartMinutes - checkInFlexibilityMinutes,
-    checkInEndMinutes: shiftStartMinutes + checkInFlexibilityMinutes,
-    checkOutStartMinutes: shiftEndMinutes - checkOutFlexibilityMinutes,
-    checkOutEndMinutes: shiftEndMinutes + checkOutFlexibilityMinutes,
+    checkInStartMinutes:
+      checkInStartMinutes ??
+      normalizeClockMinutes(
+        shiftStartMinutes - DEFAULT_CHECK_IN_FLEXIBILITY_MINUTES,
+      ),
+    checkInEndMinutes:
+      checkInEndMinutes ??
+      normalizeClockMinutes(
+        shiftStartMinutes + DEFAULT_CHECK_IN_FLEXIBILITY_MINUTES,
+      ),
+    checkOutStartMinutes:
+      checkOutStartMinutes ??
+      normalizeClockMinutes(
+        shiftEndMinutes - DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES,
+      ),
+    checkOutEndMinutes:
+      checkOutEndMinutes ??
+      normalizeClockMinutes(
+        shiftEndMinutes + DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES,
+      ),
   };
 };
 
@@ -216,26 +280,32 @@ const resolveShiftMatchCandidates = (
   const candidates: ShiftMatchCandidate[] = [];
 
   if (
-    punchMinutes >= window.checkInStartMinutes &&
-    punchMinutes <= window.checkInEndMinutes
+    isMinutesInWindow(
+      punchMinutes,
+      window.checkInStartMinutes,
+      window.checkInEndMinutes,
+    )
   ) {
     candidates.push({
       shiftLink,
       window,
       punchType: "CHECK_IN",
-      score: Math.abs(punchMinutes - window.shiftStartMinutes),
+      score: getClockDistance(punchMinutes, window.shiftStartMinutes),
     });
   }
 
   if (
-    punchMinutes >= window.checkOutStartMinutes &&
-    punchMinutes <= window.checkOutEndMinutes
+    isMinutesInWindow(
+      punchMinutes,
+      window.checkOutStartMinutes,
+      window.checkOutEndMinutes,
+    )
   ) {
     candidates.push({
       shiftLink,
       window,
       punchType: "CHECK_OUT",
-      score: Math.abs(punchMinutes - window.shiftEndMinutes),
+      score: getClockDistance(punchMinutes, window.shiftEndMinutes),
     });
   }
 
@@ -413,12 +483,12 @@ const createAbsentDetailsForExpiredSchedules = async () => {
         shift.startTime,
         shift.endTime,
       );
-      const checkOutFlexibilityMinutes =
-        shift.checkOutFlexibilityMinutes ??
-        DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES;
-      const attendanceDeadline = new Date(
-        shiftEndAt.getTime() + checkOutFlexibilityMinutes * 60_000,
-      );
+      const attendanceDeadline = shift.checkOutEndTime
+        ? buildWindowDateTime(schedule.date, shift.checkOutEndTime, shift.startTime)
+        : new Date(
+            shiftEndAt.getTime() +
+              DEFAULT_CHECK_OUT_FLEXIBILITY_MINUTES * 60_000,
+          );
 
       return attendanceDeadline.getTime() <= now.getTime();
     });
@@ -701,8 +771,9 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       attendanceDate,
       matchedShiftLink.workShift.startTime,
     );
-    const shiftEndAt = buildDateTimeOnDate(
+    const shiftEndAt = getShiftEndDateTime(
       attendanceDate,
+      matchedShiftLink.workShift.startTime,
       matchedShiftLink.workShift.endTime,
     );
     // Nếu đã có chi tiết điểm danh cho ca này rồi thì sẽ cập nhật lại thời gian check-in/check-out và trạng thái, nếu chưa có thì tạo mới. Logic check-in/check-out dựa trên việc đã có thời gian check-in hay chưa, và so sánh với giờ vào/ra của ca để xác định trạng thái đi trễ, về sớm hay đúng giờ

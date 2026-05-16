@@ -7,6 +7,7 @@ import {
   Send,
   Trash2,
   X,
+  Search,
 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { useAuth } from "../../auth/services/useAuth";
@@ -50,6 +51,7 @@ function MultiSelectDropdown({
   onChange: (ids: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -63,6 +65,17 @@ function MultiSelectDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    if (!open) setSearchQuery("");
+  }, [open]);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    return options.filter((o) =>
+      o.label.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [options, searchQuery]);
+
   const toggle = (id: string) => {
     onChange(
       selected.includes(id)
@@ -71,10 +84,19 @@ function MultiSelectDropdown({
     );
   };
 
-  const allSelected = options.length > 0 && selected.length === options.length;
+  const allSelected =
+    filteredOptions.length > 0 &&
+    filteredOptions.every((o) => selected.includes(o.id));
 
   const toggleAll = () => {
-    onChange(allSelected ? [] : options.map((o) => o.id));
+    if (allSelected) {
+      const filteredIds = new Set(filteredOptions.map((o) => o.id));
+      onChange(selected.filter((id) => !filteredIds.has(id)));
+    } else {
+      const currentSet = new Set(selected);
+      filteredOptions.forEach((o) => currentSet.add(o.id));
+      onChange(Array.from(currentSet));
+    }
   };
 
   const selectedLabels = selected
@@ -117,17 +139,35 @@ function MultiSelectDropdown({
 
       {/* Dropdown list */}
       {open && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 min-w-0 overflow-y-auto rounded-xl border border-[#ebedf2] bg-white shadow-[0_8px_24px_rgba(16,24,40,0.12)] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd] hover:[&::-webkit-scrollbar-thumb]:bg-[#98a2b3]">
-          {options.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-[#98a2b3]">Không có dữ liệu</p>
-          ) : (
-            <>
-              {/* Select all */}
-              <button
-                type="button"
-                onClick={toggleAll}
-                className="flex w-full items-center gap-2 border-b border-[#f3f4f6] px-3 py-2.5 text-sm font-semibold text-[#006fd5] hover:bg-[#f0f7ff]"
-              >
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 flex max-h-64 flex-col min-w-0 rounded-xl border border-[#ebedf2] bg-white shadow-[0_8px_24px_rgba(16,24,40,0.12)]">
+          <div className="p-2 border-b border-[#f3f4f6]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#98a2b3]" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                  }
+                }}
+                className="w-full rounded-md border border-[#d0d5dd] py-1.5 pl-8 pr-3 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10"
+              />
+            </div>
+          </div>
+          <div className="min-w-0 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd] hover:[&::-webkit-scrollbar-thumb]:bg-[#98a2b3]">
+            {filteredOptions.length === 0 ? (
+              <p className="px-3 py-3 text-sm text-[#98a2b3]">Không có dữ liệu</p>
+            ) : (
+              <>
+                {/* Select all */}
+                <button
+                  type="button"
+                  onClick={toggleAll}
+                  className="flex w-full items-center gap-2 border-b border-[#f3f4f6] px-3 py-2.5 text-sm font-semibold text-[#006fd5] hover:bg-[#f0f7ff]"
+                >
                 <span
                   className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
                     allSelected
@@ -140,7 +180,7 @@ function MultiSelectDropdown({
                 {allSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
               </button>
 
-              {options.map((option) => {
+              {filteredOptions.map((option) => {
                 const checked = selected.includes(option.id);
                 return (
                   <button
@@ -170,6 +210,7 @@ function MultiSelectDropdown({
               })}
             </>
           )}
+          </div>
         </div>
       )}
     </div>
@@ -317,9 +358,9 @@ export function ScheduleRegisterPage() {
 
   return (
     <AppLayout>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="h-full min-w-0 overflow-y-auto">
         <form
-          className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-5 max-[640px]:px-4"
+          className="flex flex-col gap-5 px-5 py-5 max-[640px]:px-4"
           onSubmit={handleSubmit}
         >
           {/* Header */}

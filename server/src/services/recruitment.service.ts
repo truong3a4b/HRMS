@@ -17,24 +17,24 @@ import { notificationService } from "./notification.service";
 import { is } from "zod/locales";
 
 type CandidateProfileInput = {
-  fullName?: string;
-  phone?: string;
-  dateOfBirth?: Date;
-  gender?: Gender;
-  address?: string;
-  avatar?: string;
-  cvUrl?: string;
-  maritalStatus?: string;
-  nationality?: string;
-  religion?: string;
-  bankAccount?: string;
-  bank?: any;
-  identityCardNumber?: string;
-  identityCardIssueDate?: Date;
-  frontIdentityCardImage?: string;
-  backIdentityCardImage?: string;
-  province?: any;
-  ward?: any;
+  fullName?: string | null;
+  phone?: string | null;
+  dateOfBirth?: Date | null;
+  gender?: Gender | null;
+  address?: string | null;
+  avatar?: string | null;
+  cvUrl?: string | null;
+  maritalStatus?: string | null;
+  nationality?: string | null;
+  religion?: string | null;
+  bankAccount?: string | null;
+  bank?: any | null;
+  identityCardNumber?: string | null;
+  identityCardIssueDate?: Date | null;
+  frontIdentityCardImage?: string | null;
+  backIdentityCardImage?: string | null;
+  province?: any | null;
+  ward?: any | null;
 };
 
 type ApplyJobInput = CandidateProfileInput & {
@@ -50,10 +50,10 @@ type RecruitmentJobInput = {
   description: string;
   requirements: string;
   benefits: string;
-  salaryMin?: number;
-  salaryMax?: number;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
   quantity: number;
-  deadline?: Date;
+  deadline?: Date | null;
   status?: RecruitmentJobStatus;
 };
 

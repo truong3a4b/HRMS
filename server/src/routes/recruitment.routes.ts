@@ -23,7 +23,7 @@ import { validate } from "../middlewares/validate.middleware";
 const router = Router();
 
 const emptyToUndefined = (value: unknown) => {
-  if (value === "" || value === null || value === undefined) {
+  if (value === "" || value === undefined) {
     return undefined;
   }
 
@@ -32,16 +32,16 @@ const emptyToUndefined = (value: unknown) => {
 
 const optionalDateSchema = z.preprocess(
   emptyToUndefined,
-  z.coerce.date().optional(),
+  z.coerce.date().nullable().optional(),
 );
 const optionalStringSchema = z.preprocess(
   emptyToUndefined,
-  z.string().optional(),
+  z.string().nullable().optional(),
 );
 
 const optionalNumberSchema = z.preprocess(
   emptyToUndefined,
-  z.coerce.number().nonnegative().optional(),
+  z.coerce.number().nonnegative().nullable().optional(),
 );
 
 const getApplicationsQuerySchema = z.object({
@@ -133,15 +133,19 @@ const recruitmentJobUpdateSchema = z
   );
 const optionalUrlSchema = z.preprocess(
   emptyToUndefined,
-  z.string().url("URL không hợp lệ").optional(),
+  z.string().url("URL không hợp lệ").nullable().optional(),
 );
 const optionalCvUrlSchema = z.preprocess(
   emptyToUndefined,
-  z.string().url("CV URL không hợp lệ").optional(),
+  z.string().url("CV URL không hợp lệ").nullable().optional(),
 );
 const optionalPhoneSchema = z.preprocess(
   emptyToUndefined,
-  z.string().min(8, "Số điện thoại phải có ít nhất 8 ký tự").optional(),
+  z
+    .string()
+    .min(8, "Số điện thoại phải có ít nhất 8 ký tự")
+    .nullable()
+    .optional(),
 );
 const applyJobSchema = z.object({
   recruitmentJobId: z.string().uuid("recruitmentJobId không hợp lệ"),
@@ -156,11 +160,12 @@ const applyJobSchema = z.object({
         (value) => ["MALE", "FEMALE", "OTHER"].includes(value),
         "Giới tính không hợp lệ",
       )
+      .nullable()
       .optional(),
   ),
   address: z.preprocess(
     emptyToUndefined,
-    z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").optional(),
+    z.string().min(3, "Địa chỉ phải có ít nhất 3 ký tự").nullable().optional(),
   ),
   avatar: optionalUrlSchema,
   cvUrl: optionalCvUrlSchema,

@@ -8,8 +8,10 @@ export type WorkShift = {
   breakEndTime?: string | null;
   lateGracePeriod?: number | null;
   earlyLeaveGracePeriod?: number | null;
-  checkInFlexibilityMinutes?: number | null;
-  checkOutFlexibilityMinutes?: number | null;
+  checkInStartTime?: string | null;
+  checkInEndTime?: string | null;
+  checkOutStartTime?: string | null;
+  checkOutEndTime?: string | null;
   isOvertime: boolean;
   workUnits: number | string;
   overtimeMultiplier?: number | string | null;
@@ -27,8 +29,10 @@ export type WorkShiftFormPayload = {
   breakEndTime?: string;
   lateGracePeriod?: number;
   earlyLeaveGracePeriod?: number;
-  checkInFlexibilityMinutes?: number;
-  checkOutFlexibilityMinutes?: number;
+  checkInStartTime?: string;
+  checkInEndTime?: string;
+  checkOutStartTime?: string;
+  checkOutEndTime?: string;
   isOvertime?: boolean;
   workUnits: number;
   overtimeMultiplier?: number;

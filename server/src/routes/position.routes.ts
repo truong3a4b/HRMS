@@ -11,7 +11,7 @@ import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
 const emptyToUndefined = (value: unknown) => {
-  if (value === "" || value === null || value === undefined) {
+  if (value === "" || value === undefined) {
     return undefined;
   }
 
@@ -20,12 +20,12 @@ const emptyToUndefined = (value: unknown) => {
 
 const codeOptions = z.preprocess(
   emptyToUndefined,
-  z.string().min(2).optional(),
+  z.string().min(2).nullable().optional(),
 );
 
 const descriptionOptions = z.preprocess(
   emptyToUndefined,
-  z.string().optional(),
+  z.string().nullable().optional(),
 );
 
 const createPositionSchema = z.object({

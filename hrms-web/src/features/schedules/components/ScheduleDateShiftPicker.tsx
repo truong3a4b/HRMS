@@ -162,7 +162,7 @@ export function ScheduleDateShiftPicker({
           {weekDayLabels.map((label, index) => (
             <div
               className={`py-2.5 text-center text-[11px] font-bold uppercase tracking-wide ${
-                index === 0 || index === 6 ? "text-[#f04438]" : "text-[#667085]"
+                index === 0 ? "text-[#f04438]" : "text-[#667085]"
               }`}
               key={label}
             >

@@ -96,8 +96,7 @@ type CreatePayrollBonusPenaltyInput = {
   reason?: string | null;
 };
 
-type UpdatePayrollBonusPenaltyInput =
-  Partial<CreatePayrollBonusPenaltyInput>;
+type UpdatePayrollBonusPenaltyInput = Partial<CreatePayrollBonusPenaltyInput>;
 
 type PayrollProfileQuery = {
   employeeId?: string;
@@ -348,12 +347,41 @@ export const payrollPolicyService = {
       const existing = await this.getById(id);
       ensureDateRange(
         data.effectiveFrom ?? existing.effectiveFrom,
-        data.effectiveTo === undefined ? existing.effectiveTo : data.effectiveTo,
+        data.effectiveTo === undefined
+          ? existing.effectiveTo
+          : data.effectiveTo,
       );
 
       return prisma.insurancePolicy.update({
         where: { id },
-        data,
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.employeeSocialRate !== undefined
+            ? { employeeSocialRate: data.employeeSocialRate }
+            : {}),
+          ...(data.employeeHealthRate !== undefined
+            ? { employeeHealthRate: data.employeeHealthRate }
+            : {}),
+          ...(data.employeeUnemploymentRate !== undefined
+            ? { employeeUnemploymentRate: data.employeeUnemploymentRate }
+            : {}),
+          ...(data.employerSocialRate !== undefined
+            ? { employerSocialRate: data.employerSocialRate }
+            : {}),
+          ...(data.employerHealthRate !== undefined
+            ? { employerHealthRate: data.employerHealthRate }
+            : {}),
+          ...(data.employerUnemploymentRate !== undefined
+            ? { employerUnemploymentRate: data.employerUnemploymentRate }
+            : {}),
+          ...(data.effectiveFrom !== undefined
+            ? { effectiveFrom: data.effectiveFrom }
+            : {}),
+          ...(data.effectiveTo !== undefined
+            ? { effectiveTo: data.effectiveTo }
+            : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        },
       });
     },
 
@@ -434,7 +462,9 @@ export const payrollPolicyService = {
       const existing = await this.getById(id);
       ensureDateRange(
         data.effectiveFrom ?? existing.effectiveFrom,
-        data.effectiveTo === undefined ? existing.effectiveTo : data.effectiveTo,
+        data.effectiveTo === undefined
+          ? existing.effectiveTo
+          : data.effectiveTo,
       );
       ensureTaxBrackets(data.brackets);
 
@@ -446,12 +476,20 @@ export const payrollPolicyService = {
         return tx.taxPolicy.update({
           where: { id },
           data: {
-            name: data.name,
-            personalDeduction: data.personalDeduction,
-            dependentDeduction: data.dependentDeduction,
-            effectiveFrom: data.effectiveFrom,
-            effectiveTo: data.effectiveTo,
-            isActive: data.isActive,
+            ...(data.name !== undefined ? { name: data.name } : {}),
+            ...(data.personalDeduction !== undefined
+              ? { personalDeduction: data.personalDeduction }
+              : {}),
+            ...(data.dependentDeduction !== undefined
+              ? { dependentDeduction: data.dependentDeduction }
+              : {}),
+            ...(data.effectiveFrom !== undefined
+              ? { effectiveFrom: data.effectiveFrom }
+              : {}),
+            ...(data.effectiveTo !== undefined
+              ? { effectiveTo: data.effectiveTo }
+              : {}),
+            ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
             ...(data.brackets
               ? {
                   brackets: {
@@ -524,12 +562,36 @@ export const payrollPolicyService = {
       const existing = await this.getById(id);
       ensureDateRange(
         data.effectiveFrom ?? existing.effectiveFrom,
-        data.effectiveTo === undefined ? existing.effectiveTo : data.effectiveTo,
+        data.effectiveTo === undefined
+          ? existing.effectiveTo
+          : data.effectiveTo,
       );
 
       return prisma.attendanceBonusPolicy.update({
         where: { id },
-        data,
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.amount !== undefined ? { amount: data.amount } : {}),
+          ...(data.requiredWorkDays !== undefined
+            ? { requiredWorkDays: data.requiredWorkDays }
+            : {}),
+          ...(data.maxLateMinutes !== undefined
+            ? { maxLateMinutes: data.maxLateMinutes }
+            : {}),
+          ...(data.maxEarlyMinutes !== undefined
+            ? { maxEarlyMinutes: data.maxEarlyMinutes }
+            : {}),
+          ...(data.maxAbsentDays !== undefined
+            ? { maxAbsentDays: data.maxAbsentDays }
+            : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+          ...(data.effectiveFrom !== undefined
+            ? { effectiveFrom: data.effectiveFrom }
+            : {}),
+          ...(data.effectiveTo !== undefined
+            ? { effectiveTo: data.effectiveTo }
+            : {}),
+        },
       });
     },
 
@@ -588,12 +650,27 @@ export const payrollPolicyService = {
       const existing = await this.getById(id);
       ensureDateRange(
         data.effectiveFrom ?? existing.effectiveFrom,
-        data.effectiveTo === undefined ? existing.effectiveTo : data.effectiveTo,
+        data.effectiveTo === undefined
+          ? existing.effectiveTo
+          : data.effectiveTo,
       );
 
       return prisma.allowancePolicy.update({
         where: { id },
-        data,
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.description !== undefined
+            ? { description: data.description }
+            : {}),
+          ...(data.amount !== undefined ? { amount: data.amount } : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+          ...(data.effectiveFrom !== undefined
+            ? { effectiveFrom: data.effectiveFrom }
+            : {}),
+          ...(data.effectiveTo !== undefined
+            ? { effectiveTo: data.effectiveTo }
+            : {}),
+        },
       });
     },
 
@@ -707,7 +784,14 @@ export const payrollPolicyService = {
 
       return prisma.payrollBonusPenalty.update({
         where: { id },
-        data,
+        data: {
+          ...(data.employeeId !== undefined
+            ? { employeeId: data.employeeId }
+            : {}),
+          ...(data.month !== undefined ? { month: data.month } : {}),
+          ...(data.amount !== undefined ? { amount: data.amount } : {}),
+          ...(data.reason !== undefined ? { reason: data.reason } : {}),
+        },
         include: payrollBonusPenaltyInclude,
       });
     },
@@ -791,8 +875,7 @@ export const payrollPolicyService = {
             }
           : data.isAttendanceBonusApplicable !== undefined
             ? {
-                isAttendanceBonusApplicable:
-                  data.isAttendanceBonusApplicable,
+                isAttendanceBonusApplicable: data.isAttendanceBonusApplicable,
               }
             : {}),
         ...(data.insuranceSalary !== undefined
@@ -822,8 +905,7 @@ export const payrollPolicyService = {
                   ? null
                   : data.attendanceBonusPolicyId,
               isInsuranceApplicable:
-                data.isInsuranceApplicable ??
-                Boolean(data.insurancePolicyId),
+                data.isInsuranceApplicable ?? Boolean(data.insurancePolicyId),
               isTaxApplicable:
                 data.isTaxApplicable ?? Boolean(data.taxPolicyId),
               isAttendanceBonusApplicable:

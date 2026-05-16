@@ -7,12 +7,14 @@ type CreateWorkShiftInput = {
   name: string;
   startTime: string;
   endTime: string;
-  breakStartTime?: string;
-  breakEndTime?: string;
+  breakStartTime?: string | null;
+  breakEndTime?: string | null;
   lateGracePeriod?: number;
   earlyLeaveGracePeriod?: number;
-  checkInFlexibilityMinutes?: number;
-  checkOutFlexibilityMinutes?: number;
+  checkInStartTime?: string | null;
+  checkInEndTime?: string | null;
+  checkOutStartTime?: string | null;
+  checkOutEndTime?: string | null;
   isOvertime?: boolean;
   workUnits: number; // Required
   overtimeMultiplier?: number;
@@ -35,13 +37,17 @@ const getUtcStartOfToday = () => {
 };
 
 const ensureActiveCodeUnique = async (code: string, excludeId?: string) => {
+  // Ensure no other *active* shift uses the same code. After applying
+  // a partial unique index on (code) WHERE is_active = true, this
+  // enforces uniqueness for active shifts only and allows reusing codes
+  // from archived/inactive records for historical display.
   const existing = await prisma.workShift.findFirst({
     where: {
       code,
       isActive: true,
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
-    select: { id: true },
+    select: { id: true, isActive: true },
   });
 
   if (existing) {
@@ -71,8 +77,10 @@ const hasShiftFieldUpdates = (data: UpdateWorkShiftInput) =>
     data.breakEndTime,
     data.lateGracePeriod,
     data.earlyLeaveGracePeriod,
-    data.checkInFlexibilityMinutes,
-    data.checkOutFlexibilityMinutes,
+    data.checkInStartTime,
+    data.checkInEndTime,
+    data.checkOutStartTime,
+    data.checkOutEndTime,
     data.isOvertime,
     data.workUnits,
     data.overtimeMultiplier,
@@ -222,8 +230,10 @@ export const workShiftService = {
         breakEndTime: data.breakEndTime,
         lateGracePeriod: data.lateGracePeriod,
         earlyLeaveGracePeriod: data.earlyLeaveGracePeriod,
-        checkInFlexibilityMinutes: data.checkInFlexibilityMinutes,
-        checkOutFlexibilityMinutes: data.checkOutFlexibilityMinutes,
+        checkInStartTime: data.checkInStartTime,
+        checkInEndTime: data.checkInEndTime,
+        checkOutStartTime: data.checkOutStartTime,
+        checkOutEndTime: data.checkOutEndTime,
         isOvertime: data.isOvertime ?? false,
         workUnits: data.workUnits,
         overtimeMultiplier: data.overtimeMultiplier ?? undefined,
@@ -246,64 +256,113 @@ export const workShiftService = {
     }
 
     const currentShift = await getWorkShiftOrThrow(id);
-    const nextCode = data.code ?? currentShift.code;
+    const nextCode = data.code !== undefined ? data.code : currentShift.code;
 
     await ensureActiveCodeUnique(nextCode, id);
 
     const nextShiftData = {
       code: nextCode,
-      name: data.name ?? currentShift.name,
-      startTime: data.startTime ?? currentShift.startTime,
-      endTime: data.endTime ?? currentShift.endTime,
-      breakStartTime: data.breakStartTime ?? currentShift.breakStartTime,
-      breakEndTime: data.breakEndTime ?? currentShift.breakEndTime,
-      lateGracePeriod: data.lateGracePeriod ?? currentShift.lateGracePeriod,
+      name: data.name !== undefined ? data.name : currentShift.name,
+      startTime:
+        data.startTime !== undefined ? data.startTime : currentShift.startTime,
+      endTime: data.endTime !== undefined ? data.endTime : currentShift.endTime,
+      breakStartTime:
+        data.breakStartTime !== undefined
+          ? data.breakStartTime
+          : currentShift.breakStartTime,
+      breakEndTime:
+        data.breakEndTime !== undefined
+          ? data.breakEndTime
+          : currentShift.breakEndTime,
+      lateGracePeriod:
+        data.lateGracePeriod !== undefined
+          ? data.lateGracePeriod
+          : currentShift.lateGracePeriod,
       earlyLeaveGracePeriod:
-        data.earlyLeaveGracePeriod ?? currentShift.earlyLeaveGracePeriod,
-      checkInFlexibilityMinutes:
-        data.checkInFlexibilityMinutes ??
-        currentShift.checkInFlexibilityMinutes,
-      checkOutFlexibilityMinutes:
-        data.checkOutFlexibilityMinutes ??
-        currentShift.checkOutFlexibilityMinutes,
-      isOvertime: data.isOvertime ?? currentShift.isOvertime,
-      workUnits: data.workUnits ?? currentShift.workUnits,
+        data.earlyLeaveGracePeriod !== undefined
+          ? data.earlyLeaveGracePeriod
+          : currentShift.earlyLeaveGracePeriod,
+      checkInStartTime:
+        data.checkInStartTime !== undefined
+          ? data.checkInStartTime
+          : currentShift.checkInStartTime,
+      checkInEndTime:
+        data.checkInEndTime !== undefined
+          ? data.checkInEndTime
+          : currentShift.checkInEndTime,
+      checkOutStartTime:
+        data.checkOutStartTime !== undefined
+          ? data.checkOutStartTime
+          : currentShift.checkOutStartTime,
+      checkOutEndTime:
+        data.checkOutEndTime !== undefined
+          ? data.checkOutEndTime
+          : currentShift.checkOutEndTime,
+      isOvertime:
+        data.isOvertime !== undefined
+          ? data.isOvertime
+          : currentShift.isOvertime,
+      workUnits:
+        data.workUnits !== undefined ? data.workUnits : currentShift.workUnits,
       overtimeMultiplier:
-        data.overtimeMultiplier ?? currentShift.overtimeMultiplier,
+        data.overtimeMultiplier !== undefined
+          ? data.overtimeMultiplier
+          : currentShift.overtimeMultiplier,
       isActive: true,
     };
 
     const todayStart = getUtcStartOfToday();
 
-    return prisma.$transaction(async (tx) => {
-      await tx.workShift.update({
-        where: { id: currentShift.id },
-        data: { isActive: false },
-      });
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // deactivate current shift. We DO NOT modify the old `code` so
+        // historical schedules that reference the code/name keep displaying
+        // the original value. Uniqueness for active codes is enforced by
+        // a partial unique index (see server/prisma/partial_unique_index.sql)
+        await tx.workShift.update({
+          where: { id: currentShift.id },
+          data: { isActive: false },
+        });
 
-      const newShift = await tx.workShift.create({
-        data: nextShiftData,
-      });
+        const newShift = await tx.workShift.create({
+          data: nextShiftData,
+        });
 
-      await tx.workScheduleShift.updateMany({
-        where: {
-          workShiftId: currentShift.id,
-          workSchedule: {
-            date: { gt: todayStart },
+        await tx.workScheduleShift.updateMany({
+          where: {
+            workShiftId: currentShift.id,
+            workSchedule: {
+              date: { gt: todayStart },
+            },
           },
-        },
-        data: { workShiftId: newShift.id },
+          data: { workShiftId: newShift.id },
+        });
+
+        await updateScheduleDetailReferences(
+          tx,
+          currentShift.id,
+          todayStart,
+          newShift.id,
+        );
+
+        return newShift;
       });
+    } catch (err: any) {
+      // Map common Prisma errors to ApiError for clearer client responses
+      if (err?.code === "P2002") {
+        // Unique constraint failed (duplicate code or other unique field)
+        throw new ApiError(
+          400,
+          "Dữ liệu bị trùng (vi phạm ràng buộc duy nhất)",
+        );
+      }
 
-      await updateScheduleDetailReferences(
-        tx,
-        currentShift.id,
-        todayStart,
-        newShift.id,
-      );
+      if (err?.code === "P2025") {
+        throw new ApiError(404, "Dữ liệu cần cập nhật không tồn tại");
+      }
 
-      return newShift;
-    });
+      throw err;
+    }
   },
 
   async remove(id: string) {

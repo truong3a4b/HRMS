@@ -7,9 +7,9 @@ import {
   Clock3,
   RefreshCcw,
   Save,
-  Search,
 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
+import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { useAuth } from "../../auth/services/useAuth";
 import { employeeService } from "../../employees/services/employeeService";
 import type { Employee } from "../../employees/types/employee.types";
@@ -129,7 +129,9 @@ function sortShifts<T extends ScheduleShift>(shifts: T[]) {
 
 const todayKey = toDateKey(new Date().toISOString().slice(0, 10));
 
-export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPageProps) {
+export function ScheduleWeeklyPage({
+  scope = "employees",
+}: ScheduleWeeklyPageProps) {
   const { user } = useAuth();
   const isSelfSchedule = scope === "self";
   const isAdmin = user?.role?.toUpperCase() === "ADMIN";
@@ -139,12 +141,11 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeId, setEmployeeId] = useState(
-    isSelfSchedule ? "" : user?.employeeId ?? "",
+    isSelfSchedule ? "" : (user?.employeeId ?? ""),
   );
   const [workShifts, setWorkShifts] = useState<WorkShift[]>([]);
   const [month, setMonth] = useState(currentMonthKey());
   const [schedules, setSchedules] = useState<WorkScheduleItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [editingShiftIds, setEditingShiftIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -183,16 +184,6 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
       return items;
     }, {});
   }, [schedules]);
-
-  const filteredEmployees = useMemo(() => {
-    const keyword = searchTerm.trim().toLowerCase();
-    if (!keyword) return employees;
-    return employees.filter((employee) =>
-      [employee.name, employee.email, employee.employeeId]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(keyword)),
-    );
-  }, [employees, searchTerm]);
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === employeeId),
@@ -295,7 +286,9 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
     if (!selectedDate || !employeeId) return;
 
     if (selectedDate <= todayKey) {
-      setErrorMessage("Chỉ có thể chỉnh sửa lịch cho các ngày trong tương lai.");
+      setErrorMessage(
+        "Chỉ có thể chỉnh sửa lịch cho các ngày trong tương lai.",
+      );
       return;
     }
 
@@ -314,10 +307,14 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
           workShiftIds: editingShiftIds,
         },
       ]);
-      setSuccessMessage(`Đã cập nhật lịch ngày ${formatDateLabel(selectedDate)}.`);
+      setSuccessMessage(
+        `Đã cập nhật lịch ngày ${formatDateLabel(selectedDate)}.`,
+      );
       await loadSchedule();
     } catch (error) {
-      setErrorMessage(getScheduleErrorMessage(error, "Không thể cập nhật lịch"));
+      setErrorMessage(
+        getScheduleErrorMessage(error, "Không thể cập nhật lịch"),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -357,31 +354,24 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
             </div>
 
             {!isSelfSchedule && (
-              <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h3 className="text-sm font-bold text-slate-800">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 className="mb-3 text-sm font-bold text-slate-800">
                   Tìm kiếm nhân viên
                 </h3>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none placeholder-slate-400 transition-colors focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
-                    value={searchTerm}
-                    placeholder="Tìm theo tên, email..."
-                    onChange={(event) => setSearchTerm(event.target.value)}
+                <div>
+                  <SearchableSelect
+                    className="w-full"
+                    value={employeeId}
+                    onChange={(value) => setEmployeeId(value)}
+                    options={[
+                      { value: "", label: "-- Chọn nhân viên --" },
+                      ...employees.map((employee) => ({
+                        value: employee.id,
+                        label: employee.name,
+                      })),
+                    ]}
                   />
                 </div>
-                <select
-                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition-colors focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
-                  value={employeeId}
-                  onChange={(event) => setEmployeeId(event.target.value)}
-                >
-                  <option value="">-- Chọn nhân viên --</option>
-                  {filteredEmployees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             )}
 
@@ -402,13 +392,21 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
                 </div>
                 <div className="flex gap-4 border-t border-blue-100 pt-3">
                   <div className="flex-1 text-center">
-                    <p className="text-xl font-bold text-blue-600">{workingDays}</p>
-                    <p className="text-xs font-medium text-slate-500">Ngày làm</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {workingDays}
+                    </p>
+                    <p className="text-xs font-medium text-slate-500">
+                      Ngày làm
+                    </p>
                   </div>
                   <div className="w-px bg-blue-100" />
                   <div className="flex-1 text-center">
-                    <p className="text-xl font-bold text-blue-600">{totalShifts}</p>
-                    <p className="text-xs font-medium text-slate-500">Lượt ca</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {totalShifts}
+                    </p>
+                    <p className="text-xs font-medium text-slate-500">
+                      Lượt ca
+                    </p>
                   </div>
                 </div>
               </div>
@@ -425,19 +423,27 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
                       Tổng quan tháng này
                     </p>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Chọn một ngày trên lịch để xem danh sách ca, giờ làm và ghi
-                      chú chi tiết.
+                      Chọn một ngày trên lịch để xem danh sách ca, giờ làm và
+                      ghi chú chi tiết.
                     </p>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
                   <div className="rounded-lg bg-slate-50 p-3 text-center">
-                    <p className="text-xl font-bold text-blue-600">{workingDays}</p>
-                    <p className="text-xs font-medium text-slate-500">Ngày làm</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {workingDays}
+                    </p>
+                    <p className="text-xs font-medium text-slate-500">
+                      Ngày làm
+                    </p>
                   </div>
                   <div className="rounded-lg bg-slate-50 p-3 text-center">
-                    <p className="text-xl font-bold text-blue-600">{totalShifts}</p>
-                    <p className="text-xs font-medium text-slate-500">Lượt ca</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {totalShifts}
+                    </p>
+                    <p className="text-xs font-medium text-slate-500">
+                      Lượt ca
+                    </p>
                   </div>
                 </div>
               </div>
@@ -456,11 +462,15 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
               </div>
             )}
 
-            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-800">Chú thích ca</h3>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="mb-3 text-sm font-bold text-slate-800">
+                Chú thích ca
+              </h3>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                 {displayWorkShifts.length === 0 ? (
-                  <p className="text-sm text-slate-400">Chưa có danh sách ca.</p>
+                  <p className="text-sm text-slate-400">
+                    Chưa có danh sách ca.
+                  </p>
                 ) : (
                   displayWorkShifts.map((shift) => {
                     const color = getColorForShift(shift.id, displayWorkShifts);
@@ -585,7 +595,10 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
                         <div className="grid gap-1 overflow-y-auto pr-1">
                           {schedule?.workShifts?.map((shift) => {
                             const detail = getShiftDetail(shift);
-                            const color = getColorForShift(shift.id, displayWorkShifts);
+                            const color = getColorForShift(
+                              shift.id,
+                              displayWorkShifts,
+                            );
                             return (
                               <span
                                 key={shift.id}
@@ -602,7 +615,9 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
                             );
                           })}
                           {!hasShifts && (
-                            <span className="text-[11px] text-slate-300">-</span>
+                            <span className="text-[11px] text-slate-300">
+                              -
+                            </span>
                           )}
                         </div>
                       </button>
@@ -622,15 +637,53 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
           }
           open={Boolean(selectedDate)}
           onCancel={closeDetailModal}
-          footer={null}
           width={620}
+          centered
+          styles={{
+            body: {
+              maxHeight: "calc(100vh - 200px)",
+              overflowY: "auto",
+              paddingRight: "8px",
+            },
+          }}
+          footer={
+            <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                onClick={closeDetailModal}
+              >
+                Đóng
+              </button>
+              {canManageSchedule ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={
+                    isSaving ||
+                    !selectedDate ||
+                    selectedDate <= todayKey ||
+                    editingShiftIds.length === 0
+                  }
+                  onClick={() => void handleSaveDaySchedule()}
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
+                </button>
+              ) : null}
+            </div>
+          }
         >
           <div className="grid gap-5">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-800">Ca đang áp dụng</p>
+              <p className="text-sm font-semibold text-slate-800">
+                Ca đang áp dụng
+              </p>
               <div className="mt-3 grid gap-2">
                 {selectedShifts.length === 0 ? (
-                  <p className="text-sm text-slate-500">Ngày này chưa có ca làm việc.</p>
+                  <p className="text-sm text-slate-500">
+                    Ngày này chưa có ca làm việc.
+                  </p>
                 ) : (
                   selectedShifts.map((shift) => {
                     const color = getColorForShift(shift.id, displayWorkShifts);
@@ -652,7 +705,8 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
                         </div>
                         {shift.breakStartTime && shift.breakEndTime ? (
                           <p className="mt-1 text-xs text-slate-500">
-                            Nghỉ giữa ca: {shift.breakStartTime} - {shift.breakEndTime}
+                            Nghỉ giữa ca: {shift.breakStartTime} -{" "}
+                            {shift.breakEndTime}
                           </p>
                         ) : null}
                       </div>
@@ -697,29 +751,6 @@ export function ScheduleWeeklyPage({ scope = "employees" }: ScheduleWeeklyPagePr
                       </label>
                     );
                   })}
-                </div>
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    onClick={closeDetailModal}
-                  >
-                    Đóng
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={
-                      isSaving ||
-                      !selectedDate ||
-                      selectedDate <= todayKey ||
-                      editingShiftIds.length === 0
-                    }
-                    onClick={() => void handleSaveDaySchedule()}
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
-                  </button>
                 </div>
                 {selectedDate && selectedDate <= todayKey ? (
                   <p className="mt-2 text-right text-xs text-slate-500">

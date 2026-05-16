@@ -67,11 +67,11 @@ export type CreateEmployeePayload = {
 
 export type UpdateEmployeeBasicPayload = {
   name: string;
-  phone?: string;
-  dateOfBirth?: string;
-  gender?: "MALE" | "FEMALE" | "OTHER";
-  address?: string;
-  bankAccount?: string;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  gender?: "MALE" | "FEMALE" | "OTHER" | null;
+  address?: string | null;
+  bankAccount?: string | null;
 };
 
 export type UpdateEmployeeJobPayload = {

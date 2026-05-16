@@ -12,7 +12,7 @@ import { validate } from "../middlewares/validate.middleware";
 const router = Router();
 
 const emptyToUndefined = (value: unknown) => {
-  if (value === "" || value === null || value === undefined) {
+  if (value === "" || value === undefined) {
     return undefined;
   }
 
@@ -27,10 +27,7 @@ const nullableEmptyToNull = (value: unknown) => {
   return value;
 };
 
-const decimalSchema = z.union([
-  z.number().finite(),
-  z.string().trim().min(1),
-]);
+const decimalSchema = z.union([z.number().finite(), z.string().trim().min(1)]);
 
 const optionalDecimalSchema = z.preprocess(
   nullableEmptyToNull,

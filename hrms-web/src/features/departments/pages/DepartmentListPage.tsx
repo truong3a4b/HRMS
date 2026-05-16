@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
+import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { employeeService } from "../../employees/services/employeeService";
 import type { Employee, EmployeeOption } from "../../employees/types/employee.types";
 import { departmentService } from "../services/departmentService";
@@ -96,11 +97,31 @@ function DepartmentFormModal({
     <Modal
       open={open}
       title={department ? "Chỉnh sửa bộ phận" : "Thêm bộ phận"}
-      footer={null}
       onCancel={onClose}
       width={620}
+      centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
+      footer={
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+          <button
+            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
+            type="button"
+            onClick={onClose}
+          >
+            Hủy
+          </button>
+          <button
+            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
+            type="submit"
+            form="departmentForm"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Đang lưu..." : "Lưu"}
+          </button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit}>
+      <form id="departmentForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
             {error}
@@ -132,40 +153,20 @@ function DepartmentFormModal({
           </label>
           <label>
             <span className={labelClass}>Trưởng bộ phận</span>
-            <select
-              className={fieldClass}
+            <SearchableSelect
               value={form.managerId}
-              onChange={(event) =>
+              onChange={(value) =>
                 setForm((current) => ({
                   ...current,
-                  managerId: event.target.value,
+                  managerId: value,
                 }))
               }
-            >
-              <option value="">Chưa chọn</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Chưa chọn" },
+                ...employees.map((employee) => ({ value: employee.id, label: employee.name }))
+              ]}
+            />
           </label>
-        </div>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
-          <button
-            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
-            type="button"
-            onClick={onClose}
-          >
-            Hủy
-          </button>
-          <button
-            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Đang lưu..." : "Lưu"}
-          </button>
         </div>
       </form>
     </Modal>
@@ -192,6 +193,8 @@ function EmployeeListModal({
       footer={null}
       onCancel={onClose}
       width={720}
+      centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
     >
       {isLoading ? (
         <div className="py-10 text-center text-[#667085]">Đang tải dữ liệu...</div>
@@ -200,7 +203,7 @@ function EmployeeListModal({
           Bộ phận chưa có nhân viên
         </div>
       ) : (
-        <div className="max-h-100 overflow-auto">
+        <div className="flex flex-col">
           {employees.map((employee) => (
             <div
               className="flex items-center gap-3 border-b border-[#edf0f5] py-3 last:border-b-0"

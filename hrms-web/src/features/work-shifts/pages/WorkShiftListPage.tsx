@@ -11,10 +11,7 @@ import {
 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { workShiftService } from "../services/workShiftService";
-import type {
-  WorkShift,
-  WorkShiftFormPayload,
-} from "../types/workShift.types";
+import type { WorkShift, WorkShiftFormPayload } from "../types/workShift.types";
 
 const fieldClass =
   "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
@@ -30,8 +27,10 @@ const emptyForm = {
   breakEndTime: "",
   lateGracePeriod: "",
   earlyLeaveGracePeriod: "",
-  checkInFlexibilityMinutes: "",
-  checkOutFlexibilityMinutes: "",
+  checkInStartTime: "",
+  checkInEndTime: "",
+  checkOutStartTime: "",
+  checkOutEndTime: "",
   isOvertime: false,
   workUnits: "1",
   overtimeMultiplier: "",
@@ -48,7 +47,28 @@ function getErrorMessage(error: unknown, fallback: string) {
     error.response !== null &&
     "data" in error.response
   ) {
-    const data = error.response.data as { message?: string };
+    const data = error.response.data as {
+      message?: string;
+      errors?: {
+        fieldErrors?: Record<string, string[] | undefined>;
+        formErrors?: string[];
+      };
+    };
+
+    const fieldErrors = data.errors?.fieldErrors;
+    if (fieldErrors) {
+      const messages = Object.values(fieldErrors)
+        .flatMap((items) => items ?? [])
+        .filter(Boolean);
+
+      if (messages.length > 0) {
+        return messages.join("\n");
+      }
+    }
+
+    if (data.errors?.formErrors?.length) {
+      return data.errors.formErrors.join("\n");
+    }
 
     if (data.message) {
       return data.message;
@@ -78,6 +98,11 @@ function numberOrUndefined(value: string) {
   return Number(value);
 }
 
+function stringOrUndefined(value: string) {
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
 function WorkShiftFormModal({
   open,
   workShift,
@@ -105,10 +130,10 @@ function WorkShiftFormModal({
         lateGracePeriod: workShift?.lateGracePeriod?.toString() ?? "",
         earlyLeaveGracePeriod:
           workShift?.earlyLeaveGracePeriod?.toString() ?? "",
-        checkInFlexibilityMinutes:
-          workShift?.checkInFlexibilityMinutes?.toString() ?? "",
-        checkOutFlexibilityMinutes:
-          workShift?.checkOutFlexibilityMinutes?.toString() ?? "",
+        checkInStartTime: workShift?.checkInStartTime ?? "",
+        checkInEndTime: workShift?.checkInEndTime ?? "",
+        checkOutStartTime: workShift?.checkOutStartTime ?? "",
+        checkOutEndTime: workShift?.checkOutEndTime ?? "",
         isOvertime: workShift?.isOvertime ?? false,
         workUnits: workShift?.workUnits?.toString() ?? "1",
         overtimeMultiplier: workShift?.overtimeMultiplier?.toString() ?? "",
@@ -121,7 +146,9 @@ function WorkShiftFormModal({
 
   useEffect(() => {
     if (open) {
-      const hasBreakTime = !!(workShift?.breakStartTime || workShift?.breakEndTime);
+      const hasBreakTime = !!(
+        workShift?.breakStartTime || workShift?.breakEndTime
+      );
       setHasBreak(hasBreakTime);
     }
   }, [open, workShift]);
@@ -145,18 +172,8 @@ function WorkShiftFormModal({
     }
 
     const workUnits = Number(form.workUnits);
-    if (!Number.isFinite(workUnits) || workUnits < 0) {
+    if (!Number.isFinite(workUnits) || workUnits <= 0) {
       setError("Đơn vị công phải là số không âm.");
-      return;
-    }
-
-    const checkInFlex = numberOrUndefined(form.checkInFlexibilityMinutes);
-    const checkOutFlex = numberOrUndefined(form.checkOutFlexibilityMinutes);
-    if (
-      (checkInFlex != null && (checkInFlex < 0 || checkInFlex > 240)) ||
-      (checkOutFlex != null && (checkOutFlex < 0 || checkOutFlex > 240))
-    ) {
-      setError("Thời gian linh hoạt chấm công phải nằm trong khoảng 0-240 phút.");
       return;
     }
 
@@ -196,12 +213,40 @@ function WorkShiftFormModal({
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#f0f7ff]">
             <Clock className="h-4 w-4 text-[#006fd5]" />
           </span>
-          <span>{workShift ? "Chỉnh sửa ca làm việc" : "Thêm ca làm việc"}</span>
+          <span>
+            {workShift ? "Chỉnh sửa ca làm việc" : "Thêm ca làm việc"}
+          </span>
         </div>
       }
-      footer={null}
       onCancel={onClose}
       width={820}
+      centered
+      styles={{
+        body: {
+          maxHeight: "calc(100vh - 200px)",
+          overflowY: "auto",
+          paddingRight: "8px",
+        },
+      }}
+      footer={
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
+          <button
+            className="rounded-lg border border-[#d0d5dd] px-5 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
+            type="button"
+            onClick={onClose}
+          >
+            Hủy
+          </button>
+          <button
+            className="rounded-lg bg-[#006fd5] px-5 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
+            type="submit"
+            form="workShiftForm"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Đang lưu..." : workShift ? "Cập nhật" : "Thêm ca"}
+          </button>
+        </div>
+      }
     >
       <style>{`
         input[type="time"]::-webkit-calendar-picker-indicator {
@@ -213,7 +258,7 @@ function WorkShiftFormModal({
           cursor: pointer;
         }
       `}</style>
-      <form onSubmit={handleSubmit}>
+      <form id="workShiftForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318] flex items-start gap-2">
             <span className="mt-0.5 shrink-0 text-base">⚠️</span>
@@ -225,7 +270,9 @@ function WorkShiftFormModal({
           {/* Section: Thông tin cơ bản */}
           {sectionTitle("Thông tin ca")}
           <label>
-            <span className={labelClass}>Mã ca <span className="text-[#f04438]">*</span></span>
+            <span className={labelClass}>
+              Mã ca <span className="text-[#f04438]">*</span>
+            </span>
             <input
               className={fieldClass}
               value={form.code}
@@ -236,7 +283,9 @@ function WorkShiftFormModal({
             />
           </label>
           <label>
-            <span className={labelClass}>Tên ca <span className="text-[#f04438]">*</span></span>
+            <span className={labelClass}>
+              Tên ca <span className="text-[#f04438]">*</span>
+            </span>
             <input
               className={fieldClass}
               value={form.name}
@@ -250,29 +299,41 @@ function WorkShiftFormModal({
           {/* Section: Thời gian làm việc */}
           {sectionTitle("Thời gian làm việc", "(bắt buộc)")}
           <label>
-            <span className={labelClass}>Giờ bắt đầu <span className="text-[#f04438]">*</span></span>
+            <span className={labelClass}>
+              Giờ bắt đầu <span className="text-[#f04438]">*</span>
+            </span>
             <div className="relative">
               <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
               <input
                 className={timeInputClass}
                 type="time"
+                step="300"
                 value={form.startTime}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, startTime: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    startTime: event.target.value,
+                  }))
                 }
               />
             </div>
           </label>
           <label>
-            <span className={labelClass}>Giờ kết thúc <span className="text-[#f04438]">*</span></span>
+            <span className={labelClass}>
+              Giờ kết thúc <span className="text-[#f04438]">*</span>
+            </span>
             <div className="relative">
               <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
               <input
                 className={timeInputClass}
                 type="time"
+                step="300"
                 value={form.endTime}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, endTime: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    endTime: event.target.value,
+                  }))
                 }
               />
             </div>
@@ -283,7 +344,9 @@ function WorkShiftFormModal({
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="h-4 w-1 rounded-full bg-[#006fd5]" />
-                <span className="text-sm font-semibold text-[#243247]">Nghỉ giữa ca</span>
+                <span className="text-sm font-semibold text-[#243247]">
+                  Nghỉ giữa ca
+                </span>
                 <span className="text-xs text-[#667085]">(không bắt buộc)</span>
               </div>
               {/* Toggle switch */}
@@ -294,7 +357,11 @@ function WorkShiftFormModal({
                 onClick={() => {
                   setHasBreak((v) => !v);
                   if (hasBreak) {
-                    setForm((f) => ({ ...f, breakStartTime: "", breakEndTime: "" }));
+                    setForm((f) => ({
+                      ...f,
+                      breakStartTime: "",
+                      breakEndTime: "",
+                    }));
                   }
                 }}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
@@ -320,9 +387,13 @@ function WorkShiftFormModal({
                   <input
                     className={timeInputClass}
                     type="time"
+                    step="300"
                     value={form.breakStartTime}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, breakStartTime: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        breakStartTime: event.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -334,9 +405,13 @@ function WorkShiftFormModal({
                   <input
                     className={timeInputClass}
                     type="time"
+                    step="300"
                     value={form.breakEndTime}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, breakEndTime: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        breakEndTime: event.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -349,7 +424,79 @@ function WorkShiftFormModal({
           )}
 
           {/* Section: Dung sai chấm công */}
-          {sectionTitle("Dung sai chấm công", "(phút, để trống nếu không áp dụng)")}
+          {sectionTitle("Dung sai chấm công", "(để trống nếu không áp dụng)")}
+          <label>
+            <span className={labelClass}>Bắt đầu check-in</span>
+            <div className="relative">
+              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
+              <input
+                className={timeInputClass}
+                type="time"
+                step="300"
+                value={form.checkInStartTime}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    checkInStartTime: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </label>
+          <label>
+            <span className={labelClass}>Kết thúc check-in</span>
+            <div className="relative">
+              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
+              <input
+                className={timeInputClass}
+                type="time"
+                step="300"
+                value={form.checkInEndTime}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    checkInEndTime: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </label>
+          <label>
+            <span className={labelClass}>Bắt đầu check-out</span>
+            <div className="relative">
+              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
+              <input
+                className={timeInputClass}
+                type="time"
+                step="300"
+                value={form.checkOutStartTime}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    checkOutStartTime: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </label>
+          <label>
+            <span className={labelClass}>Kết thúc check-out</span>
+            <div className="relative">
+              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
+              <input
+                className={timeInputClass}
+                type="time"
+                step="300"
+                value={form.checkOutEndTime}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    checkOutEndTime: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </label>
           <label>
             <span className={labelClass}>Cho phép đi muộn (phút)</span>
             <input
@@ -359,7 +506,10 @@ function WorkShiftFormModal({
               placeholder="VD: 5"
               value={form.lateGracePeriod}
               onChange={(event) =>
-                setForm((current) => ({ ...current, lateGracePeriod: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  lateGracePeriod: event.target.value,
+                }))
               }
             />
           </label>
@@ -372,35 +522,10 @@ function WorkShiftFormModal({
               placeholder="VD: 5"
               value={form.earlyLeaveGracePeriod}
               onChange={(event) =>
-                setForm((current) => ({ ...current, earlyLeaveGracePeriod: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            <span className={labelClass}>Linh hoạt check-in (phút)</span>
-            <input
-              className={fieldClass}
-              max={240}
-              min={0}
-              type="number"
-              placeholder="0 – 240"
-              value={form.checkInFlexibilityMinutes}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, checkInFlexibilityMinutes: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            <span className={labelClass}>Linh hoạt check-out (phút)</span>
-            <input
-              className={fieldClass}
-              max={240}
-              min={0}
-              type="number"
-              placeholder="0 – 240"
-              value={form.checkOutFlexibilityMinutes}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, checkOutFlexibilityMinutes: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  earlyLeaveGracePeriod: event.target.value,
+                }))
               }
             />
           </label>
@@ -417,7 +542,10 @@ function WorkShiftFormModal({
               placeholder="VD: 1"
               value={form.workUnits}
               onChange={(event) =>
-                setForm((current) => ({ ...current, workUnits: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  workUnits: event.target.value,
+                }))
               }
             />
           </label>
@@ -431,7 +559,10 @@ function WorkShiftFormModal({
               placeholder="VD: 1.5"
               value={form.overtimeMultiplier}
               onChange={(event) =>
-                setForm((current) => ({ ...current, overtimeMultiplier: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  overtimeMultiplier: event.target.value,
+                }))
               }
             />
           </label>
@@ -443,31 +574,21 @@ function WorkShiftFormModal({
               className="h-4 w-4 rounded accent-[#006fd5]"
               checked={form.isOvertime}
               onChange={(event) =>
-                setForm((current) => ({ ...current, isOvertime: event.target.checked }))
+                setForm((current) => ({
+                  ...current,
+                  isOvertime: event.target.checked,
+                }))
               }
             />
             <div>
-              <span className="block text-sm font-medium text-[#344054]">Đây là ca làm thêm giờ</span>
-              <span className="block text-xs text-[#667085]">Áp dụng hệ số lương tăng ca cho ca này</span>
+              <span className="block text-sm font-medium text-[#344054]">
+                Đây là ca làm thêm giờ
+              </span>
+              <span className="block text-xs text-[#667085]">
+                Áp dụng hệ số lương tăng ca cho ca này
+              </span>
             </div>
           </label>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
-          <button
-            className="rounded-lg border border-[#d0d5dd] px-5 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
-            type="button"
-            onClick={onClose}
-          >
-            Hủy
-          </button>
-          <button
-            className="rounded-lg bg-[#006fd5] px-5 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Đang lưu..." : workShift ? "Cập nhật" : "Thêm ca"}
-          </button>
         </div>
       </form>
     </Modal>
@@ -543,16 +664,14 @@ export function WorkShiftListPage() {
     name: form.name.trim(),
     startTime: form.startTime,
     endTime: form.endTime,
-    breakStartTime: form.breakStartTime,
-    breakEndTime: form.breakEndTime,
+    breakStartTime: stringOrUndefined(form.breakStartTime),
+    breakEndTime: stringOrUndefined(form.breakEndTime),
     lateGracePeriod: numberOrUndefined(form.lateGracePeriod),
     earlyLeaveGracePeriod: numberOrUndefined(form.earlyLeaveGracePeriod),
-    checkInFlexibilityMinutes: numberOrUndefined(
-      form.checkInFlexibilityMinutes,
-    ),
-    checkOutFlexibilityMinutes: numberOrUndefined(
-      form.checkOutFlexibilityMinutes,
-    ),
+    checkInStartTime: stringOrUndefined(form.checkInStartTime),
+    checkInEndTime: stringOrUndefined(form.checkInEndTime),
+    checkOutStartTime: stringOrUndefined(form.checkOutStartTime),
+    checkOutEndTime: stringOrUndefined(form.checkOutEndTime),
     isOvertime: form.isOvertime,
     workUnits: Number(form.workUnits),
     overtimeMultiplier: numberOrUndefined(form.overtimeMultiplier),
@@ -592,8 +711,12 @@ export function WorkShiftListPage() {
         <div className="flex h-full min-w-0 flex-col gap-5 px-5 py-5 max-[640px]:px-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-[#243247]">Danh sách ca làm việc</h1>
-              <p className="text-sm text-[#667085]">Quản lý giờ làm, đơn vị công và cấu hình chấm công theo ca</p>
+              <h1 className="text-2xl font-bold text-[#243247]">
+                Danh sách ca làm việc
+              </h1>
+              <p className="text-sm text-[#667085]">
+                Quản lý giờ làm, đơn vị công và cấu hình chấm công theo ca
+              </p>
             </div>
             <button
               className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
@@ -628,7 +751,8 @@ export function WorkShiftListPage() {
 
           {errorMessage ? (
             <div className="flex items-center gap-2 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
-              <span>⚠️</span><span>{errorMessage}</span>
+              <span>⚠️</span>
+              <span>{errorMessage}</span>
             </div>
           ) : null}
 
@@ -637,7 +761,10 @@ export function WorkShiftListPage() {
               <div className="min-h-0 flex-1 overflow-auto p-4">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="animate-pulse rounded-xl border border-[#ebedf2] p-4">
+                    <div
+                      key={i}
+                      className="animate-pulse rounded-xl border border-[#ebedf2] p-4"
+                    >
                       <div className="mb-3 flex items-center gap-3">
                         <div className="h-10 w-10 shrink-0 rounded-xl bg-[#f3f4f6]" />
                         <div className="flex-1 space-y-2">
@@ -661,10 +788,14 @@ export function WorkShiftListPage() {
                 </span>
                 <div className="text-center">
                   <p className="font-semibold text-[#243247]">
-                    {searchTerm ? "Không tìm thấy ca làm việc" : "Chưa có ca làm việc nào"}
+                    {searchTerm
+                      ? "Không tìm thấy ca làm việc"
+                      : "Chưa có ca làm việc nào"}
                   </p>
                   <p className="mt-1 text-sm text-[#667085]">
-                    {searchTerm ? "Thử tìm với từ khoá khác" : 'Nhấn "Thêm ca" để tạo ca làm việc đầu tiên'}
+                    {searchTerm
+                      ? "Thử tìm với từ khoá khác"
+                      : 'Nhấn "Thêm ca" để tạo ca làm việc đầu tiên'}
                   </p>
                 </div>
                 {!searchTerm && (
@@ -684,76 +815,73 @@ export function WorkShiftListPage() {
                   {filteredWorkShifts.map((workShift) => (
                     <div
                       key={workShift.id}
-                      className="group flex flex-col rounded-xl border border-[#ebedf2] bg-white p-4 transition-all hover:border-[#bbd6f5] hover:shadow-[0_4px_12px_rgba(0,111,213,0.08)]"
+                      className="group flex flex-col rounded-2xl border border-slate-300 bg-gradient-to-br from-white via-slate-50 to-blue-50 p-4 shadow-[0_12px_26px_-20px_rgba(15,23,42,0.45)] transition-all hover:-translate-y-0.5 hover:border-blue-500 hover:shadow-[0_18px_36px_-22px_rgba(37,99,235,0.45)]"
                     >
-                      <div className="mb-3 flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#f0f7ff] text-[#006fd5]">
-                            <Clock3 className="h-5 w-5" />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-[#243247]">{workShift.name}</p>
-                            <p className="text-xs font-medium text-[#667085]">{workShift.code}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-slate-900">
+                              {workShift.name}
+                            </h3>
+                            <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-700">
+                              {workShift.code}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-600">
+                            <Clock3 className="h-4 w-4 text-blue-600" />
+                            <span className="font-semibold text-slate-800">
+                              {workShift.startTime} - {workShift.endTime}
+                            </span>
+                            {workShift.breakStartTime &&
+                              workShift.breakEndTime && (
+                                <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                  (Nghỉ: {workShift.breakStartTime}-
+                                  {workShift.breakEndTime})
+                                </span>
+                              )}
                           </div>
                         </div>
                         {workShift.isOvertime && (
-                          <span className="shrink-0 rounded-full bg-[#fff7ed] px-2 py-0.5 text-[11px] font-semibold text-[#c2410c]">
+                          <span className="shrink-0 rounded-full border border-orange-300 bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800">
                             Tăng ca
                           </span>
                         )}
                       </div>
 
-                      <div className="mb-3 flex items-center justify-between rounded-lg bg-[#f8fafc] px-3 py-2.5">
-                        <div className="text-center">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#98a2b3]">Bắt đầu</p>
-                          <p className="mt-0.5 text-lg font-bold text-[#243247]">{workShift.startTime}</p>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5 px-2">
-                          <div className="h-px w-8 bg-[#d0d5dd]" />
-                          <p className="text-[10px] text-[#98a2b3]">
-                            {workShift.breakStartTime && workShift.breakEndTime
-                              ? workShift.breakStartTime + "–" + workShift.breakEndTime
-                              : "không nghỉ"}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#98a2b3]">Kết thúc</p>
-                          <p className="mt-0.5 text-lg font-bold text-[#243247]">{workShift.endTime}</p>
-                        </div>
-                      </div>
-
-                      <div className="mb-3 flex flex-wrap gap-1.5">
-                        <span className="rounded-md bg-[#f0f7ff] px-2 py-1 text-[11px] font-semibold text-[#006fd5]">
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <span className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
                           {formatDecimal(workShift.workUnits)} công
                         </span>
                         {workShift.lateGracePeriod != null && (
-                          <span className="rounded-md bg-[#f9fafb] px-2 py-1 text-[11px] text-[#667085]">
-                            {"Muộn ≤" + workShift.lateGracePeriod + "p"}
+                          <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                            Muộn ≤{workShift.lateGracePeriod}p
                           </span>
                         )}
                         {workShift.earlyLeaveGracePeriod != null && (
-                          <span className="rounded-md bg-[#f9fafb] px-2 py-1 text-[11px] text-[#667085]">
-                            {"Sớm ≤" + workShift.earlyLeaveGracePeriod + "p"}
+                          <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                            Sớm ≤{workShift.earlyLeaveGracePeriod}p
                           </span>
                         )}
-                        {workShift.isOvertime && workShift.overtimeMultiplier != null && (
-                          <span className="rounded-md bg-[#fff7ed] px-2 py-1 text-[11px] font-semibold text-[#c2410c]">
-                            {"x" + formatDecimal(workShift.overtimeMultiplier)}
-                          </span>
-                        )}
+                        {workShift.isOvertime &&
+                          workShift.overtimeMultiplier != null && (
+                            <span className="rounded-md border border-orange-200 bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800">
+                              Hệ số x
+                              {formatDecimal(workShift.overtimeMultiplier)}
+                            </span>
+                          )}
                       </div>
 
-                      <div className="mt-auto flex gap-2 border-t border-[#f3f4f6] pt-3">
+                      <div className="mt-5 flex gap-2 border-t border-slate-200 pt-3 opacity-0 transition-opacity group-hover:opacity-100">
                         <button
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#d0d5dd] py-1.5 text-xs font-semibold text-[#344054] transition-colors hover:bg-[#f9fafb]"
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
                           type="button"
                           onClick={() => void openEdit(workShift)}
                         >
                           <Edit2 className="h-3.5 w-3.5" />
-                          Chỉnh sửa
+                          Sửa
                         </button>
                         <button
-                          className="flex items-center justify-center gap-1.5 rounded-lg border border-[#fecdca] bg-[#fff1f0] px-3 py-1.5 text-xs font-semibold text-[#b42318] transition-colors hover:bg-[#fee4e2]"
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
                           type="button"
                           onClick={() => handleDelete(workShift)}
                         >
@@ -766,7 +894,11 @@ export function WorkShiftListPage() {
               </div>
             )}
             <div className="shrink-0 border-t border-[#ebedf2] px-4 py-3 text-sm text-[#667085]">
-              {"Hiển thị " + filteredWorkShifts.length + " / " + workShifts.length + " ca làm việc"}
+              {"Hiển thị " +
+                filteredWorkShifts.length +
+                " / " +
+                workShifts.length +
+                " ca làm việc"}
             </div>
           </section>
         </div>

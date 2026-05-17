@@ -56,7 +56,7 @@ HardwareSerial fingerSerial(2);
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerSerial);
 
 const int FINGERPRINT_MIN_ID = 1;
-const int FINGERPRINT_MAX_ID = 127;
+const int FINGERPRINT_MAX_ID = 300;
 const int FINGERPRINT_SCAN_RETRIES = 3;
 const int FINGERPRINT_RX_PIN = 18;
 const int FINGERPRINT_TX_PIN = 19;
@@ -96,6 +96,7 @@ struct FingerprintJob {
 
 QueueHandle_t fingerprintQueue = NULL;
 SemaphoreHandle_t mqttMutex = NULL;
+SemaphoreHandle_t displayMutex = NULL;
 bool fingerprintBusy = false;
 char activeCommandId[COMMAND_ID_SIZE] = "";
 char activeEmployeeId[EMPLOYEE_ID_SIZE] = "";
@@ -116,25 +117,117 @@ Adafruit_SH1106G display(
   OLED_RESET
 );
 
-void showMessage(String line1, String line2 = "", String line3 = "", String line4 = "") {
-  display.clearDisplay();
+const int DISPLAY_LINE_COUNT = 4;
+const int DISPLAY_LINE_Y[DISPLAY_LINE_COUNT] = { 0, 16, 32, 48 };
+const int DISPLAY_CHAR_WIDTH = 6;
+const int DISPLAY_SCROLL_GAP = 24;
+const unsigned long DISPLAY_SCROLL_INTERVAL = 90;
+String displayLines[DISPLAY_LINE_COUNT] = { "", "", "", "" };
+unsigned long lastDisplayScrollAt = 0;
+unsigned long displayMessageStartedAt = 0;
 
+int getDisplayTextWidth(const String& value) {
+  return value.length() * DISPLAY_CHAR_WIDTH;
+}
+
+void renderDisplayLines() {
+  display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SH110X_WHITE);
+  display.setTextWrap(false);
 
-  display.setCursor(0, 0);
-  display.println(line1);
+  unsigned long elapsed = millis() - displayMessageStartedAt;
 
-  display.setCursor(0, 16);
-  display.println(line2);
+  for (int i = 0; i < DISPLAY_LINE_COUNT; i++) {
+    String line = displayLines[i];
+    int textWidth = getDisplayTextWidth(line);
+    int y = DISPLAY_LINE_Y[i];
 
-  display.setCursor(0, 32);
-  display.println(line3);
+    if (textWidth <= SCREEN_WIDTH) {
+      display.setCursor(0, y);
+      display.println(line);
+      continue;
+    }
 
-  display.setCursor(0, 48);
-  display.println(line4);
+    int scrollRange = textWidth + DISPLAY_SCROLL_GAP;
+    int offset = (elapsed / DISPLAY_SCROLL_INTERVAL) % scrollRange;
+
+    display.setCursor(-offset, y);
+    display.print(line);
+    display.setCursor(textWidth + DISPLAY_SCROLL_GAP - offset, y);
+    display.print(line);
+  }
 
   display.display();
+}
+
+void showMessage(String line1, String line2 = "", String line3 = "", String line4 = "") {
+  if (displayMutex != NULL) {
+    xSemaphoreTake(displayMutex, portMAX_DELAY);
+  }
+
+  displayLines[0] = line1;
+  displayLines[1] = line2;
+  displayLines[2] = line3;
+  displayLines[3] = line4;
+  displayMessageStartedAt = millis();
+  lastDisplayScrollAt = 0;
+  renderDisplayLines();
+
+  if (displayMutex != NULL) {
+    xSemaphoreGive(displayMutex);
+  }
+}
+
+void updateScrollingDisplay() {
+  unsigned long now = millis();
+
+  if (now - lastDisplayScrollAt < DISPLAY_SCROLL_INTERVAL) {
+    return;
+  }
+
+  if (displayMutex != NULL) {
+    if (xSemaphoreTake(displayMutex, 0) != pdTRUE) {
+      return;
+    }
+  }
+
+  bool hasScrollingLine = false;
+
+  for (int i = 0; i < DISPLAY_LINE_COUNT; i++) {
+    if (getDisplayTextWidth(displayLines[i]) > SCREEN_WIDTH) {
+      hasScrollingLine = true;
+      break;
+    }
+  }
+
+  if (!hasScrollingLine) {
+    if (displayMutex != NULL) {
+      xSemaphoreGive(displayMutex);
+    }
+    return;
+  }
+
+  lastDisplayScrollAt = now;
+  renderDisplayLines();
+
+  if (displayMutex != NULL) {
+    xSemaphoreGive(displayMutex);
+  }
+}
+
+String fitDisplayLine(String value, int maxChars = 21) {
+  value.trim();
+
+  if (value.length() <= maxChars) {
+    return value;
+  }
+
+  if (maxChars <= 3) {
+    return value.substring(0, maxChars);
+  }
+
+  return value.substring(0, maxChars - 3) + "...";
 }
 
 void initOLED() {
@@ -147,6 +240,7 @@ void initOLED() {
   }
 
   display.clearDisplay();
+  display.setTextWrap(false);
   display.display();
 
   showMessage("HRMS Attendance", "Starting...");
@@ -228,6 +322,7 @@ void clearActiveFingerprintJob();
 void clearEnrollError();
 void setEnrollError(const char* step, int code);
 void waitUntilFingerRemoved(unsigned long timeoutMs);
+void handleShowInfoCommand(JsonVariantConst payload);
 //callback nhan lenh
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   String message = "";
@@ -240,7 +335,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println(topic);
   Serial.println(message);
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<768> doc;
 
   DeserializationError err = deserializeJson(doc, message);
 
@@ -268,6 +363,124 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       Serial.println("Fingerprint queue full, delete command ignored");
     }
   }
+
+  if (command == "showinfo") {
+    handleShowInfoCommand(doc["payload"]);
+  }
+}
+
+String removeVietnameseAccent(String str) {
+  str.replace("à", "a"); str.replace("á", "a"); str.replace("ạ", "a");
+  str.replace("ả", "a"); str.replace("ã", "a");
+  str.replace("â", "a"); str.replace("ầ", "a"); str.replace("ấ", "a");
+  str.replace("ậ", "a"); str.replace("ẩ", "a"); str.replace("ẫ", "a");
+  str.replace("ă", "a"); str.replace("ằ", "a"); str.replace("ắ", "a");
+  str.replace("ặ", "a"); str.replace("ẳ", "a"); str.replace("ẵ", "a");
+
+  str.replace("è", "e"); str.replace("é", "e"); str.replace("ẹ", "e");
+  str.replace("ẻ", "e"); str.replace("ẽ", "e");
+  str.replace("ê", "e"); str.replace("ề", "e"); str.replace("ế", "e");
+  str.replace("ệ", "e"); str.replace("ể", "e"); str.replace("ễ", "e");
+
+  str.replace("ì", "i"); str.replace("í", "i"); str.replace("ị", "i");
+  str.replace("ỉ", "i"); str.replace("ĩ", "i");
+
+  str.replace("ò", "o"); str.replace("ó", "o"); str.replace("ọ", "o");
+  str.replace("ỏ", "o"); str.replace("õ", "o");
+  str.replace("ô", "o"); str.replace("ồ", "o"); str.replace("ố", "o");
+  str.replace("ộ", "o"); str.replace("ổ", "o"); str.replace("ỗ", "o");
+  str.replace("ơ", "o"); str.replace("ờ", "o"); str.replace("ớ", "o");
+  str.replace("ợ", "o"); str.replace("ở", "o"); str.replace("ỡ", "o");
+
+  str.replace("ù", "u"); str.replace("ú", "u"); str.replace("ụ", "u");
+  str.replace("ủ", "u"); str.replace("ũ", "u");
+  str.replace("ư", "u"); str.replace("ừ", "u"); str.replace("ứ", "u");
+  str.replace("ự", "u"); str.replace("ử", "u"); str.replace("ữ", "u");
+
+  str.replace("ỳ", "y"); str.replace("ý", "y"); str.replace("ỵ", "y");
+  str.replace("ỷ", "y"); str.replace("ỹ", "y");
+
+  str.replace("đ", "d");
+
+  str.replace("À", "A"); str.replace("Á", "A"); str.replace("Ạ", "A");
+  str.replace("Ả", "A"); str.replace("Ã", "A");
+  str.replace("Â", "A"); str.replace("Ầ", "A"); str.replace("Ấ", "A");
+  str.replace("Ậ", "A"); str.replace("Ẩ", "A"); str.replace("Ẫ", "A");
+  str.replace("Ă", "A"); str.replace("Ằ", "A"); str.replace("Ắ", "A");
+  str.replace("Ặ", "A"); str.replace("Ẳ", "A"); str.replace("Ẵ", "A");
+
+  str.replace("È", "E"); str.replace("É", "E"); str.replace("Ẹ", "E");
+  str.replace("Ẻ", "E"); str.replace("Ẽ", "E");
+  str.replace("Ê", "E"); str.replace("Ề", "E"); str.replace("Ế", "E");
+  str.replace("Ệ", "E"); str.replace("Ể", "E"); str.replace("Ễ", "E");
+
+  str.replace("Ì", "I"); str.replace("Í", "I"); str.replace("Ị", "I");
+  str.replace("Ỉ", "I"); str.replace("Ĩ", "I");
+
+  str.replace("Ò", "O"); str.replace("Ó", "O"); str.replace("Ọ", "O");
+  str.replace("Ỏ", "O"); str.replace("Õ", "O");
+  str.replace("Ô", "O"); str.replace("Ồ", "O"); str.replace("Ố", "O");
+  str.replace("Ộ", "O"); str.replace("Ổ", "O"); str.replace("Ỗ", "O");
+  str.replace("Ơ", "O"); str.replace("Ờ", "O"); str.replace("Ớ", "O");
+  str.replace("Ợ", "O"); str.replace("Ở", "O"); str.replace("Ỡ", "O");
+
+  str.replace("Ù", "U"); str.replace("Ú", "U"); str.replace("Ụ", "U");
+  str.replace("Ủ", "U"); str.replace("Ũ", "U");
+  str.replace("Ư", "U"); str.replace("Ừ", "U"); str.replace("Ứ", "U");
+  str.replace("Ự", "U"); str.replace("Ử", "U"); str.replace("Ữ", "U");
+
+  str.replace("Ỳ", "Y"); str.replace("Ý", "Y"); str.replace("Ỵ", "Y");
+  str.replace("Ỷ", "Y"); str.replace("Ỹ", "Y");
+
+  str.replace("Đ", "D");
+
+  return str;
+}
+
+void handleShowInfoCommand(JsonVariantConst payload) {
+  const char* employeeName = payload["employeeName"] | "";
+  const char* employeeCode = payload["employeeCode"] | "";
+  const char* punchType = payload["punchType"] | "";
+  const char* message = payload["message"] | "";
+  const char* recordedAtValue = payload["recordedAt"] | "";
+  int fingerId = payload["fingerId"] | 0;
+
+  String punchLabel = "Recorded";
+
+  if (strcmp(punchType, "CHECK_IN") == 0) {
+    punchLabel = "Check in";
+  } else if (strcmp(punchType, "CHECK_OUT") == 0) {
+    punchLabel = "Check out";
+  }
+
+  String recordedAt = String(recordedAtValue);
+  String displayTime = "";
+
+  if (recordedAt.length() >= 16) {
+    displayTime = recordedAt.substring(11, 16) + " " + recordedAt.substring(8, 10) + "/" + recordedAt.substring(5, 7);
+  }
+
+  String employeeLine = strlen(employeeName) > 0
+    ? removeVietnameseAccent(String(employeeName))
+    : String(employeeCode);
+  String codeLine = String(employeeCode);
+
+  if (displayTime.length() > 0) {
+    codeLine += " " + displayTime;
+  }
+
+  String statusLine = punchLabel + " FID:" + String(fingerId);
+
+  if (strlen(message) > 0 && strcmp(punchType, "UNKNOWN") == 0) {
+    statusLine = String(message);
+  }
+
+  showMessage(
+    "Attendance OK",
+    employeeLine,
+    codeLine,
+    statusLine
+  );
 }
 
 //mqtt connect
@@ -283,7 +496,7 @@ bool connectMQTT() {
 
   mqttClient.setServer(mqttHost.c_str(), mqttPort.toInt());
   mqttClient.setCallback(mqttCallback);
-  mqttClient.setBufferSize(512);
+  mqttClient.setBufferSize(768);
 
   String clientId = "hrms_" + deviceCode;
 
@@ -366,7 +579,6 @@ bool publishMqttMessage(const String& topic, const String& payload) {
 
 //handle mqtt connect
 void handleMQTT() {
-  delay(1000);
   if (WiFi.status() != WL_CONNECTED) {
     return;
   }
@@ -568,14 +780,22 @@ void publishPunch(int fingerId) {
 
   String topic = getBaseTopic() + "/punch";
 
-  publishMqttMessage(topic, payload);
+  bool ok = publishMqttMessage(topic, payload);
 
   Serial.println("Punch published");
 
-  //cham cong thanh cong, hien thong bao va gui len server
-  showMessage(
-    "Punch success"
-  );
+  if (ok) {
+    showMessage(
+      "Punch sent",
+      "Finger ID: " + String(fingerId),
+      "Waiting server..."
+    );
+  } else {
+    showMessage(
+      "Punch failed",
+      "MQTT publish error"
+    );
+  }
 }
 
 void handleFingerprintAttendance() {
@@ -831,6 +1051,18 @@ bool enrollFingerprint(int fingerId) {
 }
 
 bool deleteFingerprint(int fingerId) {
+  if (fingerId < FINGERPRINT_MIN_ID || fingerId > FINGERPRINT_MAX_ID) {
+    showMessage(
+      "Delete failed",
+      "Invalid finger ID",
+      String(fingerId)
+    );
+
+    publishDeleteResult(false, fingerId);
+
+    return false;
+  }
+
   uint8_t p = finger.deleteModel(fingerId);
 
   if (p == FINGERPRINT_OK) {
@@ -1128,6 +1360,7 @@ void setup() {
   }
 
   showMessage("WiFi connected", WiFi.localIP().toString(), "Device:", deviceCode);
+  displayMutex = xSemaphoreCreateMutex();
   mqttMutex = xSemaphoreCreateMutex();
   fingerprintQueue = xQueueCreate(5, sizeof(FingerprintJob));
   connectMQTT();
@@ -1155,7 +1388,9 @@ void setup() {
 void loop() {
   if (setupMode) {
     server.handleClient();
+    updateScrollingDisplay();
     return;
   }
   handleMQTT();
+  updateScrollingDisplay();
 }

@@ -85,10 +85,15 @@ const recruitmentJobSchema = z
       .default(RecruitmentJobStatus.OPEN),
   })
   .refine(
-    (data) =>
-      data.salaryMin === undefined ||
-      data.salaryMax === undefined ||
-      data.salaryMin <= data.salaryMax,
+    (data) => {
+      const { salaryMin, salaryMax } = data;
+
+      if (salaryMin == null || salaryMax == null) {
+        return true;
+      }
+
+      return salaryMin <= salaryMax;
+    },
     {
       message: "salaryMin must be less than or equal to salaryMax",
       path: ["salaryMax"],
@@ -122,10 +127,15 @@ const recruitmentJobUpdateSchema = z
     message: "At least one field is required",
   })
   .refine(
-    (data) =>
-      data.salaryMin === undefined ||
-      data.salaryMax === undefined ||
-      data.salaryMin <= data.salaryMax,
+    (data) => {
+      const { salaryMin, salaryMax } = data;
+
+      if (salaryMin == null || salaryMax == null) {
+        return true;
+      }
+
+      return salaryMin <= salaryMax;
+    },
     {
       message: "salaryMin must be less than or equal to salaryMax",
       path: ["salaryMax"],

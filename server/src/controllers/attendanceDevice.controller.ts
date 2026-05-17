@@ -148,4 +148,29 @@ export const attendanceDeviceController = {
       next(error);
     }
   },
+
+  async deleteFingerprint(req: Request, res: Response, next: NextFunction) {
+    try {
+      const deviceId = Array.isArray(req.params.id)
+        ? req.params.id[0]
+        : req.params.id;
+      const fingerprintId = Array.isArray(req.params.fingerprintId)
+        ? req.params.fingerprintId[0]
+        : req.params.fingerprintId;
+
+      const result = await attendanceDeviceService.removeFingerprint(
+        deviceId,
+        fingerprintId,
+      );
+
+      return sendResponse(
+        res,
+        202,
+        "Fingerprint deletion command sent successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
 };

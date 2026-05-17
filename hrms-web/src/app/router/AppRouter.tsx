@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "../../features/auth/pages/LoginPage";
 import { RegisterPage } from "../../features/auth/pages/RegisterPage";
 import { VerifyOtpPage } from "../../features/auth/pages/VerifyOtpPage";
+import { AttendanceManagementPage } from "../../features/attendance/pages/AttendanceManagementPage";
 import { CategoryPlaceholderPage } from "../../features/categories/pages/CategoryPlaceholderPage";
 import { DepartmentListPage } from "../../features/departments/pages/DepartmentListPage";
 import { EmployeeDetailPage } from "../../features/employees/pages/EmployeeDetailPage";
@@ -117,6 +118,58 @@ export function AppRouter() {
         element={
           <ProtectedRoute>
             <ScheduleRegisterPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.attendanceDevices}
+        element={
+          <ProtectedRoute>
+            <AttendanceManagementPage
+              initialTab="devices"
+              tabs={["devices", "fingerprints"]}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.attendanceHistory}
+        element={
+          <ProtectedRoute>
+            <AttendanceManagementPage initialTab="myLogs" tabs={["myLogs"]} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.attendanceTimesheet}
+        element={
+          <ProtectedRoute>
+            <AttendanceManagementPage
+              initialTab="myTimesheet"
+              tabs={["myTimesheet"]}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.attendanceEmployeeHistory}
+        element={
+          <ProtectedRoute>
+            <AttendanceManagementPage
+              initialTab="employeeLogs"
+              tabs={["employeeLogs"]}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.attendanceEmployeeTimesheet}
+        element={
+          <ProtectedRoute>
+            <AttendanceManagementPage
+              initialTab="employeeTimesheet"
+              tabs={["employeeTimesheet"]}
+            />
           </ProtectedRoute>
         }
       />

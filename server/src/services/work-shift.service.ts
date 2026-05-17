@@ -11,10 +11,11 @@ type CreateWorkShiftInput = {
   breakEndTime?: string | null;
   lateGracePeriod?: number;
   earlyLeaveGracePeriod?: number;
-  checkInStartTime?: string | null;
-  checkInEndTime?: string | null;
-  checkOutStartTime?: string | null;
-  checkOutEndTime?: string | null;
+  checkInStartTime: string;
+  checkInEndTime: string;
+  checkOutStartTime: string;
+  checkOutEndTime: string;
+  isOvernight?: boolean;
   isOvertime?: boolean;
   workUnits: number; // Required
   overtimeMultiplier?: number;
@@ -81,10 +82,33 @@ const hasShiftFieldUpdates = (data: UpdateWorkShiftInput) =>
     data.checkInEndTime,
     data.checkOutStartTime,
     data.checkOutEndTime,
+    data.isOvernight,
     data.isOvertime,
     data.workUnits,
     data.overtimeMultiplier,
   ].some((value) => value !== undefined);
+
+const parseClockToMinutes = (value: string) => {
+  const [hours, minutes] = value.split(":").map((part) => Number(part));
+  return hours * 60 + minutes;
+};
+
+const ensureValidShiftTimeRange = (data: {
+  startTime: string;
+  endTime: string;
+  isOvernight?: boolean;
+}) => {
+  if (data.isOvernight) {
+    return;
+  }
+
+  if (parseClockToMinutes(data.endTime) <= parseClockToMinutes(data.startTime)) {
+    throw new ApiError(
+      400,
+      "End time must be after start time when isOvernight is false",
+    );
+  }
+};
 
 const activateShift = async (id: string) => {
   const shift = await getWorkShiftOrThrow(id);
@@ -219,6 +243,7 @@ const updateScheduleDetailReferences = async (
 export const workShiftService = {
   async create(data: CreateWorkShiftInput) {
     await ensureActiveCodeUnique(data.code);
+    ensureValidShiftTimeRange(data);
 
     return prisma.workShift.create({
       data: {
@@ -228,15 +253,16 @@ export const workShiftService = {
         endTime: data.endTime,
         breakStartTime: data.breakStartTime,
         breakEndTime: data.breakEndTime,
-        lateGracePeriod: data.lateGracePeriod,
-        earlyLeaveGracePeriod: data.earlyLeaveGracePeriod,
+        lateGracePeriod: data.lateGracePeriod ?? 0,
+        earlyLeaveGracePeriod: data.earlyLeaveGracePeriod ?? 0,
         checkInStartTime: data.checkInStartTime,
         checkInEndTime: data.checkInEndTime,
         checkOutStartTime: data.checkOutStartTime,
         checkOutEndTime: data.checkOutEndTime,
+        isOvernight: data.isOvernight ?? false,
         isOvertime: data.isOvertime ?? false,
         workUnits: data.workUnits,
-        overtimeMultiplier: data.overtimeMultiplier ?? undefined,
+        overtimeMultiplier: data.overtimeMultiplier ?? 1,
       },
     });
   },
@@ -298,6 +324,10 @@ export const workShiftService = {
         data.checkOutEndTime !== undefined
           ? data.checkOutEndTime
           : currentShift.checkOutEndTime,
+      isOvernight:
+        data.isOvernight !== undefined
+          ? data.isOvernight
+          : currentShift.isOvernight,
       isOvertime:
         data.isOvertime !== undefined
           ? data.isOvertime
@@ -310,6 +340,8 @@ export const workShiftService = {
           : currentShift.overtimeMultiplier,
       isActive: true,
     };
+
+    ensureValidShiftTimeRange(nextShiftData);
 
     const todayStart = getUtcStartOfToday();
 

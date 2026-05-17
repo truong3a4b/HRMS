@@ -59,6 +59,16 @@ const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
 const toNumber = (value: Prisma.Decimal | number | null | undefined) =>
   value === null || value === undefined ? 0 : Number(value);
 
+const getDetailWorkUnits = (detail: {
+  shiftWorkUnits: Prisma.Decimal | null;
+  workShift: { workUnits: Prisma.Decimal };
+}) => toNumber(detail.shiftWorkUnits ?? detail.workShift.workUnits);
+
+const isDetailOvertime = (detail: {
+  shiftIsOvertime: boolean;
+  workShift: { isOvertime: boolean };
+}) => detail.shiftIsOvertime || detail.workShift.isOvertime;
+
 const attendanceEmployeeSelect = {
   id: true,
   employeeId: true,
@@ -241,6 +251,15 @@ type MonthQuery = {
   month: string;
 };
 
+type AttendanceHistoryQuery = MonthQuery & {
+  page: number;
+  limit: number;
+};
+
+type EmployeeAttendanceHistoryQuery = AttendanceHistoryQuery & {
+  employeeId: string;
+};
+
 type EmployeeMonthQuery = MonthQuery & {
   employeeId: string;
 };
@@ -347,31 +366,38 @@ const resolveTargetEmployee = async (
 
 const getAttendanceLogHistory = async (
   employee: AttendanceEmployee,
-  month: string,
+  query: AttendanceHistoryQuery,
 ) => {
-  const { start, end } = getMonthRange(month);
-
-  const logs = await prisma.attendanceLog.findMany({
-    where: {
-      employeeId: employee.id,
-      timestamp: {
-        gte: start,
-        lt: end,
-      },
+  const { start, end } = getMonthRange(query.month);
+  const page = query.page;
+  const limit = query.limit;
+  const skip = (page - 1) * limit;
+  const where = {
+    employeeId: employee.id,
+    timestamp: {
+      gte: start,
+      lt: end,
     },
-    include: {
-      device: {
-        select: {
-          id: true,
-          name: true,
-          code: true,
+  } satisfies Prisma.AttendanceLogWhereInput;
+
+  const [total, logs] = await Promise.all([
+    prisma.attendanceLog.count({ where }),
+    prisma.attendanceLog.findMany({
+      where,
+      include: {
+        device: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
         },
       },
-    },
-    orderBy: {
-      timestamp: "asc",
-    },
-  });
+      orderBy: [{ timestamp: "desc" }, { createdAt: "desc" }],
+      skip,
+      take: limit,
+    }),
+  ]);
 
   return {
     employee: {
@@ -380,7 +406,11 @@ const getAttendanceLogHistory = async (
       name: employee.name,
       email: employee.email,
     },
-    month,
+    month: query.month,
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
     logs: logs.map((log) => ({
       id: log.id,
       employeeId: log.employeeId,
@@ -398,12 +428,24 @@ const attendedStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.LATE,
   AttendanceStatus.EARLY_LEAVE,
   AttendanceStatus.LATE_AND_EARLY_LEAVE,
-  "PAID_LEAVE" as AttendanceStatus,
 ]);
 
 const leaveStatuses = new Set<AttendanceStatus>([
+  AttendanceStatus.ON_LEAVE,
   "PAID_LEAVE" as AttendanceStatus,
   "UNPAID_LEAVE" as AttendanceStatus,
+]);
+
+const absentStatuses = new Set<AttendanceStatus>([AttendanceStatus.ABSENT]);
+
+const lateStatuses = new Set<AttendanceStatus>([
+  AttendanceStatus.LATE,
+  AttendanceStatus.LATE_AND_EARLY_LEAVE,
+]);
+
+const earlyLeaveStatuses = new Set<AttendanceStatus>([
+  AttendanceStatus.EARLY_LEAVE,
+  AttendanceStatus.LATE_AND_EARLY_LEAVE,
 ]);
 
 const buildMonthlyTimesheet = async (
@@ -412,7 +454,7 @@ const buildMonthlyTimesheet = async (
 ) => {
   const { start, end } = getMonthRange(month);
 
-  const [schedules, attendanceRecords, corrections] = await Promise.all([
+  const [schedules, attendanceRecords] = await Promise.all([
     prisma.workSchedule.findMany({
       where: {
         employeeId: employee.id,
@@ -454,132 +496,162 @@ const buildMonthlyTimesheet = async (
         date: "asc",
       },
     }),
-    getAttendanceCorrections(employee.id, start, end),
   ]);
 
   const scheduleByDate = new Map<string, (typeof schedules)[number]>();
-  const recordByDate = new Map<string, (typeof attendanceRecords)[number]>();
-  const correctionsByDate = new Map<string, typeof corrections>();
 
   for (const schedule of schedules) {
     scheduleByDate.set(toDateKey(schedule.date), schedule);
   }
 
-  for (const record of attendanceRecords) {
-    recordByDate.set(toDateKey(record.date), record);
-  }
+  const getScheduledStandardWorkUnits = (date: string) => {
+    const schedule = scheduleByDate.get(date);
 
-  for (const correction of corrections) {
-    const key = toDateKey(correction.attendanceDate);
-    const bucket = correctionsByDate.get(key) ?? [];
-    bucket.push(correction);
-    correctionsByDate.set(key, bucket);
-  }
-
-  const dateKeys = new Set([
-    ...scheduleByDate.keys(),
-    ...recordByDate.keys(),
-    ...correctionsByDate.keys(),
-  ]);
-
-  const days = Array.from(dateKeys)
-    .sort()
-    .map((date) => {
-      const schedule = scheduleByDate.get(date);
-      const record = recordByDate.get(date);
-      const dayCorrections = correctionsByDate.get(date) ?? [];
-
-      const standardWorkUnits =
-        schedule?.shiftLinks.reduce((total, shiftLink) => {
-          if (shiftLink.workShift.isOvertime) {
-            return total;
-          }
-
-          return total + toNumber(shiftLink.workShift.workUnits);
-        }, 0) ?? 0;
-
-      const attendedDetails =
-        record?.details.filter((detail) =>
-          attendedStatuses.has(detail.status),
-        ) ?? [];
-      const hasLeaveDetail =
-        record?.details.some((detail) => leaveStatuses.has(detail.status)) ??
-        false;
-
-      const workedUnits = attendedDetails.reduce((total, detail) => {
-        if (detail.workShift.isOvertime) {
+    return (
+      schedule?.shiftLinks.reduce((total, shiftLink) => {
+        if (shiftLink.workShift.isOvertime) {
           return total;
         }
 
-        return total + toNumber(detail.workShift.workUnits);
-      }, 0);
+        return total + toNumber(shiftLink.workShift.workUnits);
+      }, 0) ?? 0
+    );
+  };
 
-      const overtimeShifts = attendedDetails
-        .filter((detail) => detail.workShift.isOvertime)
-        .map((detail) => ({
+  const monthStandardWorkUnits = schedules.reduce(
+    (total, schedule) =>
+      total + getScheduledStandardWorkUnits(toDateKey(schedule.date)),
+    0,
+  );
+
+  const days = attendanceRecords
+    .filter((record) => record.details.length > 0)
+    .map((record) => {
+      const date = toDateKey(record.date);
+      const attendedDetails = record.details.filter((detail) =>
+        attendedStatuses.has(detail.status),
+      );
+      const leaveDetails = record.details.filter((detail) =>
+        leaveStatuses.has(detail.status),
+      );
+      const absentDetails = record.details.filter((detail) =>
+        absentStatuses.has(detail.status),
+      );
+      const lateDetails = record.details.filter((detail) =>
+        lateStatuses.has(detail.status),
+      );
+      const earlyLeaveDetails = record.details.filter((detail) =>
+        earlyLeaveStatuses.has(detail.status),
+      );
+
+      const recordDetails = record.details.map((detail) => {
+        const workUnits = getDetailWorkUnits(detail);
+        const isOvertime = isDetailOvertime(detail);
+
+        return {
           id: detail.id,
+          attendanceRecordId: detail.attendanceRecordId,
           workShiftId: detail.workShiftId,
+          workShiftCode: detail.workShiftCode ?? detail.workShift.code,
           workShiftName: detail.workShiftName,
           status: detail.status,
           checkInTime: detail.checkInTime,
           checkOutTime: detail.checkOutTime,
-          workUnits: toNumber(detail.workShift.workUnits),
-        }));
+          shiftStartTime: detail.shiftStartTime,
+          shiftEndTime: detail.shiftEndTime,
+          shiftStartClock: detail.shiftStartClock,
+          shiftEndClock: detail.shiftEndClock,
+          shiftIsOvertime: isOvertime,
+          workUnits,
+          countedWorkUnits:
+            attendedStatuses.has(detail.status) && !isOvertime ? workUnits : 0,
+          countedOvertimeUnits:
+            attendedStatuses.has(detail.status) && isOvertime ? workUnits : 0,
+          isLate: lateStatuses.has(detail.status),
+          isEarlyLeave: earlyLeaveStatuses.has(detail.status),
+          createdAt: detail.createdAt,
+          updatedAt: detail.updatedAt,
+        };
+      });
 
-      const overtimeUnits = overtimeShifts.reduce(
-        (total, shift) => total + shift.workUnits,
+      const workedUnits = recordDetails.reduce(
+        (total, detail) => total + detail.countedWorkUnits,
         0,
       );
-
-      const bonusShifts = dayCorrections.map((correction) => ({
-        id: correction.id,
-        requestId: correction.requestId,
-        workShift: correction.workShift
-          ? {
-              id: correction.workShift.id,
-              code: correction.workShift.code,
-              name: correction.workShift.name,
-              isOvertime: correction.workShift.isOvertime,
-            }
-          : null,
-        workUnits: toNumber(correction.addedWorkUnits),
-        reason: correction.reason,
-        appliedAt: correction.appliedAt,
-      }));
-
-      const bonusUnits = bonusShifts.reduce(
-        (total, shift) => total + shift.workUnits,
+      const overtimeUnits = recordDetails.reduce(
+        (total, detail) => total + detail.countedOvertimeUnits,
         0,
       );
-      const isLeaveDay =
-        hasLeaveDetail || (standardWorkUnits > 0 && workedUnits === 0);
+      const lateCount = lateDetails.length;
+      const earlyLeaveCount = earlyLeaveDetails.length;
+      const absentCount = absentDetails.length;
+      const leaveCount = leaveDetails.length;
+      const leaveOrAbsentCount = leaveCount + absentCount;
 
       return {
+        id: record.id,
         date,
-        standardWorkUnits,
+        standardWorkUnits: getScheduledStandardWorkUnits(date),
+        actualWorkUnits: workedUnits,
         workedUnits,
         overtimeUnits,
-        bonusUnits,
-        isLeaveDay,
-        bonusShifts,
-        overtimeShifts,
+        lateCount,
+        earlyLeaveCount,
+        lateEarlyCount: record.details.filter(
+          (detail) =>
+            lateStatuses.has(detail.status) ||
+            earlyLeaveStatuses.has(detail.status),
+        ).length,
+        leaveCount,
+        absentCount,
+        leaveOrAbsentCount,
+        isLeaveDay: leaveOrAbsentCount > 0,
+        recordDetails,
+        overtimeShifts: recordDetails
+          .filter((detail) => detail.countedOvertimeUnits > 0)
+          .map((detail) => ({
+            id: detail.id,
+            workShiftId: detail.workShiftId,
+            workShiftName: detail.workShiftName,
+            status: detail.status,
+            checkInTime: detail.checkInTime,
+            checkOutTime: detail.checkOutTime,
+            workUnits: detail.workUnits,
+          })),
+        bonusUnits: 0,
+        bonusShifts: [],
       };
     });
 
   const totals = days.reduce(
     (accumulator, day) => ({
-      standardWorkUnits:
-        accumulator.standardWorkUnits + day.standardWorkUnits,
+      standardWorkUnits: accumulator.standardWorkUnits,
       workedUnits: accumulator.workedUnits + day.workedUnits,
+      actualWorkUnits: accumulator.actualWorkUnits + day.actualWorkUnits,
       overtimeUnits: accumulator.overtimeUnits + day.overtimeUnits,
-      bonusUnits: accumulator.bonusUnits + day.bonusUnits,
-      leaveDays: accumulator.leaveDays + (day.isLeaveDay ? 1 : 0),
+      lateCount: accumulator.lateCount + day.lateCount,
+      earlyLeaveCount: accumulator.earlyLeaveCount + day.earlyLeaveCount,
+      lateEarlyCount: accumulator.lateEarlyCount + day.lateEarlyCount,
+      leaveCount: accumulator.leaveCount + day.leaveCount,
+      absentCount: accumulator.absentCount + day.absentCount,
+      leaveOrAbsentDays:
+        accumulator.leaveOrAbsentDays + (day.leaveOrAbsentCount > 0 ? 1 : 0),
+      leaveDays:
+        accumulator.leaveDays + (day.leaveOrAbsentCount > 0 ? 1 : 0),
+      bonusUnits: 0,
     }),
     {
-      standardWorkUnits: 0,
+      standardWorkUnits: monthStandardWorkUnits,
       workedUnits: 0,
+      actualWorkUnits: 0,
       overtimeUnits: 0,
       bonusUnits: 0,
+      lateCount: 0,
+      earlyLeaveCount: 0,
+      lateEarlyCount: 0,
+      leaveCount: 0,
+      absentCount: 0,
+      leaveOrAbsentDays: 0,
       leaveDays: 0,
     },
   );
@@ -698,16 +770,16 @@ export const attendanceService = {
 
   async getMyAttendanceHistory(
     requester: AttendanceRequester,
-    query: MonthQuery,
+    query: AttendanceHistoryQuery,
   ) {
     const employee = await resolveOwnEmployee(requester.id);
 
-    return getAttendanceLogHistory(employee, query.month);
+    return getAttendanceLogHistory(employee, query);
   },
 
   async getEmployeeAttendanceHistory(
     requester: AttendanceRequester,
-    query: EmployeeMonthQuery,
+    query: EmployeeAttendanceHistoryQuery,
   ) {
     const employee = await resolveTargetEmployee(
       requester,
@@ -715,7 +787,7 @@ export const attendanceService = {
       PERMISSIONS.ATTENDANCE_HISTORY_VIEW,
     );
 
-    return getAttendanceLogHistory(employee, query.month);
+    return getAttendanceLogHistory(employee, query);
   },
 
   async getMyTimesheet(

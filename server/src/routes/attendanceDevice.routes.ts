@@ -20,7 +20,6 @@ router.get(
   "/",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(PERMISSIONS.ATTENDANCE_DEVICE_VIEW),
-  validate(deviceListQuerySchema),
   attendanceDeviceController.getAllDevices,
 );
 
@@ -60,6 +59,20 @@ router.post(
   permissionMiddleware(PERMISSIONS.ATTENDANCE_DEVICE_SETUP),
   validate(registerFingerprintCommandSchema),
   attendanceDeviceController.addFingerprint,
+);
+
+router.get(
+  "/:id/fingerprints",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.ATTENDANCE_DEVICE_VIEW),
+  attendanceDeviceController.getDeviceFingerprints,
+);
+
+router.delete(
+  "/:id/fingerprints/:fingerprintId",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.ATTENDANCE_DEVICE_SETUP),
+  attendanceDeviceController.deleteFingerprint,
 );
 
 export default router;

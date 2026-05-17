@@ -43,3 +43,46 @@ select {
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+
+/* Customize Ant Design Table Header & Borders */
+.ant-table-wrapper .ant-table-container {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.ant-table-wrapper .ant-table {
+  border-radius: 0 !important;
+}
+
+/* Remove outer borders of the table itself so it doesn't double-border with the parent container */
+.ant-table-wrapper .ant-table-container table {
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+  font-weight: 600 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  border-top: none !important;
+}
+
+.ant-table-wrapper .ant-table-container table > thead > tr > th,
+.ant-table-wrapper .ant-table-container table > tbody > tr > td {
+  border-color: #cbd5e1 !important;
+}
+
+/* Ensure the first and last cells don't have left/right borders that double with the container */
+.ant-table-wrapper .ant-table-container table > thead > tr > th:first-child,
+.ant-table-wrapper .ant-table-container table > tbody > tr > td:first-child {
+  border-left: none !important;
+}
+
+.ant-table-wrapper .ant-table-container table > thead > tr > th:last-child,
+.ant-table-wrapper .ant-table-container table > tbody > tr > td:last-child {
+  border-right: none !important;
+}

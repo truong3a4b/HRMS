@@ -23,9 +23,12 @@ export const paths = {
   workShifts: '/categories/work-shifts',
 
   // Attendance
+  attendanceDevices: '/attendance/devices',
   attendanceCheckin: '/attendance/checkin',
   attendanceHistory: '/attendance/history',
   attendanceTimesheet: '/attendance/timesheet',
+  attendanceEmployeeHistory: '/attendance/employees/history',
+  attendanceEmployeeTimesheet: '/attendance/employees/timesheet',
   attendanceOvertime: '/attendance/overtime-request',
 
   // Work Schedule

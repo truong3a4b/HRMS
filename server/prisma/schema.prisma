@@ -625,17 +625,18 @@ model WorkShift {
   endTime               String
   breakStartTime        String?
   breakEndTime          String?
-  lateGracePeriod       Int @default(0) //phút cho phép đi muộn mà không bị tính là đi muộn
-  earlyLeaveGracePeriod Int @default(0) //phút cho phép về sớm mà không bị tính là về sớm
+  lateGracePeriod       Int     @default(0) //phút cho phép đi muộn mà không bị tính là đi muộn
+  earlyLeaveGracePeriod Int     @default(0) //phút cho phép về sớm mà không bị tính là về sớm
 
-  checkInStartTime  String? //thời gian bắt đầu được check-in
-  checkInEndTime    String? //thời gian kết thúc được check-in
-  checkOutStartTime String? //thời gian bắt đầu được check-out
-  checkOutEndTime   String? //thời gian kết thúc được check-out
+  checkInStartTime  String //thời gian bắt đầu được check-in
+  checkInEndTime    String //thời gian kết thúc được check-in
+  checkOutStartTime String //thời gian bắt đầu được check-out
+  checkOutEndTime   String //thời gian kết thúc được check-out
 
-  isOvertime         Boolean  @default(false) //ca làm thêm giờ
-  workUnits          Decimal  @db.Decimal(5, 2) @default(1.0) //số đơn vị công cho ca này, ví dụ 1.0 cho ca bình thường, 1.5 cho ca làm thêm giờ
-  overtimeMultiplier Decimal @db.Decimal(5, 2) @default(1.0)//hệ số lương cho ca làm thêm giờ, ví dụ 1.5 cho ca làm thêm giờ
+  isOvernight        Boolean @default(false) //ca qua đêm, ngày trong lịch là ngày bắt đầu ca
+  isOvertime         Boolean @default(false) //ca làm thêm giờ
+  workUnits          Decimal @db.Decimal(5, 2) //số đơn vị công cho ca này, ví dụ 1.0 cho ca bình thường, 1.5 cho ca làm thêm giờ
+  overtimeMultiplier Decimal @default(1.0) @db.Decimal(5, 2) //hệ số lương cho ca làm thêm giờ, ví dụ 1.5 cho ca làm thêm giờ
 
   isActive                     Boolean                       @default(true)
   workScheduleLinks            WorkScheduleShift[]
@@ -812,11 +813,24 @@ model AttendanceRecordDetail {
   attendanceRecordId         String
   workShiftId                String
   //snapshot thong tin cua ca lam viec tai thoi diem cham cong, de truoc sau nay co thay doi lich lam viec thi van co thong tin cu de doi chieu
+  workShiftCode              String?
   workShiftName              String
+  shiftStartClock            String?
+  shiftEndClock              String?
   shiftStartTime             DateTime
   shiftEndTime               DateTime
+  shiftBreakStartTime        String?
+  shiftBreakEndTime          String?
   shiftLateGracePeriod       Int?
   shiftEarlyLeaveGracePeriod Int?
+  shiftCheckInStartTime      String?
+  shiftCheckInEndTime        String?
+  shiftCheckOutStartTime     String?
+  shiftCheckOutEndTime       String?
+  shiftIsOvernight           Boolean  @default(false)
+  shiftIsOvertime            Boolean  @default(false)
+  shiftWorkUnits             Decimal? @db.Decimal(5, 2)
+  shiftOvertimeMultiplier    Decimal? @db.Decimal(5, 2)
 
   checkInTime  DateTime?
   checkOutTime DateTime?

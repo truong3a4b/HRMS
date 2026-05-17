@@ -526,12 +526,12 @@ export function ScheduleWeeklyPage({
               </div>
             </div>
 
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-white">
+            <div className="grid grid-cols-7 border-b border-slate-700 bg-slate-800">
               {weekDayLabels.map(({ label, isSunday }) => (
                 <div
                   key={label}
                   className={`py-2.5 text-center text-[11px] font-bold uppercase tracking-wider ${
-                    isSunday ? "text-red-500" : "text-slate-500"
+                    isSunday ? "text-rose-400" : "text-slate-200"
                   }`}
                 >
                   {label}
@@ -566,9 +566,7 @@ export function ScheduleWeeklyPage({
                       <button
                         key={day.key}
                         type="button"
-                        className={`relative flex flex-col bg-white p-2 text-left transition-colors hover:bg-blue-50/40 ${
-                          isSunday ? "bg-red-50/30" : ""
-                        }`}
+                        className="relative flex flex-col bg-white p-2 text-left transition-colors hover:bg-blue-50/40"
                         onClick={() => openDayDetail(day.key)}
                       >
                         {isToday && (
@@ -614,11 +612,6 @@ export function ScheduleWeeklyPage({
                               </span>
                             );
                           })}
-                          {!hasShifts && (
-                            <span className="text-[11px] text-slate-300">
-                              -
-                            </span>
-                          )}
                         </div>
                       </button>
                     );

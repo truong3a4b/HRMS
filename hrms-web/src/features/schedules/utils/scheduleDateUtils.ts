@@ -46,13 +46,20 @@ export function buildSundayCalendarCells(month: string) {
     day: number;
     inMonth: boolean;
     isFuture: boolean;
+    weekDay: number;
   }> = [];
 
   for (let index = leadingDays - 1; index >= 0; index -= 1) {
     const day = previousMonthDays - index;
     const date = new Date(Date.UTC(year, monthNumber - 2, day));
     const key = date.toISOString().slice(0, 10);
-    cells.push({ key, day, inMonth: false, isFuture: key > todayKey() });
+    cells.push({
+      key,
+      day,
+      inMonth: false,
+      isFuture: key > todayKey(),
+      weekDay: date.getUTCDay(),
+    });
   }
 
   for (const day of currentDays) {
@@ -61,6 +68,7 @@ export function buildSundayCalendarCells(month: string) {
       day: day.day,
       inMonth: true,
       isFuture: day.key > todayKey(),
+      weekDay: day.weekDay,
     });
   }
 
@@ -68,7 +76,13 @@ export function buildSundayCalendarCells(month: string) {
   for (let day = 1; day <= nextMonthDayCount; day += 1) {
     const date = new Date(Date.UTC(year, monthNumber, day));
     const key = date.toISOString().slice(0, 10);
-    cells.push({ key, day, inMonth: false, isFuture: key > todayKey() });
+    cells.push({
+      key,
+      day,
+      inMonth: false,
+      isFuture: key > todayKey(),
+      weekDay: date.getUTCDay(),
+    });
   }
 
   return cells;

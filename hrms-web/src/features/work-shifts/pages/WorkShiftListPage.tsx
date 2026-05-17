@@ -31,6 +31,7 @@ const emptyForm = {
   checkInEndTime: "",
   checkOutStartTime: "",
   checkOutEndTime: "",
+  isOvernight: false,
   isOvertime: false,
   workUnits: "1",
   overtimeMultiplier: "",
@@ -103,6 +104,15 @@ function stringOrUndefined(value: string) {
   return trimmed === "" ? undefined : trimmed;
 }
 
+function parseClockToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map((part) => Number(part));
+  return hours * 60 + minutes;
+}
+
+function isNonOvernightTimeRangeValid(startTime: string, endTime: string) {
+  return parseClockToMinutes(endTime) > parseClockToMinutes(startTime);
+}
+
 function WorkShiftFormModal({
   open,
   workShift,
@@ -134,6 +144,7 @@ function WorkShiftFormModal({
         checkInEndTime: workShift?.checkInEndTime ?? "",
         checkOutStartTime: workShift?.checkOutStartTime ?? "",
         checkOutEndTime: workShift?.checkOutEndTime ?? "",
+        isOvernight: workShift?.isOvernight ?? false,
         isOvertime: workShift?.isOvertime ?? false,
         workUnits: workShift?.workUnits?.toString() ?? "1",
         overtimeMultiplier: workShift?.overtimeMultiplier?.toString() ?? "",
@@ -166,8 +177,28 @@ function WorkShiftFormModal({
       return;
     }
 
+    if (
+      !form.isOvernight &&
+      form.startTime &&
+      form.endTime &&
+      !isNonOvernightTimeRangeValid(form.startTime, form.endTime)
+    ) {
+      setError("Gio ket thuc phai lon hon gio bat dau neu ca khong qua dem.");
+      return;
+    }
+
     if (hasBreak && (!form.breakStartTime || !form.breakEndTime)) {
       setError("Vui lòng nhập đủ thời gian bắt đầu và kết thúc nghỉ giữa ca.");
+      return;
+    }
+
+    if (
+      !form.checkInStartTime ||
+      !form.checkInEndTime ||
+      !form.checkOutStartTime ||
+      !form.checkOutEndTime
+    ) {
+      setError("Vui long nhap du thoi gian check-in va check-out.");
       return;
     }
 
@@ -336,6 +367,28 @@ function WorkShiftFormModal({
                   }))
                 }
               />
+            </div>
+          </label>
+
+          <label className="col-span-2 flex cursor-pointer items-center gap-3 rounded-lg border border-[#edf0f5] bg-[#fbfcff] px-4 py-3 transition-colors hover:bg-[#f0f7ff] max-[680px]:col-span-1">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded accent-[#006fd5]"
+              checked={form.isOvernight}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  isOvernight: event.target.checked,
+                }))
+              }
+            />
+            <div>
+              <span className="block text-sm font-medium text-[#344054]">
+                Ca qua đêm
+              </span>
+              <span className="block text-xs text-[#667085]">
+                Lịch làm việc lưu ngày bắt đầu ca, giờ kết thúc có thể sang ngày sau.
+              </span>
             </div>
           </label>
 
@@ -668,10 +721,11 @@ export function WorkShiftListPage() {
     breakEndTime: stringOrUndefined(form.breakEndTime),
     lateGracePeriod: numberOrUndefined(form.lateGracePeriod),
     earlyLeaveGracePeriod: numberOrUndefined(form.earlyLeaveGracePeriod),
-    checkInStartTime: stringOrUndefined(form.checkInStartTime),
-    checkInEndTime: stringOrUndefined(form.checkInEndTime),
-    checkOutStartTime: stringOrUndefined(form.checkOutStartTime),
-    checkOutEndTime: stringOrUndefined(form.checkOutEndTime),
+    checkInStartTime: form.checkInStartTime,
+    checkInEndTime: form.checkInEndTime,
+    checkOutStartTime: form.checkOutStartTime,
+    checkOutEndTime: form.checkOutEndTime,
+    isOvernight: form.isOvernight,
     isOvertime: form.isOvertime,
     workUnits: Number(form.workUnits),
     overtimeMultiplier: numberOrUndefined(form.overtimeMultiplier),
@@ -844,6 +898,11 @@ export function WorkShiftListPage() {
                         {workShift.isOvertime && (
                           <span className="shrink-0 rounded-full border border-orange-300 bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800">
                             Tăng ca
+                          </span>
+                        )}
+                        {workShift.isOvernight && (
+                          <span className="shrink-0 rounded-full border border-indigo-300 bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-800">
+                            Qua đêm
                           </span>
                         )}
                       </div>

@@ -100,6 +100,7 @@ type WorkShiftInfo = {
   name: string;
   startTime: string;
   endTime: string;
+  isOvernight: boolean;
   isActive: boolean;
 };
 
@@ -123,6 +124,7 @@ const getWorkShiftsByIds = async (
       name: true,
       startTime: true,
       endTime: true,
+      isOvernight: true,
       isActive: true,
     },
   });
@@ -184,7 +186,7 @@ const ensureNoOverlappingWorkShifts = (
       const start = parseClockToMinutes(shift.startTime, "start");
       const endRaw = parseClockToMinutes(shift.endTime, "end");
 
-      if (endRaw <= start) {
+      if (shift.isOvernight) {
         return [
           { start, end: MINUTES_PER_DAY, shift },
           { start: 0, end: endRaw, shift },
@@ -304,14 +306,15 @@ const normalizeFutureScheduleDetails = (
       continue;
     }
 
+    const dateKey = date.toISOString().slice(0, 10);
     const workShiftIds =
-      detailsByDate.get(date.toISOString()) ?? new Set<string>();
+      detailsByDate.get(dateKey) ?? new Set<string>();
 
     for (const workShiftId of normalizeIds(detail.workShiftIds)) {
       workShiftIds.add(workShiftId);
     }
 
-    detailsByDate.set(date.toISOString(), workShiftIds);
+    detailsByDate.set(dateKey, workShiftIds);
   }
 
   return Array.from(detailsByDate.entries()).map(([date, workShiftIds]) => ({
@@ -321,7 +324,7 @@ const normalizeFutureScheduleDetails = (
 };
 
 export const applyScheduleAssignments = async (
-  tx: Prisma.TransactionClient,
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   employeeIds: string[],
   scheduleDetails: ScheduleDetail[],
   referenceTime = new Date(),
@@ -337,12 +340,13 @@ export const applyScheduleAssignments = async (
 
   for (const employeeId of employeeIds) {
     for (const detail of normalizedScheduleDetails) {
+      const dateObj = parseDateOnly(detail.date);
       const schedule = await tx.workSchedule.upsert({
-        where: { employeeId_date: { employeeId, date: detail.date } },
+        where: { employeeId_date: { employeeId, date: dateObj } },
         update: {},
         create: {
           employeeId,
-          date: detail.date,
+          date: dateObj,
         },
       });
 

@@ -141,3 +141,10 @@ export const registerFingerprintCommandSchema = z.object({
 export type RegisterFingerprintCommandInput = z.infer<
   typeof registerFingerprintCommandSchema
 >;
+
+export interface FingerprintCommandResponse {
+  id: string;
+  deviceId: string;
+  command: string;
+  status: string;
+}

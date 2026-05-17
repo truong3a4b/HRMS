@@ -7,6 +7,12 @@ import { sendResponse } from "../utils/response";
 
 const historyQuerySchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "month must be in YYYY-MM format"),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
+const monthQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, "month must be in YYYY-MM format"),
 });
 
 const createCompensationSchema = z.object({
@@ -33,6 +39,7 @@ const requireUser = (req: Request) => {
 };
 
 const parseHistoryQuery = (req: Request) => historyQuerySchema.parse(req.query);
+const parseMonthQuery = (req: Request) => monthQuerySchema.parse(req.query);
 const parseEmployeeParams = (req: Request) =>
   z.object({ employeeId: z.string().min(1) }).parse(req.params);
 
@@ -68,7 +75,7 @@ export const attendanceController = {
   async getMyTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
-      const query = parseHistoryQuery(req);
+      const query = parseMonthQuery(req);
       const result = await attendanceService.getMyTimesheet(user, query);
 
       return sendResponse(res, 200, "Attendance timesheet fetched successfully", result);
@@ -80,7 +87,7 @@ export const attendanceController = {
   async getEmployeeTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
-      const query = parseHistoryQuery(req);
+      const query = parseMonthQuery(req);
       const params = parseEmployeeParams(req);
       const result = await attendanceService.getEmployeeTimesheet(user, {
         ...query,

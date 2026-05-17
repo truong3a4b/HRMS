@@ -160,6 +160,22 @@ const attendedStatuses = new Set<AttendanceStatus>([
 
 const toNumber = (value: unknown) => Number(value ?? 0);
 
+const getDetailWorkUnits = (detail: {
+  shiftWorkUnits: Prisma.Decimal | null;
+  workShift: { workUnits: Prisma.Decimal };
+}) => toNumber(detail.shiftWorkUnits ?? detail.workShift.workUnits);
+
+const getDetailOvertimeMultiplier = (detail: {
+  shiftOvertimeMultiplier: Prisma.Decimal | null;
+  workShift: { overtimeMultiplier: Prisma.Decimal };
+}) =>
+  toNumber(detail.shiftOvertimeMultiplier ?? detail.workShift.overtimeMultiplier);
+
+const isDetailOvertime = (detail: {
+  shiftIsOvertime: boolean;
+  workShift: { isOvertime: boolean };
+}) => detail.shiftIsOvertime || detail.workShift.isOvertime;
+
 const roundMoney = (value: number) => Math.round(value);
 
 const roundWork = (value: number) => Math.round(value * 100) / 100;
@@ -373,11 +389,11 @@ const calculatePayrollForEmployee = async (
   );
 
   const actualWorkDays = attendedDetails.reduce((total, detail) => {
-    if (detail.workShift.isOvertime) {
+    if (isDetailOvertime(detail)) {
       return total;
     }
 
-    return total + toNumber(detail.workShift.workUnits);
+    return total + getDetailWorkUnits(detail);
   }, 0);
 
   const dailyRate = standardWorkDays > 0 ? baseSalary / standardWorkDays : 0;
@@ -386,7 +402,7 @@ const calculatePayrollForEmployee = async (
 
   const attendedRegularDateKeys = new Set(
     attendedDetails
-      .filter((detail) => !detail.workShift.isOvertime)
+      .filter((detail) => !isDetailOvertime(detail))
       .map((detail) => getDateKey(detail.recordDate)),
   );
   const absentDays = employee.workSchedules.reduce((total, schedule) => {
@@ -404,22 +420,22 @@ const calculatePayrollForEmployee = async (
   const overtimeLineMap = new Map<string, PayrollLineInput>();
 
   attendedDetails
-    .filter((detail) => detail.workShift.isOvertime)
+    .filter((detail) => isDetailOvertime(detail))
     .forEach((detail) => {
-      const workUnits = toNumber(detail.workShift.workUnits);
+      const workUnits = getDetailWorkUnits(detail);
       const hours =
         detail.checkInTime && detail.checkOutTime
           ? getShiftHours(detail.checkInTime, detail.checkOutTime)
           : getShiftHours(detail.shiftStartTime, detail.shiftEndTime) ||
             workUnits * 8;
-      const multiplier = toNumber(detail.workShift.overtimeMultiplier ?? 1);
+      const multiplier = getDetailOvertimeMultiplier(detail);
       const amount = hourlyRate * hours * multiplier;
       const key = detail.workShiftId;
       const existing = overtimeLineMap.get(key);
 
       overtimeLineMap.set(key, {
         workShiftId: detail.workShiftId,
-        workShiftCode: detail.workShift.code,
+        workShiftCode: detail.workShiftCode ?? detail.workShift.code,
         workShiftName: detail.workShiftName,
         workDays: roundWork(toNumber(existing?.workDays) + workUnits),
         hours: roundWork(toNumber(existing?.hours) + hours),

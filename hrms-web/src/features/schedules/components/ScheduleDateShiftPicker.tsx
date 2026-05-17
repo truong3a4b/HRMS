@@ -78,7 +78,7 @@ export function ScheduleDateShiftPicker({
     const nextMap = { ...dateShiftMap };
 
     for (const cell of cells) {
-      if (cell.inMonth && cell.isFuture) {
+      if (cell.inMonth && cell.isFuture && cell.weekDay !== 0) {
         nextMap[cell.key] = [...selectedShiftIds];
       }
     }
@@ -187,7 +187,8 @@ export function ScheduleDateShiftPicker({
 
             if (disabled) {
               cellClasses += " bg-[#fafafa] cursor-not-allowed";
-              numberClasses += " text-[#c9cdd4]";
+              numberClasses +=
+                cell.weekDay === 0 ? " text-[#fca5a5]" : " text-[#c9cdd4]";
             } else {
               cellClasses += " cursor-pointer hover:bg-[#f0f7ff]";
 
@@ -196,11 +197,16 @@ export function ScheduleDateShiftPicker({
                 numberClasses += " bg-[#006fd5] text-white";
               } else if (hasShift) {
                 cellClasses += " bg-[#f0f7ff]";
-                numberClasses += " text-[#006fd5]";
+                numberClasses +=
+                  cell.weekDay === 0 ? " text-[#f04438]" : " text-[#006fd5]";
               } else if (isToday) {
-                numberClasses += " text-[#006fd5] border border-[#006fd5]";
+                numberClasses +=
+                  cell.weekDay === 0
+                    ? " text-[#f04438] border border-[#f04438]"
+                    : " text-[#006fd5] border border-[#006fd5]";
               } else {
-                numberClasses += " text-[#344054]";
+                numberClasses +=
+                  cell.weekDay === 0 ? " text-[#f04438]" : " text-[#344054]";
               }
             }
 

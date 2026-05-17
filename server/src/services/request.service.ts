@@ -218,6 +218,22 @@ const buildDateTimeOnDate = (date: Date, time: string) => {
   );
 };
 
+const getShiftEndDateTime = (
+  date: Date,
+  startTime: string,
+  endTime: string,
+  isOvernight: boolean,
+) => {
+  const shiftStartAt = buildDateTimeOnDate(date, startTime);
+  let shiftEndAt = buildDateTimeOnDate(date, endTime);
+
+  if (isOvernight || shiftEndAt.getTime() <= shiftStartAt.getTime()) {
+    shiftEndAt = addUtcDays(shiftEndAt, 1);
+  }
+
+  return shiftEndAt;
+};
+
 const rangesOverlap = (
   leftStart: Date,
   leftEnd: Date,
@@ -226,6 +242,50 @@ const rangesOverlap = (
 ) =>
   leftStart.getTime() < rightEnd.getTime() &&
   rightStart.getTime() < leftEnd.getTime();
+
+type AttendanceShiftSnapshotSource = {
+  code: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  breakStartTime: string | null;
+  breakEndTime: string | null;
+  lateGracePeriod: number;
+  earlyLeaveGracePeriod: number;
+  checkInStartTime: string;
+  checkInEndTime: string;
+  checkOutStartTime: string;
+  checkOutEndTime: string;
+  isOvernight: boolean;
+  isOvertime: boolean;
+  workUnits: Prisma.Decimal;
+  overtimeMultiplier: Prisma.Decimal;
+};
+
+const buildAttendanceDetailShiftSnapshot = (
+  shift: AttendanceShiftSnapshotSource,
+  shiftStartAt: Date,
+  shiftEndAt: Date,
+) => ({
+  workShiftCode: shift.code,
+  workShiftName: shift.name,
+  shiftStartClock: shift.startTime,
+  shiftEndClock: shift.endTime,
+  shiftStartTime: shiftStartAt,
+  shiftEndTime: shiftEndAt,
+  shiftBreakStartTime: shift.breakStartTime,
+  shiftBreakEndTime: shift.breakEndTime,
+  shiftLateGracePeriod: shift.lateGracePeriod,
+  shiftEarlyLeaveGracePeriod: shift.earlyLeaveGracePeriod,
+  shiftCheckInStartTime: shift.checkInStartTime,
+  shiftCheckInEndTime: shift.checkInEndTime,
+  shiftCheckOutStartTime: shift.checkOutStartTime,
+  shiftCheckOutEndTime: shift.checkOutEndTime,
+  shiftIsOvernight: shift.isOvernight,
+  shiftIsOvertime: shift.isOvertime,
+  shiftWorkUnits: shift.workUnits,
+  shiftOvertimeMultiplier: shift.overtimeMultiplier,
+});
 
 const ensureUsersExist = async (userIds: string[]) => {
   if (userIds.length === 0) {
@@ -738,11 +798,12 @@ const executeLeaveLogic = async (
     for (const shiftLink of schedule.shiftLinks) {
       const shift = shiftLink.workShift;
       const shiftStartAt = buildDateTimeOnDate(schedule.date, shift.startTime);
-      let shiftEndAt = buildDateTimeOnDate(schedule.date, shift.endTime);
-
-      if (shiftEndAt.getTime() <= shiftStartAt.getTime()) {
-        shiftEndAt = addUtcDays(shiftEndAt, 1);
-      }
+      const shiftEndAt = getShiftEndDateTime(
+        schedule.date,
+        shift.startTime,
+        shift.endTime,
+        shift.isOvernight,
+      );
 
       if (
         !rangesOverlap(
@@ -765,6 +826,11 @@ const executeLeaveLogic = async (
           workUnits,
         ));
       const status = isPaidLeave ? paidLeaveStatus : unpaidLeaveStatus;
+      const shiftSnapshot = buildAttendanceDetailShiftSnapshot(
+        shift,
+        shiftStartAt,
+        shiftEndAt,
+      );
 
       await tx.attendanceRecordDetail.upsert({
         where: {
@@ -776,21 +842,13 @@ const executeLeaveLogic = async (
         create: {
           attendanceRecordId: attendanceRecord.id,
           workShiftId: shift.id,
-          workShiftName: shift.name,
-          shiftStartTime: shiftStartAt,
-          shiftEndTime: shiftEndAt,
-          shiftLateGracePeriod: shift.lateGracePeriod,
-          shiftEarlyLeaveGracePeriod: shift.earlyLeaveGracePeriod,
+          ...shiftSnapshot,
           checkInTime: null,
           checkOutTime: null,
           status,
         },
         update: {
-          workShiftName: shift.name,
-          shiftStartTime: shiftStartAt,
-          shiftEndTime: shiftEndAt,
-          shiftLateGracePeriod: shift.lateGracePeriod,
-          shiftEarlyLeaveGracePeriod: shift.earlyLeaveGracePeriod,
+          ...shiftSnapshot,
           checkInTime: null,
           checkOutTime: null,
           status,

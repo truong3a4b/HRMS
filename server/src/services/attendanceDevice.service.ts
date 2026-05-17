@@ -9,6 +9,7 @@ import {
   AttendanceDeviceDetail,
   PaginatedDeviceResponse,
   AttendanceDeviceCommandSummary,
+  FingerprintCommandResponse,
 } from "../types/attendance-device.types";
 import { attendanceMqttService } from "./attendanceMqtt.service";
 
@@ -121,6 +122,9 @@ export const attendanceDeviceService = {
       take: limit,
       include: {
         fingerprints: {
+          where: {
+            isActive: true,
+          },
           select: {
             id: true,
             createdAt: true,
@@ -163,6 +167,9 @@ export const attendanceDeviceService = {
       where: { id },
       include: {
         fingerprints: {
+          where: {
+            isActive: true,
+          },
           include: {
             employee: {
               select: {
@@ -212,7 +219,7 @@ export const attendanceDeviceService = {
 
     // Get fingerprint count separately if needed for count-only
     const fingerprintCount = await prisma.employeeFingerprint.count({
-      where: { deviceId: id },
+      where: { deviceId: id, isActive: true },
     });
 
     const recentLogs = device.logs.map((log) => ({
@@ -277,6 +284,9 @@ export const attendanceDeviceService = {
       },
       include: {
         fingerprints: {
+          where: {
+            isActive: true,
+          },
           include: {
             employee: {
               select: {
@@ -394,6 +404,9 @@ export const attendanceDeviceService = {
       },
       include: {
         fingerprints: {
+          where: {
+            isActive: true,
+          },
           include: {
             employee: {
               select: {
@@ -431,7 +444,7 @@ export const attendanceDeviceService = {
     });
 
     const fingerprintCount = await prisma.employeeFingerprint.count({
-      where: { deviceId: id },
+      where: { deviceId: id, isActive: true },
     });
 
     const recentLogs = updatedDevice.logs.map((log) => ({
@@ -488,7 +501,7 @@ export const attendanceDeviceService = {
       );
     }
 
-    // Check if device has any fingerprints
+    // Do not hard-delete fingerprint history through device cascade.
     const fingerprintCount = await prisma.employeeFingerprint.count({
       where: { deviceId: id },
     });
@@ -496,7 +509,7 @@ export const attendanceDeviceService = {
     if (fingerprintCount > 0) {
       throw new ApiError(
         400,
-        "Cannot delete device with associated fingerprints. Please remove fingerprints first.",
+        "Cannot delete device with associated fingerprint history.",
         ATTENDANCE_DEVICE_ERROR_CODES.INVALID_OPERATION,
       );
     }
@@ -512,12 +525,7 @@ export const attendanceDeviceService = {
     deviceId: string,
     employeeId: string,
     fingerName: string,
-  ): Promise<{
-    id: string;
-    deviceId: string;
-    command: string;
-    status: string;
-  }> {
+  ): Promise<FingerprintCommandResponse> {
     const device = await prisma.attendanceDevice.findUnique({
       where: { id: deviceId },
     });
@@ -608,9 +616,15 @@ export const attendanceDeviceService = {
     };
   },
 
-  async removeFingerprint(fingerprintId: string): Promise<{ id: string }> {
+  async removeFingerprint(
+    deviceId: string,
+    fingerprintId: string,
+  ): Promise<FingerprintCommandResponse> {
     const fingerprint = await prisma.employeeFingerprint.findUnique({
       where: { id: fingerprintId },
+      include: {
+        device: true,
+      },
     });
 
     if (!fingerprint) {
@@ -621,11 +635,85 @@ export const attendanceDeviceService = {
       );
     }
 
-    await prisma.employeeFingerprint.delete({
-      where: { id: fingerprintId },
+    if (fingerprint.deviceId !== deviceId) {
+      throw new ApiError(
+        404,
+        "Fingerprint not found on this device",
+        ATTENDANCE_DEVICE_ERROR_CODES.FINGERPRINT_NOT_FOUND,
+      );
+    }
+
+    if (!fingerprint.isActive) {
+      throw new ApiError(
+        400,
+        "Fingerprint is already inactive",
+        ATTENDANCE_DEVICE_ERROR_CODES.INVALID_OPERATION,
+      );
+    }
+
+    if (!fingerprint.device.isActive) {
+      throw new ApiError(
+        400,
+        "Cannot create command for inactive device",
+        ATTENDANCE_DEVICE_ERROR_CODES.INVALID_OPERATION,
+      );
+    }
+
+    const command = await prisma.attendanceDeviceCommand.create({
+      data: {
+        deviceId,
+        command: "delete_fingerprint",
+        status: "pending",
+        payload: {
+          fingerprintId: fingerprint.id,
+          employeeId: fingerprint.employeeId,
+          fingerId: fingerprint.fingerId,
+        },
+      },
     });
 
-    return { id: fingerprintId };
+    const commandPayload =
+      attendanceMqttService.normalizeDeleteFingerprintPayload({
+        commandId: command.id,
+        fingerId: fingerprint.fingerId,
+      });
+
+    try {
+      await attendanceMqttService.publishCommand(
+        fingerprint.device.code,
+        commandPayload,
+      );
+      await prisma.attendanceDeviceCommand.update({
+        where: { id: command.id },
+        data: { status: "sent" },
+      });
+    } catch (error) {
+      await prisma.attendanceDeviceCommand.update({
+        where: { id: command.id },
+        data: {
+          status: "failed",
+          result: {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to publish MQTT command",
+          },
+        },
+      });
+
+      throw new ApiError(
+        503,
+        "Failed to publish fingerprint deletion command",
+        ATTENDANCE_DEVICE_ERROR_CODES.INVALID_OPERATION,
+      );
+    }
+
+    return {
+      id: command.id,
+      deviceId: command.deviceId,
+      command: command.command,
+      status: "sent",
+    };
   },
 
   async getDeviceFingerprints(deviceId: string) {
@@ -642,7 +730,7 @@ export const attendanceDeviceService = {
     }
 
     const fingerprints = await prisma.employeeFingerprint.findMany({
-      where: { deviceId },
+      where: { deviceId, isActive: true },
       include: {
         employee: {
           select: {

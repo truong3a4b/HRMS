@@ -13,13 +13,13 @@ import {
   User,
   Users,
 } from "lucide-react";
+import { paths } from "../../../app/router/paths";
 import type {
   AccountAction,
   DrawerItem,
   NotificationItem,
   StatItem,
 } from "../types/home.types";
-import { paths } from "../../../app/router/paths";
 
 const drawerIconClass = "h-5 w-5";
 
@@ -32,6 +32,7 @@ export function getDrawerItems(
   const permissionSet = new Set(permissions);
   const hasPermission = (permission: string) =>
     isAdmin || permissionSet.has(permission);
+
   const scheduleChildren = [
     ...(!isCandidate
       ? [
@@ -133,6 +134,45 @@ export function getDrawerItems(
       label: "Chấm công",
       icon: <CheckSquare className={drawerIconClass} />,
       expandable: true,
+      children: [
+        ...(hasPermission("ATTENDANCE_DEVICE_VIEW")
+          ? [
+              {
+                key: "attendance-devices",
+                label: "Thiết bị & vân tay",
+                path: paths.attendanceDevices,
+              },
+            ]
+          : []),
+        {
+          key: "attendance-history",
+          label: "Lịch sử chấm công",
+          path: paths.attendanceHistory,
+        },
+        {
+          key: "attendance-timesheet",
+          label: "Bảng công của tôi",
+          path: paths.attendanceTimesheet,
+        },
+        ...(hasPermission("ATTENDANCE_HISTORY_VIEW")
+          ? [
+              {
+                key: "attendance-employee-history",
+                label: "Lịch sử nhân viên",
+                path: paths.attendanceEmployeeHistory,
+              },
+            ]
+          : []),
+        ...(hasPermission("ATTENDANCE_TIMESHEET_VIEW")
+          ? [
+              {
+                key: "attendance-employee-timesheet",
+                label: "Bảng công nhân viên",
+                path: paths.attendanceEmployeeTimesheet,
+              },
+            ]
+          : []),
+      ],
     },
     {
       key: "salary",
@@ -162,7 +202,6 @@ export function getDrawerItems(
           label: "Chức vụ",
           path: paths.positions,
         },
-
         {
           key: "work-shifts",
           label: "Ca làm việc",

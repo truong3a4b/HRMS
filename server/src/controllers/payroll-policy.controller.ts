@@ -417,6 +417,162 @@ export const payrollPolicyController = {
     }
   },
 
+  async getAutoPenaltyPolicies(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.autoPenaltyPolicies.getAll({
+        isActive: getBooleanQuery(req.query.isActive),
+      });
+      return sendResponse(
+        res,
+        200,
+        "Auto penalty policies fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getAutoPenaltyPolicyById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await payrollPolicyService.autoPenaltyPolicies.getById(id);
+      return sendResponse(
+        res,
+        200,
+        "Auto penalty policy fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createAutoPenaltyPolicy(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.autoPenaltyPolicies.create(
+        req.body,
+      );
+      return sendResponse(
+        res,
+        201,
+        "Auto penalty policy created successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateAutoPenaltyPolicy(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await payrollPolicyService.autoPenaltyPolicies.update(
+        id,
+        req.body,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Auto penalty policy updated successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteAutoPenaltyPolicy(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await payrollPolicyService.autoPenaltyPolicies.delete(id);
+      return sendResponse(
+        res,
+        200,
+        "Auto penalty policy deleted successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getAutoPenaltyAssignments(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.autoPenaltyPolicies.getAssignments({
+          autoPenaltyPolicyId:
+            typeof req.query.autoPenaltyPolicyId === "string"
+              ? req.query.autoPenaltyPolicyId
+              : undefined,
+          employeeId:
+            typeof req.query.employeeId === "string"
+              ? req.query.employeeId
+              : undefined,
+          departmentId:
+            typeof req.query.departmentId === "string"
+              ? req.query.departmentId
+              : undefined,
+          positionId:
+            typeof req.query.positionId === "string"
+              ? req.query.positionId
+              : undefined,
+        });
+      return sendResponse(
+        res,
+        200,
+        "Auto penalty assignments fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async assignAutoPenaltyPolicy(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.autoPenaltyPolicies.assign(
+        req.body,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Auto penalty policy assigned successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getPayrollBonusPenalties(
     req: Request,
     res: Response,

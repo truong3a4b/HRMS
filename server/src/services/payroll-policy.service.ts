@@ -1,8 +1,8 @@
-import { Prisma } from "../../generated/prisma/client";
+import { AutoPenaltyType, Prisma } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { ApiError } from "../utils/apiError";
 
-type DecimalInput = string | number;
+type DecimalInput = string | number | Prisma.Decimal;
 
 type PolicyQuery = {
   isActive?: boolean;
@@ -69,6 +69,23 @@ type CreateAllowancePolicyInput = {
 
 type UpdateAllowancePolicyInput = Partial<CreateAllowancePolicyInput>;
 
+type AutoPenaltyTierInput = {
+  fromOccurrence: number;
+  toOccurrence?: number | null;
+  amount: DecimalInput;
+};
+
+type CreateAutoPenaltyPolicyInput = {
+  type: AutoPenaltyType;
+  name: string;
+  description?: string | null;
+  amount?: DecimalInput;
+  isActive?: boolean;
+  tiers?: AutoPenaltyTierInput[];
+};
+
+type UpdateAutoPenaltyPolicyInput = Partial<CreateAutoPenaltyPolicyInput>;
+
 type AssignPayrollPoliciesInput = {
   departmentIds?: string[];
   positionIds?: string[];
@@ -89,10 +106,17 @@ type AssignAllowancePolicyInput = {
   positionIds?: string[];
 };
 
+type AssignAutoPenaltyPolicyInput = {
+  autoPenaltyPolicyId: string;
+  departmentIds?: string[];
+  positionIds?: string[];
+};
+
 type CreatePayrollBonusPenaltyInput = {
   employeeId: string;
   month: Date;
   amount: DecimalInput;
+  isBonus?: boolean;
   reason?: string | null;
 };
 
@@ -106,6 +130,10 @@ type PayrollProfileQuery = {
 
 type EmployeeAllowanceQuery = PayrollProfileQuery & {
   allowancePolicyId?: string;
+};
+
+type EmployeeAutoPenaltyPolicyQuery = PayrollProfileQuery & {
+  autoPenaltyPolicyId?: string;
 };
 
 type PayrollBonusPenaltyQuery = PayrollProfileQuery & {
@@ -213,6 +241,75 @@ const ensureTaxBrackets = (brackets?: TaxBracketInput[]) => {
   });
 };
 
+const progressiveAutoPenaltyTypes = new Set<AutoPenaltyType>([
+  AutoPenaltyType.LATE_EARLY_PROGRESSIVE,
+  AutoPenaltyType.UNAUTHORIZED_ABSENCE_PROGRESSIVE,
+]);
+
+const ensureAutoPenaltyTiers = (
+  type: AutoPenaltyType,
+  tiers?: AutoPenaltyTierInput[],
+) => {
+  if (!progressiveAutoPenaltyTypes.has(type)) {
+    return;
+  }
+
+  if (!tiers || tiers.length === 0) {
+    throw new ApiError(
+      400,
+      "Progressive auto penalty policy must have at least one tier",
+      "AUTO_PENALTY_TIER_REQUIRED",
+    );
+  }
+
+  const ordered = [...tiers].sort(
+    (first, second) => first.fromOccurrence - second.fromOccurrence,
+  );
+
+  ordered.forEach((tier, index) => {
+    if (tier.fromOccurrence < 1) {
+      throw new ApiError(
+        400,
+        "Tier fromOccurrence must be greater than or equal to 1",
+        "INVALID_AUTO_PENALTY_TIER_RANGE",
+      );
+    }
+
+    if (
+      tier.toOccurrence !== undefined &&
+      tier.toOccurrence !== null &&
+      tier.toOccurrence < tier.fromOccurrence
+    ) {
+      throw new ApiError(
+        400,
+        "Tier toOccurrence must be greater than or equal to fromOccurrence",
+        "INVALID_AUTO_PENALTY_TIER_RANGE",
+      );
+    }
+
+    const previous = ordered[index - 1];
+    if (!previous) {
+      return;
+    }
+
+    if (previous.toOccurrence === null || previous.toOccurrence === undefined) {
+      throw new ApiError(
+        400,
+        "Only the last auto penalty tier can have empty toOccurrence",
+        "INVALID_AUTO_PENALTY_TIER_RANGE",
+      );
+    }
+
+    if (tier.fromOccurrence <= previous.toOccurrence) {
+      throw new ApiError(
+        400,
+        "Auto penalty tiers must not overlap",
+        "INVALID_AUTO_PENALTY_TIER_RANGE",
+      );
+    }
+  });
+};
+
 const buildPolicyWhere = (query: PolicyQuery) => ({
   ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
 });
@@ -252,6 +349,38 @@ const getTargetEmployeeIds = async (data: {
 
 const employeeAllowanceInclude = {
   allowancePolicy: true,
+  employee: {
+    select: {
+      id: true,
+      employeeId: true,
+      name: true,
+      email: true,
+      departmentId: true,
+      positionId: true,
+      department: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      position: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
+};
+
+const employeeAutoPenaltyPolicyInclude = {
+  autoPenaltyPolicy: {
+    include: {
+      tiers: {
+        orderBy: { fromOccurrence: "asc" as const },
+      },
+    },
+  },
   employee: {
     select: {
       id: true,
@@ -733,6 +862,172 @@ export const payrollPolicyService = {
     },
   },
 
+  autoPenaltyPolicies: {
+    getAll(query: PolicyQuery) {
+      return prisma.autoPenaltyPolicy.findMany({
+        where: buildPolicyWhere(query),
+        include: {
+          tiers: {
+            orderBy: { fromOccurrence: "asc" },
+          },
+        },
+        orderBy: [{ isActive: "desc" }, { type: "asc" }],
+      });
+    },
+
+    async getById(id: string) {
+      const policy = await prisma.autoPenaltyPolicy.findUnique({
+        where: { id },
+        include: {
+          tiers: {
+            orderBy: { fromOccurrence: "asc" },
+          },
+        },
+      });
+
+      if (!policy) {
+        throw new ApiError(
+          404,
+          "Auto penalty policy not found",
+          "AUTO_PENALTY_POLICY_NOT_FOUND",
+        );
+      }
+
+      return policy;
+    },
+
+    create(data: CreateAutoPenaltyPolicyInput) {
+      ensureAutoPenaltyTiers(data.type, data.tiers);
+
+      return prisma.autoPenaltyPolicy.create({
+        data: {
+          type: data.type,
+          name: data.name,
+          description: data.description,
+          amount: data.amount ?? 0,
+          isActive: data.isActive,
+          tiers: data.tiers?.length
+            ? {
+                create: data.tiers,
+              }
+            : undefined,
+        },
+        include: {
+          tiers: {
+            orderBy: { fromOccurrence: "asc" },
+          },
+        },
+      });
+    },
+
+    async update(id: string, data: UpdateAutoPenaltyPolicyInput) {
+      const existing = await this.getById(id);
+      const nextType = data.type ?? existing.type;
+      ensureAutoPenaltyTiers(
+        nextType,
+        data.tiers ?? (existing.tiers as AutoPenaltyTierInput[]),
+      );
+
+      return prisma.$transaction(async (tx) => {
+        if (data.tiers) {
+          await tx.autoPenaltyTier.deleteMany({
+            where: { autoPenaltyPolicyId: id },
+          });
+        }
+
+        return tx.autoPenaltyPolicy.update({
+          where: { id },
+          data: {
+            ...(data.type !== undefined ? { type: data.type } : {}),
+            ...(data.name !== undefined ? { name: data.name } : {}),
+            ...(data.description !== undefined
+              ? { description: data.description }
+              : {}),
+            ...(data.amount !== undefined ? { amount: data.amount } : {}),
+            ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+            ...(data.tiers
+              ? {
+                  tiers: {
+                    create: data.tiers,
+                  },
+                }
+              : {}),
+          },
+          include: {
+            tiers: {
+              orderBy: { fromOccurrence: "asc" },
+            },
+          },
+        });
+      });
+    },
+
+    async delete(id: string) {
+      await this.getById(id);
+
+      const usedCount = await prisma.employeeAutoPenaltyPolicy.count({
+        where: { autoPenaltyPolicyId: id },
+      });
+
+      if (usedCount > 0) {
+        throw new ApiError(
+          400,
+          "Cannot delete auto penalty policy assigned to employees",
+          "AUTO_PENALTY_POLICY_IN_USE",
+        );
+      }
+
+      return prisma.autoPenaltyPolicy.delete({
+        where: { id },
+        include: {
+          tiers: {
+            orderBy: { fromOccurrence: "asc" },
+          },
+        },
+      });
+    },
+
+    async assign(data: AssignAutoPenaltyPolicyInput) {
+      await this.getById(data.autoPenaltyPolicyId);
+
+      const employeeIds = await getTargetEmployeeIds(data);
+
+      await prisma.employeeAutoPenaltyPolicy.createMany({
+        data: employeeIds.map((employeeId) => ({
+          employeeId,
+          autoPenaltyPolicyId: data.autoPenaltyPolicyId,
+        })),
+        skipDuplicates: true,
+      });
+
+      return prisma.employeeAutoPenaltyPolicy.findMany({
+        where: {
+          autoPenaltyPolicyId: data.autoPenaltyPolicyId,
+          employeeId: { in: employeeIds },
+        },
+        include: employeeAutoPenaltyPolicyInclude,
+        orderBy: { employee: { name: "asc" } },
+      });
+    },
+
+    getAssignments(query: EmployeeAutoPenaltyPolicyQuery) {
+      return prisma.employeeAutoPenaltyPolicy.findMany({
+        where: {
+          ...(query.autoPenaltyPolicyId
+            ? { autoPenaltyPolicyId: query.autoPenaltyPolicyId }
+            : {}),
+          ...(query.employeeId ? { employeeId: query.employeeId } : {}),
+          employee: {
+            ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+            ...(query.positionId ? { positionId: query.positionId } : {}),
+          },
+        },
+        include: employeeAutoPenaltyPolicyInclude,
+        orderBy: { createdAt: "desc" },
+      });
+    },
+  },
+
   payrollBonusPenalties: {
     getAll(query: PayrollBonusPenaltyQuery) {
       return prisma.payrollBonusPenalty.findMany({
@@ -790,6 +1085,7 @@ export const payrollPolicyService = {
             : {}),
           ...(data.month !== undefined ? { month: data.month } : {}),
           ...(data.amount !== undefined ? { amount: data.amount } : {}),
+          ...(data.isBonus !== undefined ? { isBonus: data.isBonus } : {}),
           ...(data.reason !== undefined ? { reason: data.reason } : {}),
         },
         include: payrollBonusPenaltyInclude,

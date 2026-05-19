@@ -45,6 +45,14 @@ export const paths = {
   salaryDeduction: '/salary/deduction',
   salarySlips: '/salary/slips',
   salaryHistory: '/salary/history',
+  payrollManagement: '/salary/payrolls',
+  payrollPeriodOverview: (periodId: string) => `/salary/payrolls/${periodId}`,
+  payrollEmployeeDetail: (periodId: string, employeeId: string) =>
+    `/salary/payrolls/${periodId}/employees/${employeeId}`,
+  payrollPeriodOverviewRoute: '/salary/payrolls/:periodId',
+  payrollEmployeeDetailRoute: '/salary/payrolls/:periodId/employees/:employeeId',
+  payrollMine: '/salary/mine',
+  payrollPolicies: '/salary/policies',
 
   // Profile
   profile: '/profile',

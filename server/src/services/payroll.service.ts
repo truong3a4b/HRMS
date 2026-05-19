@@ -1,5 +1,8 @@
 import {
+  AutoPenaltyType,
   AttendanceStatus,
+  PayrollPaymentMode,
+  PayrollPeriodStatus,
   PayrollStatus,
   Prisma,
   UserRole,
@@ -36,6 +39,7 @@ type AllowanceLineInput = {
 
 type BonusPenaltyLineInput = {
   payrollBonusPenaltyId?: string | null;
+  autoPenaltyPolicyId?: string | null;
   isBonus?: boolean;
   reason?: string | null;
   amount?: DecimalInput;
@@ -43,11 +47,14 @@ type BonusPenaltyLineInput = {
 
 type CreatePayrollInput = {
   employeeId: string;
-  month: number;
-  year: number;
+  month?: number;
+  year?: number;
+  periodId?: string;
 };
 
-type PayrollCalculationResult = CreatePayrollInput & {
+type PayrollCalculationResult = Omit<CreatePayrollInput, "month" | "year"> & {
+  month: number;
+  year: number;
   baseSalary?: DecimalInput;
   standardWorkDays?: DecimalInput;
   actualWorkDays?: DecimalInput;
@@ -74,14 +81,30 @@ type PayrollCalculationResult = CreatePayrollInput & {
 type UpdatePayrollInput = Partial<PayrollCalculationResult>;
 
 type CreatePayrollByTargetsInput = {
-  month: number;
-  year: number;
+  month?: number;
+  year?: number;
+  periodId?: string;
+  periodName?: string | null;
+  note?: string | null;
   departmentIds: string[];
   positionIds: string[];
   skipExisting?: boolean;
 };
 
+type CreatePayrollPaymentBatchInput = {
+  periodId?: string;
+  month?: number;
+  year?: number;
+  employeeIds: string[];
+  mode: PayrollPaymentMode;
+  amount?: DecimalInput;
+  percent?: DecimalInput;
+  paymentDate?: Date | string;
+  note?: string | null;
+};
+
 type PayrollQuery = {
+  periodId?: string;
   employeeId?: string;
   departmentId?: string;
   positionId?: string;
@@ -90,38 +113,206 @@ type PayrollQuery = {
   status?: PayrollStatus;
 };
 
-const payrollInclude = {
-  employee: {
+const payrollEmployeeSelect = {
+  id: true,
+  employeeId: true,
+  name: true,
+  email: true,
+  departmentId: true,
+  positionId: true,
+  department: {
     select: {
       id: true,
-      employeeId: true,
       name: true,
-      email: true,
-      departmentId: true,
-      positionId: true,
-      department: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      position: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
     },
   },
+  position: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+};
+
+const payrollListSelect = {
+  id: true,
+  periodId: true,
+  employeeId: true,
+  month: true,
+  year: true,
+  baseSalary: true,
+  standardWorkDays: true,
+  actualWorkDays: true,
+  actualSalary: true,
+  totalOvertimeWorkDays: true,
+  totalOvertimeHours: true,
+  totalOvertimePay: true,
+  totalAllowance: true,
+  totalBonus: true,
+  totalPenalty: true,
+  socialInsurance: true,
+  healthInsurance: true,
+  unemploymentInsurance: true,
+  laborAccidentInsurance: true,
+  personalIncomeTax: true,
+  grossSalary: true,
+  totalDeduction: true,
+  netSalary: true,
+  paidAmount: true,
+  status: true,
+  generatedAt: true,
+  approvedAt: true,
+  paidAt: true,
+  createdAt: true,
+  updatedAt: true,
+  employee: {
+    select: payrollEmployeeSelect,
+  },
+  period: {
+    select: {
+      id: true,
+      name: true,
+      month: true,
+      year: true,
+      status: true,
+    },
+  },
+};
+
+const payrollOverviewSelect = {
+  id: true,
+  periodId: true,
+  employeeId: true,
+  month: true,
+  year: true,
+  baseSalary: true,
+  actualWorkDays: true,
+  grossSalary: true,
+  totalDeduction: true,
+  netSalary: true,
+  paidAmount: true,
+  status: true,
+  generatedAt: true,
+  approvedAt: true,
+  paidAt: true,
+  employee: {
+    select: payrollEmployeeSelect,
+  },
+};
+
+const payrollDetailInclude = {
+  period: {
+    select: {
+      id: true,
+      name: true,
+      month: true,
+      year: true,
+      status: true,
+      requestedAt: true,
+      approvedAt: true,
+      cancelledAt: true,
+      note: true,
+    },
+  },
+  employee: {
+    select: payrollEmployeeSelect,
+  },
   overtimeLines: {
+    select: {
+      id: true,
+      payrollId: true,
+      workShiftId: true,
+      workShiftCode: true,
+      workShiftName: true,
+      workDays: true,
+      hours: true,
+      baseHourlyRate: true,
+      multiplier: true,
+      amount: true,
+      createdAt: true,
+      updatedAt: true,
+    },
     orderBy: { createdAt: "asc" as const },
   },
   allowanceLines: {
+    select: {
+      id: true,
+      payrollId: true,
+      allowancePolicyId: true,
+      allowanceName: true,
+      amount: true,
+      createdAt: true,
+      updatedAt: true,
+    },
     orderBy: { createdAt: "asc" as const },
   },
   bonusPenaltyLines: {
+    select: {
+      id: true,
+      payrollId: true,
+      payrollBonusPenaltyId: true,
+      autoPenaltyPolicyId: true,
+      isBonus: true,
+      reason: true,
+      amount: true,
+      createdAt: true,
+      updatedAt: true,
+      autoPenaltyPolicy: {
+        select: {
+          id: true,
+          type: true,
+          name: true,
+        },
+      },
+      payrollBonusPenalty: {
+        select: {
+          id: true,
+          month: true,
+          isBonus: true,
+          reason: true,
+          amount: true,
+        },
+      },
+    },
     orderBy: { createdAt: "asc" as const },
   },
+  payments: {
+    select: {
+      id: true,
+      batchId: true,
+      employeeId: true,
+      mode: true,
+      requestedAmount: true,
+      requestedPercent: true,
+      amount: true,
+      remainingBefore: true,
+      remainingAfter: true,
+      payrollNetSalary: true,
+      payrollPaidBefore: true,
+      paymentDate: true,
+      note: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { paymentDate: "desc" as const },
+  },
+};
+
+type PayrollPaymentBatchQuery = {
+  periodId?: string;
+  month?: number;
+  year?: number;
+  employeeId?: string;
+};
+
+type PayrollPeriodInput = {
+  month?: number;
+  year?: number;
+  periodId?: string;
+};
+
+type PayrollPeriodEmployeeInput = PayrollPeriodInput & {
+  employeeId: string;
 };
 
 const hasAnyPermission = (user: AuthUser, permissions: PermissionKey[]) =>
@@ -142,6 +333,7 @@ const canViewOwnPayrolls = (user: AuthUser) =>
 
 const employeeVisibleStatuses: PayrollStatus[] = [
   PayrollStatus.APPROVED,
+  PayrollStatus.PARTIALLY_PAID,
   PayrollStatus.PAID,
 ];
 
@@ -158,6 +350,12 @@ const attendedStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.LATE_AND_EARLY_LEAVE,
 ]);
 
+const leaveStatuses = new Set<AttendanceStatus>([
+  AttendanceStatus.ON_LEAVE,
+  AttendanceStatus.PAID_LEAVE,
+  AttendanceStatus.UNPAID_LEAVE,
+]);
+
 const toNumber = (value: unknown) => Number(value ?? 0);
 
 const getDetailWorkUnits = (detail: {
@@ -169,7 +367,9 @@ const getDetailOvertimeMultiplier = (detail: {
   shiftOvertimeMultiplier: Prisma.Decimal | null;
   workShift: { overtimeMultiplier: Prisma.Decimal };
 }) =>
-  toNumber(detail.shiftOvertimeMultiplier ?? detail.workShift.overtimeMultiplier);
+  toNumber(
+    detail.shiftOvertimeMultiplier ?? detail.workShift.overtimeMultiplier,
+  );
 
 const isDetailOvertime = (detail: {
   shiftIsOvertime: boolean;
@@ -179,6 +379,34 @@ const isDetailOvertime = (detail: {
 const roundMoney = (value: number) => Math.round(value);
 
 const roundWork = (value: number) => Math.round(value * 100) / 100;
+
+const payablePayrollStatuses = new Set<PayrollStatus>([
+  PayrollStatus.APPROVED,
+  PayrollStatus.PARTIALLY_PAID,
+]);
+
+const progressiveCountMultiplier = (count: number) => (count * (count + 1)) / 2;
+
+const calculateTieredPenalty = (
+  count: number,
+  tiers: Array<{
+    fromOccurrence: number;
+    toOccurrence: number | null;
+    amount: unknown;
+  }>,
+) => {
+  if (count <= 0 || tiers.length === 0) {
+    return 0;
+  }
+
+  return tiers.reduce((total, tier) => {
+    const from = tier.fromOccurrence;
+    const to = tier.toOccurrence ?? Number.POSITIVE_INFINITY;
+    const matchedCount = Math.max(0, Math.min(count, to) - from + 1);
+
+    return total + matchedCount * toNumber(tier.amount);
+  }, 0);
+};
 
 const getMonthRange = (month: number, year: number) => ({
   start: new Date(Date.UTC(year, month - 1, 1)),
@@ -238,10 +466,158 @@ const ensureEmployeeExists = async (employeeId: string) => {
   }
 };
 
+const assertValidPaymentInput = (data: CreatePayrollPaymentBatchInput) => {
+  if (data.mode === PayrollPaymentMode.AMOUNT) {
+    if (data.amount === undefined || toNumber(data.amount) <= 0) {
+      throw new ApiError(
+        400,
+        "Payment amount must be greater than 0",
+        "INVALID_PAYMENT_AMOUNT",
+      );
+    }
+  }
+
+  if (data.mode === PayrollPaymentMode.PERCENT) {
+    const percent = toNumber(data.percent);
+    if (data.percent === undefined || percent <= 0 || percent > 100) {
+      throw new ApiError(
+        400,
+        "Payment percent must be greater than 0 and at most 100",
+        "INVALID_PAYMENT_PERCENT",
+      );
+    }
+  }
+};
+
+const getPayrollPeriodOrThrow = async (id: string) => {
+  const period = await prisma.payrollPeriod.findUnique({
+    where: { id },
+  });
+
+  if (!period) {
+    throw new ApiError(
+      404,
+      "Payroll period not found",
+      "PAYROLL_PERIOD_NOT_FOUND",
+    );
+  }
+
+  return period;
+};
+
+const resolvePayrollPeriod = async (
+  data: {
+    periodId?: string;
+    month?: number;
+    year?: number;
+    periodName?: string | null;
+    note?: string | null;
+  },
+  createdById?: string,
+) => {
+  if (data.periodId) {
+    return getPayrollPeriodOrThrow(data.periodId);
+  }
+
+  if (!data.month || !data.year) {
+    throw new ApiError(
+      400,
+      "Payroll period or month/year is required",
+      "PAYROLL_PERIOD_REQUIRED",
+    );
+  }
+
+  return prisma.payrollPeriod.upsert({
+    where: {
+      month_year: {
+        month: data.month,
+        year: data.year,
+      },
+    },
+    update: {
+      ...(data.periodName !== undefined
+        ? { name: data.periodName?.trim() || null }
+        : {}),
+      ...(data.note !== undefined ? { note: data.note?.trim() || null } : {}),
+    },
+    create: {
+      month: data.month,
+      year: data.year,
+      name:
+        data.periodName?.trim() ||
+        `Ky luong ${String(data.month).padStart(2, "0")}/${data.year}`,
+      note: data.note?.trim() || null,
+      createdById,
+    },
+  });
+};
+
+const findPayrollPeriodByInput = async (data: {
+  periodId?: string;
+  month?: number;
+  year?: number;
+}) => {
+  const period = data.periodId
+    ? await prisma.payrollPeriod.findUnique({ where: { id: data.periodId } })
+    : data.month && data.year
+      ? await prisma.payrollPeriod.findUnique({
+          where: { month_year: { month: data.month, year: data.year } },
+        })
+      : null;
+
+  if (!period) {
+    throw new ApiError(
+      404,
+      "Payroll period not found",
+      "PAYROLL_PERIOD_NOT_FOUND",
+    );
+  }
+
+  return period;
+};
+
+const assertDraftPeriod = (period: { status: PayrollPeriodStatus }) => {
+  if (period.status !== PayrollPeriodStatus.DRAFT) {
+    throw new ApiError(
+      400,
+      "Only draft payroll periods can be modified",
+      "INVALID_PAYROLL_PERIOD_STATUS",
+    );
+  }
+};
+
+const getPaymentDate = (value?: Date | string) => {
+  if (!value) {
+    return new Date();
+  }
+
+  const paymentDate = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(paymentDate.getTime())) {
+    throw new ApiError(400, "Invalid payment date", "INVALID_PAYMENT_DATE");
+  }
+
+  return paymentDate;
+};
+
+const calculatePaymentAmount = (
+  remainingAmount: number,
+  data: CreatePayrollPaymentBatchInput,
+) => {
+  if (data.mode === PayrollPaymentMode.REMAINING) {
+    return remainingAmount;
+  }
+
+  if (data.mode === PayrollPaymentMode.PERCENT) {
+    return roundMoney(remainingAmount * (toNumber(data.percent) / 100));
+  }
+
+  return roundMoney(toNumber(data.amount));
+};
+
 const getPayrollOrThrow = async (id: string) => {
   const payroll = await prisma.payroll.findUnique({
     where: { id },
-    include: payrollInclude,
+    include: payrollDetailInclude,
   });
 
   if (!payroll) {
@@ -251,7 +627,10 @@ const getPayrollOrThrow = async (id: string) => {
   return payroll;
 };
 
-const assertCanViewPayroll = (user: AuthUser, payroll: { employeeId: string; status: PayrollStatus }) => {
+const assertCanViewPayroll = (
+  user: AuthUser,
+  payroll: { employeeId: string; status: PayrollStatus },
+) => {
   if (canViewAllPayrolls(user)) {
     return;
   }
@@ -288,6 +667,7 @@ const buildPayrollData = (data: PayrollCalculationResult) => ({
   grossSalary: data.grossSalary ?? 0,
   totalDeduction: data.totalDeduction ?? 0,
   netSalary: data.netSalary ?? 0,
+  paidAmount: 0,
 });
 
 const calculatePayrollForEmployee = async (
@@ -350,6 +730,17 @@ const calculatePayrollForEmployee = async (
           allowancePolicy: true,
         },
       },
+      autoPenaltyPolicies: {
+        include: {
+          autoPenaltyPolicy: {
+            include: {
+              tiers: {
+                orderBy: { fromOccurrence: "asc" },
+              },
+            },
+          },
+        },
+      },
       payrollBonusPenalties: {
         where: {
           month: {
@@ -405,6 +796,16 @@ const calculatePayrollForEmployee = async (
       .filter((detail) => !isDetailOvertime(detail))
       .map((detail) => getDateKey(detail.recordDate)),
   );
+
+  const attendanceDetailsByDate = new Map<
+    string,
+    Array<(typeof employee.attendanceRecords)[number]["details"][number]>
+  >();
+
+  employee.attendanceRecords.forEach((record) => {
+    attendanceDetailsByDate.set(getDateKey(record.date), record.details);
+  });
+
   const absentDays = employee.workSchedules.reduce((total, schedule) => {
     const hasRegularWork = schedule.shiftLinks.some(
       (shiftLink) => !shiftLink.workShift.isOvertime,
@@ -414,8 +815,52 @@ const calculatePayrollForEmployee = async (
       return total;
     }
 
-    return total + (attendedRegularDateKeys.has(getDateKey(schedule.date)) ? 0 : 1);
+    return (
+      total + (attendedRegularDateKeys.has(getDateKey(schedule.date)) ? 0 : 1)
+    );
   }, 0);
+
+  const unauthorizedAbsenceDays = employee.workSchedules.reduce(
+    (total, schedule) => {
+      const hasRegularWork = schedule.shiftLinks.some(
+        (shiftLink) => !shiftLink.workShift.isOvertime,
+      );
+
+      if (!hasRegularWork) {
+        return total;
+      }
+
+      const dateKey = getDateKey(schedule.date);
+      const details = attendanceDetailsByDate.get(dateKey) ?? [];
+      const hasApprovedLeave = details.some((detail) =>
+        leaveStatuses.has(detail.status),
+      );
+
+      if (attendedRegularDateKeys.has(dateKey) || hasApprovedLeave) {
+        return total;
+      }
+
+      return total + 1;
+    },
+    0,
+  );
+
+  const lateEarlyOccurrences = attendedDetails
+    .filter((detail) => !isDetailOvertime(detail))
+    .reduce((total, detail) => {
+      if (detail.status === AttendanceStatus.LATE_AND_EARLY_LEAVE) {
+        return total + 2;
+      }
+
+      if (
+        detail.status === AttendanceStatus.LATE ||
+        detail.status === AttendanceStatus.EARLY_LEAVE
+      ) {
+        return total + 1;
+      }
+
+      return total;
+    }, 0);
 
   const overtimeLineMap = new Map<string, PayrollLineInput>();
 
@@ -463,7 +908,13 @@ const calculatePayrollForEmployee = async (
     .map((employeeAllowance) => employeeAllowance.allowancePolicy)
     .filter(
       (policy) =>
-        policy.isActive && isEffectiveInMonth(policy.effectiveFrom, policy.effectiveTo, start, end),
+        policy.isActive &&
+        isEffectiveInMonth(
+          policy.effectiveFrom,
+          policy.effectiveTo,
+          start,
+          end,
+        ),
     )
     .map((policy) => ({
       allowancePolicyId: policy.id,
@@ -477,19 +928,61 @@ const calculatePayrollForEmployee = async (
   );
 
   const payrollProfile = employee.payrollProfile;
-  const bonusPenaltyLines: BonusPenaltyLineInput[] = employee.payrollBonusPenalties.map((item) => ({
-    payrollBonusPenaltyId: item.id,
-    isBonus: item.isBonus,
-    reason: item.reason,
-    amount: roundMoney(Math.abs(toNumber(item.amount))),
-  }));
+  const bonusPenaltyLines: BonusPenaltyLineInput[] =
+    employee.payrollBonusPenalties.map((item) => ({
+      payrollBonusPenaltyId: item.id,
+      isBonus: item.isBonus,
+      reason: item.reason,
+      amount: roundMoney(Math.abs(toNumber(item.amount))),
+    }));
+
+  employee.autoPenaltyPolicies
+    .map((assignment) => assignment.autoPenaltyPolicy)
+    .filter((policy) => policy.isActive)
+    .forEach((policy) => {
+      const baseAmount = toNumber(policy.amount);
+      const isProgressive =
+        policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE ||
+        policy.type === AutoPenaltyType.UNAUTHORIZED_ABSENCE_PROGRESSIVE;
+      const violationCount =
+        policy.type === AutoPenaltyType.LATE_EARLY ||
+        policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
+          ? lateEarlyOccurrences
+          : unauthorizedAbsenceDays;
+
+      if (violationCount <= 0) {
+        return;
+      }
+
+      const amount = isProgressive
+        ? policy.tiers.length > 0
+          ? calculateTieredPenalty(violationCount, policy.tiers)
+          : baseAmount * progressiveCountMultiplier(violationCount)
+        : baseAmount * violationCount;
+
+      if (amount <= 0) {
+        return;
+      }
+
+      bonusPenaltyLines.push({
+        autoPenaltyPolicyId: policy.id,
+        isBonus: false,
+        reason: `${policy.name} (${violationCount} lần)`,
+        amount: roundMoney(amount),
+      });
+    });
 
   const attendanceBonusPolicy = payrollProfile?.attendanceBonusPolicy;
 
   if (
     payrollProfile?.isAttendanceBonusApplicable &&
     attendanceBonusPolicy?.isActive &&
-    isEffectiveInMonth(attendanceBonusPolicy.effectiveFrom, attendanceBonusPolicy.effectiveTo, start, end)
+    isEffectiveInMonth(
+      attendanceBonusPolicy.effectiveFrom,
+      attendanceBonusPolicy.effectiveTo,
+      start,
+      end,
+    )
   ) {
     const meetsWorkDays =
       !attendanceBonusPolicy.requiredWorkDays ||
@@ -595,7 +1088,9 @@ const buildPayrollUpdateData = (
   ...(data.actualWorkDays !== undefined
     ? { actualWorkDays: data.actualWorkDays }
     : {}),
-  ...(data.actualSalary !== undefined ? { actualSalary: data.actualSalary } : {}),
+  ...(data.actualSalary !== undefined
+    ? { actualSalary: data.actualSalary }
+    : {}),
   ...(data.totalOvertimeWorkDays !== undefined
     ? { totalOvertimeWorkDays: data.totalOvertimeWorkDays }
     : {}),
@@ -635,16 +1130,23 @@ const buildPayrollUpdateData = (
 });
 
 export const payrollService = {
+  //tạo bảng lương mới, chỉ tạo khi chưa tồn tại bảng lương nào cho nhân viên đó trong tháng
   async create(user: AuthUser, data: CreatePayrollInput) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+    const period = await resolvePayrollPeriod(data, user.id);
+    assertDraftPeriod(period);
+    // Chỉ cho phép tạo mới, không cho phép cập nhật nếu đã tồn tại bảng lương cho nhân viên đó trong tháng
+    requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+    // Kiểm tra nhân viên tồn tại
     await ensureEmployeeExists(data.employeeId);
 
+    // Kiểm tra trùng lặp bảng lương
     const existing = await prisma.payroll.findUnique({
       where: {
         employeeId_month_year: {
           employeeId: data.employeeId,
-          month: data.month,
-          year: data.year,
+          month: period.month,
+          year: period.year,
         },
       },
       select: { id: true },
@@ -658,15 +1160,17 @@ export const payrollService = {
       );
     }
 
+    // Tính toán bảng lương dựa trên dữ liệu chấm công, công thêm giờ, phụ cấp, thưởng/phạt tự động
     const calculatedPayroll = await calculatePayrollForEmployee(
       data.employeeId,
-      data.month,
-      data.year,
+      period.month,
+      period.year,
     );
 
     return prisma.payroll.create({
       data: {
         ...buildPayrollData(calculatedPayroll),
+        periodId: period.id,
         status: PayrollStatus.DRAFT,
         overtimeLines: {
           create: calculatedPayroll.overtimeLines ?? [],
@@ -678,12 +1182,15 @@ export const payrollService = {
           create: calculatedPayroll.bonusPenaltyLines ?? [],
         },
       },
-      include: payrollInclude,
+      include: payrollDetailInclude,
     });
   },
 
+  //tạo bảng lương hàng loạt theo tiêu chí phòng ban, vị trí, bỏ qua những nhân viên đã có bảng lương trong tháng nếu có tùy chọn
   async createByTargets(user: AuthUser, data: CreatePayrollByTargetsInput) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+    const period = await resolvePayrollPeriod(data, user.id);
+    assertDraftPeriod(period);
 
     const employees = await prisma.employee.findMany({
       where: {
@@ -709,8 +1216,7 @@ export const payrollService = {
     const existingPayrolls = await prisma.payroll.findMany({
       where: {
         employeeId: { in: employeeIds },
-        month: data.month,
-        year: data.year,
+        periodId: period.id,
       },
       select: {
         employeeId: true,
@@ -744,7 +1250,7 @@ export const payrollService = {
 
     const calculatedPayrolls = await Promise.all(
       targetEmployees.map((employee) =>
-        calculatePayrollForEmployee(employee.id, data.month, data.year),
+        calculatePayrollForEmployee(employee.id, period.month, period.year),
       ),
     );
 
@@ -753,6 +1259,7 @@ export const payrollService = {
         prisma.payroll.create({
           data: {
             ...buildPayrollData(payrollData),
+            periodId: period.id,
             status: PayrollStatus.DRAFT,
             overtimeLines: {
               create: payrollData.overtimeLines ?? [],
@@ -776,15 +1283,15 @@ export const payrollService = {
       payrolls: await prisma.payroll.findMany({
         where: {
           employeeId: { in: createdEmployeeIds },
-          month: data.month,
-          year: data.year,
+          periodId: period.id,
         },
-        include: payrollInclude,
+        select: payrollListSelect,
         orderBy: { employee: { name: "asc" } },
       }),
     };
   },
 
+  //lấy chi tiết bảng lương, chỉ trả về nếu có quyền xem bảng lương đó
   async getById(user: AuthUser, id: string) {
     const payroll = await getPayrollOrThrow(id);
     assertCanViewPayroll(user, payroll);
@@ -802,6 +1309,7 @@ export const payrollService = {
         "INVALID_PAYROLL_STATUS",
       );
     }
+    assertDraftPeriod(payroll.period);
 
     if (data.employeeId) {
       await ensureEmployeeExists(data.employeeId);
@@ -810,6 +1318,14 @@ export const payrollService = {
     const targetEmployeeId = data.employeeId ?? payroll.employeeId;
     const targetMonth = data.month ?? payroll.month;
     const targetYear = data.year ?? payroll.year;
+    const targetPeriod =
+      targetMonth !== payroll.month || targetYear !== payroll.year
+        ? await resolvePayrollPeriod(
+            { month: targetMonth, year: targetYear },
+            user.id,
+          )
+        : payroll.period;
+    assertDraftPeriod(targetPeriod);
 
     if (
       targetEmployeeId !== payroll.employeeId ||
@@ -820,8 +1336,7 @@ export const payrollService = {
         where: {
           id: { not: id },
           employeeId: targetEmployeeId,
-          month: targetMonth,
-          year: targetYear,
+          periodId: targetPeriod.id,
         },
         select: { id: true },
       });
@@ -854,6 +1369,9 @@ export const payrollService = {
         where: { id },
         data: {
           ...buildPayrollUpdateData(data),
+          periodId: targetPeriod.id,
+          month: targetPeriod.month,
+          year: targetPeriod.year,
           ...(data.overtimeLines
             ? { overtimeLines: { create: data.overtimeLines } }
             : {}),
@@ -864,7 +1382,7 @@ export const payrollService = {
             ? { bonusPenaltyLines: { create: data.bonusPenaltyLines } }
             : {}),
         },
-        include: payrollInclude,
+        include: payrollDetailInclude,
       });
     });
   },
@@ -876,6 +1394,7 @@ export const payrollService = {
 
     return prisma.payroll.findMany({
       where: {
+        ...(query.periodId ? { periodId: query.periodId } : {}),
         ...(query.employeeId ? { employeeId: query.employeeId } : {}),
         ...(query.month ? { month: query.month } : {}),
         ...(query.year ? { year: query.year } : {}),
@@ -885,79 +1404,274 @@ export const payrollService = {
           ...(query.positionId ? { positionId: query.positionId } : {}),
         },
       },
-      include: payrollInclude,
+      select: payrollListSelect,
       orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
     });
   },
 
-  getMine(user: AuthUser, query: Pick<PayrollQuery, "month" | "year">) {
-    if (!user.employeeId || !canViewOwnPayrolls(user)) {
+  //lấy bảng lương của chính mình, chỉ trả về những bảng lương đã được duyệt hoặc đã thanh toán
+  async getPeriodOverview(user: AuthUser, data: PayrollPeriodInput) {
+    if (!canViewAllPayrolls(user)) {
       throw new ApiError(403, "Forbidden", "FORBIDDEN");
     }
-
-    return prisma.payroll.findMany({
-      where: {
-        employeeId: user.employeeId,
-        status: { in: [PayrollStatus.APPROVED, PayrollStatus.PAID] },
-        ...(query.month ? { month: query.month } : {}),
-        ...(query.year ? { year: query.year } : {}),
-      },
-      include: payrollInclude,
-      orderBy: [{ year: "desc" }, { month: "desc" }],
-    });
-  },
-
-  async requestApproval(user: AuthUser, id: string) {
-    requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
-    const payroll = await getPayrollOrThrow(id);
-
-    if (payroll.status !== PayrollStatus.DRAFT) {
-      throw new ApiError(
-        400,
-        "Only draft payroll can be submitted for approval",
-        "INVALID_PAYROLL_STATUS",
-      );
-    }
-
-    return prisma.payroll.update({
-      where: { id },
-      data: { status: PayrollStatus.WAITING_APPROVAL },
-      include: payrollInclude,
-    });
-  },
-
-  async approve(user: AuthUser, id: string) {
-    requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
-    const payroll = await getPayrollOrThrow(id);
-
-    if (payroll.status !== PayrollStatus.WAITING_APPROVAL) {
-      throw new ApiError(
-        400,
-        "Only payroll waiting for approval can be approved",
-        "INVALID_PAYROLL_STATUS",
-      );
-    }
-
-    return prisma.payroll.update({
-      where: { id },
-      data: {
-        status: PayrollStatus.APPROVED,
-        approvedAt: new Date(),
-      },
-      include: payrollInclude,
-    });
-  },
-
-  async approveMany(user: AuthUser, ids: string[]) {
-    requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
+    const period = await findPayrollPeriodByInput(data);
 
     const payrolls = await prisma.payroll.findMany({
-      where: { id: { in: ids } },
+      where: {
+        periodId: period.id,
+      },
+      select: payrollOverviewSelect,
+      orderBy: { employee: { name: "asc" } },
+    });
+
+    const statusCounts = payrolls.reduce(
+      (counts, payroll) => ({
+        ...counts,
+        [payroll.status]: (counts[payroll.status] ?? 0) + 1,
+      }),
+      {} as Record<PayrollStatus, number>,
+    );
+
+    const summary = payrolls.reduce(
+      (totals, payroll) => {
+        const netSalary = toNumber(payroll.netSalary);
+        const paidAmount = toNumber(payroll.paidAmount);
+
+        return {
+          grossSalary: totals.grossSalary + toNumber(payroll.grossSalary),
+          totalDeduction:
+            totals.totalDeduction + toNumber(payroll.totalDeduction),
+          netSalary: totals.netSalary + netSalary,
+          paidAmount: totals.paidAmount + paidAmount,
+          remainingAmount:
+            totals.remainingAmount + Math.max(0, netSalary - paidAmount),
+        };
+      },
+      {
+        grossSalary: 0,
+        totalDeduction: 0,
+        netSalary: 0,
+        paidAmount: 0,
+        remainingAmount: 0,
+      },
+    );
+
+    return {
+      period,
+      month: period.month,
+      year: period.year,
+      totalEmployees: payrolls.length,
+      statusCounts,
+      summary: {
+        grossSalary: roundMoney(summary.grossSalary),
+        totalDeduction: roundMoney(summary.totalDeduction),
+        netSalary: roundMoney(summary.netSalary),
+        paidAmount: roundMoney(summary.paidAmount),
+        remainingAmount: roundMoney(summary.remainingAmount),
+      },
+      payrolls: payrolls.map((payroll) => ({
+        ...payroll,
+        remainingAmount: roundMoney(
+          Math.max(
+            0,
+            toNumber(payroll.netSalary) - toNumber(payroll.paidAmount),
+          ),
+        ),
+      })),
+    };
+  },
+
+  async getPeriodEmployeeDetail(
+    user: AuthUser,
+    data: PayrollPeriodEmployeeInput,
+  ) {
+    const period = await findPayrollPeriodByInput(data);
+    const payroll = await prisma.payroll.findUnique({
+      where: {
+        periodId_employeeId: {
+          periodId: period.id,
+          employeeId: data.employeeId,
+        },
+      },
+      include: payrollDetailInclude,
+    });
+
+    if (!payroll) {
+      throw new ApiError(404, "Payroll not found", "PAYROLL_NOT_FOUND");
+    }
+
+    assertCanViewPayroll(user, payroll);
+    return payroll;
+  },
+
+  async requestPeriodApproval(user: AuthUser, data: PayrollPeriodInput) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+    const period = await findPayrollPeriodByInput(data);
+    assertDraftPeriod(period);
+
+    const payrolls = await prisma.payroll.findMany({
+      where: {
+        periodId: period.id,
+      },
       select: { id: true, status: true },
     });
 
-    if (payrolls.length !== new Set(ids).size) {
-      throw new ApiError(404, "Some payrolls were not found", "PAYROLL_NOT_FOUND");
+    if (payrolls.length === 0) {
+      throw new ApiError(
+        404,
+        "No payrolls found for this period",
+        "PAYROLL_NOT_FOUND",
+      );
+    }
+
+    const invalid = payrolls.find(
+      (payroll) => payroll.status !== PayrollStatus.DRAFT,
+    );
+
+    if (invalid) {
+      throw new ApiError(
+        400,
+        "Only draft payroll periods can be submitted for approval",
+        "INVALID_PAYROLL_STATUS",
+      );
+    }
+
+    await prisma.payroll.updateMany({
+      where: {
+        periodId: period.id,
+      },
+      data: { status: PayrollStatus.WAITING_APPROVAL },
+    });
+    await prisma.payrollPeriod.update({
+      where: { id: period.id },
+      data: {
+        status: PayrollPeriodStatus.WAITING_APPROVAL,
+        requestedAt: new Date(),
+      },
+    });
+
+    return this.getPeriodOverview(user, { ...data, periodId: period.id });
+  },
+
+  async recalculatePeriod(user: AuthUser, data: PayrollPeriodInput) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+    const period = await findPayrollPeriodByInput(data);
+    assertDraftPeriod(period);
+
+    const payrolls = await prisma.payroll.findMany({
+      where: { periodId: period.id },
+      select: {
+        id: true,
+        employeeId: true,
+        status: true,
+        paidAmount: true,
+      },
+      orderBy: { employee: { name: "asc" } },
+    });
+
+    if (payrolls.length === 0) {
+      throw new ApiError(
+        404,
+        "No payrolls found for this period",
+        "PAYROLL_NOT_FOUND",
+      );
+    }
+
+    const invalid = payrolls.find(
+      (payroll) =>
+        payroll.status !== PayrollStatus.DRAFT ||
+        toNumber(payroll.paidAmount) > 0,
+    );
+
+    if (invalid) {
+      throw new ApiError(
+        400,
+        "Only unpaid draft payroll periods can be recalculated",
+        "INVALID_PAYROLL_STATUS",
+      );
+    }
+
+    const recalculatedPayrolls = await Promise.all(
+      payrolls.map((payroll) =>
+        calculatePayrollForEmployee(
+          payroll.employeeId,
+          period.month,
+          period.year,
+        ).then((calculated) => ({
+          id: payroll.id,
+          calculated,
+        })),
+      ),
+    );
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of recalculatedPayrolls) {
+        await tx.payrollOvertimeLine.deleteMany({
+          where: { payrollId: item.id },
+        });
+        await tx.payrollAllowanceLine.deleteMany({
+          where: { payrollId: item.id },
+        });
+        await tx.payrollBonusPenaltyLine.deleteMany({
+          where: { payrollId: item.id },
+        });
+
+        await tx.payroll.update({
+          where: { id: item.id },
+          data: {
+            ...buildPayrollData(item.calculated),
+            periodId: period.id,
+            status: PayrollStatus.DRAFT,
+            approvedAt: null,
+            paidAt: null,
+            overtimeLines: {
+              create: item.calculated.overtimeLines ?? [],
+            },
+            allowanceLines: {
+              create: item.calculated.allowanceLines ?? [],
+            },
+            bonusPenaltyLines: {
+              create: item.calculated.bonusPenaltyLines ?? [],
+            },
+          },
+        });
+      }
+    });
+
+    return {
+      recalculatedCount: recalculatedPayrolls.length,
+      overview: await this.getPeriodOverview(user, {
+        ...data,
+        periodId: period.id,
+      }),
+    };
+  },
+
+  async approvePeriod(user: AuthUser, data: PayrollPeriodInput) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
+    const period = await findPayrollPeriodByInput(data);
+
+    if (period.status !== PayrollPeriodStatus.WAITING_APPROVAL) {
+      throw new ApiError(
+        400,
+        "Only payroll periods waiting for approval can be approved",
+        "INVALID_PAYROLL_PERIOD_STATUS",
+      );
+    }
+
+    const payrolls = await prisma.payroll.findMany({
+      where: {
+        periodId: period.id,
+      },
+      select: { id: true, status: true },
+    });
+
+    if (payrolls.length === 0) {
+      throw new ApiError(
+        404,
+        "No payrolls found for this period",
+        "PAYROLL_NOT_FOUND",
+      );
     }
 
     const invalid = payrolls.find(
@@ -967,46 +1681,400 @@ export const payrollService = {
     if (invalid) {
       throw new ApiError(
         400,
-        "Only payrolls waiting for approval can be approved",
+        "Only payroll periods waiting for approval can be approved",
         "INVALID_PAYROLL_STATUS",
       );
     }
 
     await prisma.payroll.updateMany({
-      where: { id: { in: ids } },
+      where: {
+        periodId: period.id,
+      },
       data: {
         status: PayrollStatus.APPROVED,
         approvedAt: new Date(),
       },
     });
+    await prisma.payrollPeriod.update({
+      where: { id: period.id },
+      data: {
+        status: PayrollPeriodStatus.APPROVED,
+        approvedAt: new Date(),
+      },
+    });
+
+    return this.getPeriodOverview(user, { ...data, periodId: period.id });
+  },
+
+  getMine(user: AuthUser, query: Pick<PayrollQuery, "month" | "year">) {
+    if (!user.employeeId) {
+      if (canViewAllPayrolls(user)) {
+        return [];
+      }
+
+      throw new ApiError(403, "Forbidden", "FORBIDDEN");
+    }
+
+    if (!canViewOwnPayrolls(user)) {
+      throw new ApiError(403, "Forbidden", "FORBIDDEN");
+    }
 
     return prisma.payroll.findMany({
-      where: { id: { in: ids } },
-      include: payrollInclude,
+      where: {
+        employeeId: user.employeeId,
+        status: { in: employeeVisibleStatuses },
+        ...(query.month ? { month: query.month } : {}),
+        ...(query.year ? { year: query.year } : {}),
+      },
+      select: payrollListSelect,
       orderBy: [{ year: "desc" }, { month: "desc" }],
     });
   },
 
-  async pay(user: AuthUser, id: string) {
-    requirePermission(user, [PERMISSIONS.PAYROLL_PAY]);
+  async requestApproval(user: AuthUser, id: string) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
     const payroll = await getPayrollOrThrow(id);
+    return this.requestPeriodApproval(user, { periodId: payroll.periodId });
+  },
 
-    if (payroll.status !== PayrollStatus.APPROVED) {
+  async approve(user: AuthUser, id: string) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
+    const payroll = await getPayrollOrThrow(id);
+    return this.approvePeriod(user, { periodId: payroll.periodId });
+  },
+
+  async approveMany(user: AuthUser, ids: string[]) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
+
+    const payrolls = await prisma.payroll.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, periodId: true },
+    });
+
+    if (payrolls.length !== new Set(ids).size) {
       throw new ApiError(
-        400,
-        "Only approved payroll can be paid",
-        "INVALID_PAYROLL_STATUS",
+        404,
+        "Some payrolls were not found",
+        "PAYROLL_NOT_FOUND",
       );
     }
 
-    return prisma.payroll.update({
-      where: { id },
-      data: {
-        status: PayrollStatus.PAID,
-        paidAt: new Date(),
-      },
-      include: payrollInclude,
+    const period = payrolls[0];
+    const hasMixedPeriod = payrolls.some(
+      (payroll) => payroll.periodId !== period.periodId,
+    );
+    if (hasMixedPeriod) {
+      throw new ApiError(
+        400,
+        "Payrolls must be in the same period to approve together",
+        "MIXED_PAYROLL_PERIOD",
+      );
+    }
+
+    return this.approvePeriod(user, { periodId: period.periodId });
+  },
+
+  async createPaymentBatch(user: AuthUser, data: CreatePayrollPaymentBatchInput) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_PAY]);
+    assertValidPaymentInput(data);
+    const period = await findPayrollPeriodByInput(data);
+    if (period.status !== PayrollPeriodStatus.APPROVED) {
+      throw new ApiError(
+        400,
+        "Only approved payroll periods can be paid",
+        "INVALID_PAYROLL_PERIOD_STATUS",
+      );
+    }
+
+    const employeeIds = [...new Set(data.employeeIds)];
+    if (employeeIds.length !== data.employeeIds.length) {
+      throw new ApiError(
+        400,
+        "Duplicate employees are not allowed",
+        "DUPLICATE_EMPLOYEE",
+      );
+    }
+
+    const paymentDate = getPaymentDate(data.paymentDate);
+    const note = data.note?.trim() || null;
+
+    return prisma.$transaction(async (tx) => {
+      const payrolls = await tx.payroll.findMany({
+        where: {
+          periodId: period.id,
+          employeeId: { in: employeeIds },
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          periodId: true,
+          month: true,
+          year: true,
+          netSalary: true,
+          paidAmount: true,
+          status: true,
+        },
+      });
+
+      if (payrolls.length !== employeeIds.length) {
+        throw new ApiError(
+          404,
+          "Some employee payrolls were not found for this period",
+          "PAYROLL_NOT_FOUND",
+        );
+      }
+
+      const invalid = payrolls.find(
+        (payroll) => !payablePayrollStatuses.has(payroll.status),
+      );
+      if (invalid) {
+        throw new ApiError(
+          400,
+          "Only approved or partially paid payrolls can be paid",
+          "INVALID_PAYROLL_STATUS",
+        );
+      }
+
+      const paymentItems = payrolls.map((payroll) => {
+        const netSalary = roundMoney(toNumber(payroll.netSalary));
+        const paidBefore = roundMoney(toNumber(payroll.paidAmount));
+        const remainingBefore = roundMoney(netSalary - paidBefore);
+        const amount = calculatePaymentAmount(remainingBefore, data);
+
+        if (remainingBefore <= 0) {
+          throw new ApiError(
+            400,
+            "Some payrolls have no remaining salary to pay",
+            "PAYROLL_ALREADY_PAID",
+          );
+        }
+
+        if (amount <= 0) {
+          throw new ApiError(
+            400,
+            "Calculated payment amount must be greater than 0",
+            "INVALID_PAYMENT_AMOUNT",
+          );
+        }
+
+        if (amount > remainingBefore) {
+          throw new ApiError(
+            400,
+            "Payment amount cannot exceed remaining salary",
+            "PAYMENT_EXCEEDS_REMAINING",
+          );
+        }
+
+        const paidAfter = roundMoney(paidBefore + amount);
+        const remainingAfter = roundMoney(netSalary - paidAfter);
+
+        return {
+          payroll,
+          amount,
+          paidBefore,
+          paidAfter,
+          netSalary,
+          remainingBefore,
+          remainingAfter,
+        };
+      });
+
+      const totalAmount = paymentItems.reduce(
+        (total, item) => total + item.amount,
+        0,
+      );
+
+      const batch = await tx.payrollPaymentBatch.create({
+        data: {
+          month: period.month,
+          year: period.year,
+          periodId: period.id,
+          mode: data.mode,
+          amount:
+            data.mode === PayrollPaymentMode.AMOUNT
+              ? roundMoney(toNumber(data.amount))
+              : null,
+          percent:
+            data.mode === PayrollPaymentMode.PERCENT
+              ? toNumber(data.percent)
+              : null,
+          totalAmount: roundMoney(totalAmount),
+          paymentDate,
+          note,
+          createdById: user.id,
+          payments: {
+            create: paymentItems.map((item) => ({
+              payrollId: item.payroll.id,
+              employeeId: item.payroll.employeeId,
+              mode: data.mode,
+              requestedAmount:
+                data.mode === PayrollPaymentMode.AMOUNT
+                  ? roundMoney(toNumber(data.amount))
+                  : null,
+              requestedPercent:
+                data.mode === PayrollPaymentMode.PERCENT
+                  ? toNumber(data.percent)
+                  : null,
+              amount: item.amount,
+              remainingBefore: item.remainingBefore,
+              remainingAfter: item.remainingAfter,
+              payrollNetSalary: item.netSalary,
+              payrollPaidBefore: item.paidBefore,
+              paymentDate,
+              note,
+            })),
+          },
+        },
+        include: {
+          payments: {
+            include: {
+              payroll: {
+                select: payrollListSelect,
+              },
+              employee: {
+                select: payrollEmployeeSelect,
+              },
+            },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
+
+      await Promise.all(
+        paymentItems.map((item) =>
+          tx.payroll.update({
+            where: { id: item.payroll.id },
+            data: {
+              paidAmount: item.paidAfter,
+              status:
+                item.remainingAfter <= 0
+                  ? PayrollStatus.PAID
+                  : PayrollStatus.PARTIALLY_PAID,
+              paidAt: item.remainingAfter <= 0 ? paymentDate : null,
+            },
+          }),
+        ),
+      );
+
+      return batch;
     });
+  },
+
+  async getPeriods(user: AuthUser, query: Pick<PayrollQuery, "month" | "year">) {
+    if (!canViewAllPayrolls(user)) {
+      throw new ApiError(403, "Forbidden", "FORBIDDEN");
+    }
+
+    return prisma.payrollPeriod.findMany({
+      where: {
+        ...(query.month ? { month: query.month } : {}),
+        ...(query.year ? { year: query.year } : {}),
+      },
+      include: {
+        _count: {
+          select: {
+            payrolls: true,
+            paymentBatches: true,
+          },
+        },
+      },
+      orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
+    });
+  },
+
+  async getPaymentBatches(user: AuthUser, query: PayrollPaymentBatchQuery) {
+    if (!canViewAllPayrolls(user)) {
+      throw new ApiError(403, "Forbidden", "FORBIDDEN");
+    }
+
+    return prisma.payrollPaymentBatch.findMany({
+      where: {
+        ...(query.periodId ? { periodId: query.periodId } : {}),
+        ...(query.month ? { month: query.month } : {}),
+        ...(query.year ? { year: query.year } : {}),
+        ...(query.employeeId
+          ? { payments: { some: { employeeId: query.employeeId } } }
+          : {}),
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
+        payments: {
+          include: {
+            employee: {
+              select: payrollEmployeeSelect,
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+      orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
+    });
+  },
+
+  async getPaymentBatchById(user: AuthUser, id: string) {
+    if (!canViewAllPayrolls(user)) {
+      throw new ApiError(403, "Forbidden", "FORBIDDEN");
+    }
+
+    const batch = await prisma.payrollPaymentBatch.findUnique({
+      where: { id },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
+        payments: {
+          include: {
+            payroll: {
+              select: payrollListSelect,
+            },
+            employee: {
+              select: payrollEmployeeSelect,
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    if (!batch) {
+      throw new ApiError(
+        404,
+        "Payroll payment batch not found",
+        "PAYROLL_PAYMENT_BATCH_NOT_FOUND",
+      );
+    }
+
+    return batch;
+  },
+
+  async pay(user: AuthUser, id: string) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_PAY]);
+    const payroll = await prisma.payroll.findUnique({
+      where: { id },
+      select: { employeeId: true, periodId: true },
+    });
+
+    if (!payroll) {
+      throw new ApiError(404, "Payroll not found", "PAYROLL_NOT_FOUND");
+    }
+
+    await this.createPaymentBatch(user, {
+      periodId: payroll.periodId,
+      employeeIds: [payroll.employeeId],
+      mode: PayrollPaymentMode.REMAINING,
+    });
+
+    return getPayrollOrThrow(id);
   },
 
   async payMany(user: AuthUser, ids: string[]) {
@@ -1014,36 +2082,39 @@ export const payrollService = {
 
     const payrolls = await prisma.payroll.findMany({
       where: { id: { in: ids } },
-      select: { id: true, status: true },
+      select: { id: true, employeeId: true, periodId: true },
     });
 
     if (payrolls.length !== new Set(ids).size) {
-      throw new ApiError(404, "Some payrolls were not found", "PAYROLL_NOT_FOUND");
-    }
-
-    const invalid = payrolls.find(
-      (payroll) => payroll.status !== PayrollStatus.APPROVED,
-    );
-
-    if (invalid) {
       throw new ApiError(
-        400,
-        "Only approved payrolls can be paid",
-        "INVALID_PAYROLL_STATUS",
+        404,
+        "Some payrolls were not found",
+        "PAYROLL_NOT_FOUND",
       );
     }
 
-    await prisma.payroll.updateMany({
-      where: { id: { in: ids } },
-      data: {
-        status: PayrollStatus.PAID,
-        paidAt: new Date(),
-      },
+    const period = payrolls[0];
+    const hasMixedPeriod = payrolls.some(
+      (payroll) => payroll.periodId !== period.periodId,
+    );
+
+    if (hasMixedPeriod) {
+      throw new ApiError(
+        400,
+        "Payrolls must be in the same period to create one payment batch",
+        "MIXED_PAYROLL_PERIOD",
+      );
+    }
+
+    await this.createPaymentBatch(user, {
+      periodId: period.periodId,
+      employeeIds: payrolls.map((payroll) => payroll.employeeId),
+      mode: PayrollPaymentMode.REMAINING,
     });
 
     return prisma.payroll.findMany({
       where: { id: { in: ids } },
-      include: payrollInclude,
+      select: payrollListSelect,
       orderBy: [{ year: "desc" }, { month: "desc" }],
     });
   },

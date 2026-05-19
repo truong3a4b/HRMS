@@ -1,0 +1,169 @@
+import type { EmployeeOption } from "../../employees/types/employee.types";
+
+export type PayrollStatus =
+  | "DRAFT"
+  | "WAITING_APPROVAL"
+  | "APPROVED"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "CANCELLED";
+
+export type PayrollPeriodStatus =
+  | "DRAFT"
+  | "WAITING_APPROVAL"
+  | "APPROVED"
+  | "CANCELLED";
+
+export type PayrollEmployee = {
+  id: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  departmentId?: string | null;
+  positionId?: string | null;
+  department?: EmployeeOption | null;
+  position?: EmployeeOption | null;
+};
+
+export type MoneyValue = string | number;
+
+export type PayrollSummary = {
+  id: string;
+  periodId?: string;
+  employeeId: string;
+  employee?: PayrollEmployee | null;
+  period?: PayrollPeriod | null;
+  month: number;
+  year: number;
+  baseSalary: MoneyValue;
+  standardWorkDays: MoneyValue;
+  actualWorkDays: MoneyValue;
+  actualSalary: MoneyValue;
+  totalOvertimeWorkDays: MoneyValue;
+  totalOvertimeHours: MoneyValue;
+  totalOvertimePay: MoneyValue;
+  totalAllowance: MoneyValue;
+  totalBonus: MoneyValue;
+  totalPenalty: MoneyValue;
+  socialInsurance: MoneyValue;
+  healthInsurance: MoneyValue;
+  unemploymentInsurance: MoneyValue;
+  laborAccidentInsurance: MoneyValue;
+  personalIncomeTax: MoneyValue;
+  grossSalary: MoneyValue;
+  totalDeduction: MoneyValue;
+  netSalary: MoneyValue;
+  paidAmount?: MoneyValue;
+  remainingAmount?: MoneyValue;
+  status: PayrollStatus;
+  generatedAt?: string;
+  approvedAt?: string | null;
+  paidAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PayrollPeriod = {
+  id: string;
+  name?: string | null;
+  month: number;
+  year: number;
+  status: PayrollPeriodStatus;
+  requestedAt?: string | null;
+  approvedAt?: string | null;
+  cancelledAt?: string | null;
+  note?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: {
+    payrolls: number;
+    paymentBatches: number;
+  };
+};
+
+export type PayrollPeriodOverview = {
+  period: PayrollPeriod;
+  month: number;
+  year: number;
+  totalEmployees: number;
+  statusCounts: Partial<Record<PayrollStatus, number>>;
+  summary: {
+    grossSalary: MoneyValue;
+    totalDeduction: MoneyValue;
+    netSalary: MoneyValue;
+    paidAmount: MoneyValue;
+    remainingAmount: MoneyValue;
+  };
+  payrolls: PayrollSummary[];
+};
+
+export type PayrollOvertimeLine = {
+  id: string;
+  workShiftId?: string | null;
+  workShiftCode?: string | null;
+  workShiftName: string;
+  workDays: MoneyValue;
+  hours: MoneyValue;
+  baseHourlyRate: MoneyValue;
+  multiplier: MoneyValue;
+  amount: MoneyValue;
+};
+
+export type PayrollAllowanceLine = {
+  id: string;
+  allowancePolicyId?: string | null;
+  allowanceName: string;
+  amount: MoneyValue;
+};
+
+export type PayrollBonusPenaltyLine = {
+  id: string;
+  payrollBonusPenaltyId?: string | null;
+  autoPenaltyPolicyId?: string | null;
+  isBonus: boolean;
+  reason?: string | null;
+  amount: MoneyValue;
+  autoPenaltyPolicy?: {
+    id: string;
+    type: string;
+    name: string;
+  } | null;
+};
+
+export type PayrollDetail = PayrollSummary & {
+  overtimeLines: PayrollOvertimeLine[];
+  allowanceLines: PayrollAllowanceLine[];
+  bonusPenaltyLines: PayrollBonusPenaltyLine[];
+};
+
+export type PayrollQuery = {
+  periodId?: string;
+  employeeId?: string;
+  departmentId?: string;
+  positionId?: string;
+  month?: number;
+  year?: number;
+  status?: PayrollStatus | "";
+};
+
+export type CreatePayrollByTargetsPayload = {
+  periodId?: string;
+  month?: number;
+  year?: number;
+  periodName?: string | null;
+  note?: string | null;
+  departmentIds: string[];
+  positionIds: string[];
+  skipExisting?: boolean;
+};
+
+export type CreatePayrollByTargetsResult = {
+  createdCount: number;
+  skippedCount: number;
+  payrolls: PayrollSummary[];
+};
+
+export type RecalculatePayrollPeriodResult = {
+  recalculatedCount: number;
+  overview: PayrollPeriodOverview;
+};

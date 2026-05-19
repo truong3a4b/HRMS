@@ -179,12 +179,46 @@ export function getDrawerItems(
       label: "Lương",
       icon: <FileText className={drawerIconClass} />,
       expandable: true,
+      children: [
+        ...(!isCandidate
+          ? [
+              {
+                key: "payroll-mine",
+                label: "Bảng lương của tôi",
+                path: paths.payrollMine,
+              },
+            ]
+          : []),
+        ...(hasPermission("PAYROLL_VIEW") ||
+        hasPermission("PAYROLL_MANAGE") ||
+        hasPermission("PAYROLL_APPROVE") ||
+        hasPermission("PAYROLL_PAY")
+          ? [
+              {
+                key: "payroll-management",
+                label: "Bảng lương",
+                path: paths.payrollManagement,
+              },
+            ]
+          : []),
+      ],
     },
     {
       key: "payroll-config",
       label: "Cấu hình tính lương",
       icon: <AppWindow className={drawerIconClass} />,
       expandable: true,
+      children: [
+        ...(hasPermission("PAYROLL_POLICY_VIEW")
+          ? [
+              {
+                key: "payroll-policies",
+                label: "Chính sách lương",
+                path: paths.payrollPolicies,
+              },
+            ]
+          : []),
+      ],
     },
     {
       key: "categories",

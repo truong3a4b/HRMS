@@ -33,14 +33,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens     RefreshToken[]
-  candidate         Candidate?
-  employee          Employee?
-  sentNotifications Notification[]          @relation("NotificationSender")
-  notifications     NotificationRecipient[]
-  requestedRequests Request[]               @relation("RequestRequester")
-  requestApprovals  RequestApproval[]       @relation("RequestApprover")
-  watchedRequests   RequestWatcher[]        @relation("RequestWatcherUser")
+  refreshTokens         RefreshToken[]
+  candidate             Candidate?
+  employee              Employee?
+  payrollPeriods        PayrollPeriod[]
+  payrollPaymentBatches PayrollPaymentBatch[]
+  sentNotifications     Notification[]          @relation("NotificationSender")
+  notifications         NotificationRecipient[]
+  requestedRequests     Request[]               @relation("RequestRequester")
+  requestApprovals      RequestApproval[]       @relation("RequestApprover")
+  watchedRequests       RequestWatcher[]        @relation("RequestWatcherUser")
 }
 
 model PendingUser {
@@ -281,9 +283,11 @@ model Employee {
   attendanceCorrectionRequests AttendanceCorrectionRequest[]
   leaveBalances                EmployeeLeaveBalance[]
   allowances                   EmployeeAllowance[]
+  autoPenaltyPolicies          EmployeeAutoPenaltyPolicy[]
   payrollProfile               EmployeePayrollProfile?
   payrollBonusPenalties        PayrollBonusPenalty[]
   payrolls                     Payroll[]
+  payrollPayments              PayrollPayment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -935,6 +939,7 @@ model AttendanceBonusPolicy {
   @@map("attendance_bonus_policies")
 }
 
+//phu cap
 model AllowancePolicy {
   id            String    @id @default(uuid())
   name          String
@@ -968,6 +973,65 @@ model EmployeeAllowance {
   @@index([employeeId])
   @@index([allowancePolicyId])
   @@map("employee_allowances")
+}
+
+enum AutoPenaltyType {
+  LATE_EARLY
+  UNAUTHORIZED_ABSENCE
+  UNAUTHORIZED_ABSENCE_PROGRESSIVE
+  LATE_EARLY_PROGRESSIVE
+}
+
+model AutoPenaltyPolicy {
+  id          String          @id @default(uuid())
+  type        AutoPenaltyType
+  name        String
+  description String?
+  amount      Decimal         @default(0) @db.Decimal(15, 2)
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tiers               AutoPenaltyTier[]
+  employeeAssignments EmployeeAutoPenaltyPolicy[]
+  payrollLines        PayrollBonusPenaltyLine[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("auto_penalty_policies")
+}
+
+model AutoPenaltyTier {
+  id                  String  @id @default(uuid())
+  autoPenaltyPolicyId String
+  fromOccurrence      Int
+  toOccurrence        Int?
+  amount              Decimal @db.Decimal(15, 2)
+
+  autoPenaltyPolicy AutoPenaltyPolicy @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([autoPenaltyPolicyId, fromOccurrence])
+  @@map("auto_penalty_tiers")
+}
+
+model EmployeeAutoPenaltyPolicy {
+  id                  String @id @default(uuid())
+  employeeId          String
+  autoPenaltyPolicyId String
+
+  employee          Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  autoPenaltyPolicy AutoPenaltyPolicy @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, autoPenaltyPolicyId])
+  @@index([employeeId])
+  @@index([autoPenaltyPolicyId])
+  @@map("employee_auto_penalty_policies")
 }
 
 model EmployeePayrollProfile {
@@ -1019,6 +1083,7 @@ model PayrollBonusPenalty {
 model Payroll {
   id         String @id @default(uuid())
   employeeId String
+  periodId   String
 
   month Int
   year  Int
@@ -1052,6 +1117,7 @@ model Payroll {
   grossSalary    Decimal @default(0)
   totalDeduction Decimal @default(0)
   netSalary      Decimal @default(0)
+  paidAmount     Decimal @default(0) @db.Decimal(15, 2)
 
   status PayrollStatus @default(DRAFT)
 
@@ -1061,24 +1127,120 @@ model Payroll {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period   PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
 
   overtimeLines     PayrollOvertimeLine[]
   allowanceLines    PayrollAllowanceLine[]
   bonusPenaltyLines PayrollBonusPenaltyLine[]
+  payments          PayrollPayment[]
 
+  @@unique([periodId, employeeId])
   @@unique([employeeId, month, year])
+  @@index([periodId])
   @@index([year, month])
   @@index([status])
   @@map("payrolls")
+}
+
+model PayrollPeriod {
+  id          String              @id @default(uuid())
+  name        String?
+  month       Int
+  year        Int
+  status      PayrollPeriodStatus @default(DRAFT)
+  requestedAt DateTime?
+  approvedAt  DateTime?
+  cancelledAt DateTime?
+  createdById String?
+  note        String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  createdBy      User?                 @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  payrolls       Payroll[]
+  paymentBatches PayrollPaymentBatch[]
+
+  @@unique([month, year])
+  @@index([year, month])
+  @@index([status])
+  @@index([createdById])
+  @@map("payroll_periods")
+}
+
+enum PayrollPeriodStatus {
+  DRAFT
+  WAITING_APPROVAL
+  APPROVED
+  CANCELLED
 }
 
 enum PayrollStatus {
   DRAFT
   WAITING_APPROVAL
   APPROVED
+  PARTIALLY_PAID
   PAID
   CANCELLED
+}
+
+enum PayrollPaymentMode {
+  AMOUNT
+  PERCENT
+  REMAINING
+}
+
+model PayrollPaymentBatch {
+  id          String             @id @default(uuid())
+  periodId    String
+  month       Int
+  year        Int
+  mode        PayrollPaymentMode
+  amount      Decimal?           @db.Decimal(15, 2)
+  percent     Decimal?           @db.Decimal(6, 2)
+  totalAmount Decimal            @default(0) @db.Decimal(15, 2)
+  paymentDate DateTime           @default(now())
+  note        String?
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  createdBy User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  period    PayrollPeriod    @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  payments  PayrollPayment[]
+
+  @@index([periodId])
+  @@index([year, month])
+  @@index([createdById])
+  @@map("payroll_payment_batches")
+}
+
+model PayrollPayment {
+  id                String             @id @default(uuid())
+  batchId           String
+  payrollId         String
+  employeeId        String
+  mode              PayrollPaymentMode
+  requestedAmount   Decimal?           @db.Decimal(15, 2)
+  requestedPercent  Decimal?           @db.Decimal(6, 2)
+  amount            Decimal            @db.Decimal(15, 2)
+  remainingBefore   Decimal            @db.Decimal(15, 2)
+  remainingAfter    Decimal            @db.Decimal(15, 2)
+  payrollNetSalary  Decimal            @db.Decimal(15, 2)
+  payrollPaidBefore Decimal            @db.Decimal(15, 2)
+  paymentDate       DateTime
+  note              String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  batch    PayrollPaymentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  payroll  Payroll             @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  employee Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([payrollId])
+  @@index([employeeId, paymentDate])
+  @@map("payroll_payments")
 }
 
 model PayrollOvertimeLine {
@@ -1131,17 +1293,20 @@ model PayrollBonusPenaltyLine {
   payrollId String
 
   payrollBonusPenaltyId String?
+  autoPenaltyPolicyId   String?
   isBonus               Boolean @default(true)
   reason                String?
   amount                Decimal @default(0) @db.Decimal(15, 2)
 
   payroll             Payroll              @relation(fields: [payrollId], references: [id], onDelete: Cascade)
   payrollBonusPenalty PayrollBonusPenalty? @relation(fields: [payrollBonusPenaltyId], references: [id], onDelete: SetNull)
+  autoPenaltyPolicy   AutoPenaltyPolicy?   @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([payrollId])
   @@index([payrollBonusPenaltyId])
+  @@index([autoPenaltyPolicyId])
   @@map("payroll_bonus_penalty_lines")
 }

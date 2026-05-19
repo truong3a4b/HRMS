@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { UserRole } from "../../generated/prisma/client";
+import { AutoPenaltyType, UserRole } from "../../generated/prisma/client";
 import { PERMISSIONS } from "../constants/permissions";
 import { payrollPolicyController } from "../controllers/payroll-policy.controller";
 import {
@@ -107,6 +107,26 @@ const createAllowancePolicySchema = z.object({
 
 const updateAllowancePolicySchema = createAllowancePolicySchema.partial();
 
+const autoPenaltyTierSchema = z.object({
+  fromOccurrence: z.number().int().min(1),
+  toOccurrence: z.number().int().min(1).nullable().optional(),
+  amount: decimalSchema,
+});
+
+const createAutoPenaltyPolicySchema = z.object({
+  type: z.enum(AutoPenaltyType),
+  name: z.string().trim().min(2),
+  description: z.preprocess(
+    nullableEmptyToNull,
+    z.string().trim().min(1).nullable().optional(),
+  ),
+  amount: decimalSchema.optional(),
+  isActive: z.boolean().optional(),
+  tiers: z.array(autoPenaltyTierSchema).optional(),
+});
+
+const updateAutoPenaltyPolicySchema = createAutoPenaltyPolicySchema.partial();
+
 const idArraySchema = z.array(z.string().uuid()).min(1).optional();
 
 const assignPayrollPoliciesSchema = z.object({
@@ -141,10 +161,17 @@ const assignAllowancePolicySchema = z.object({
   positionIds: z.array(z.string().uuid()).min(1),
 });
 
+const assignAutoPenaltyPolicySchema = z.object({
+  autoPenaltyPolicyId: z.string().min(1),
+  departmentIds: z.array(z.string().uuid()).min(1),
+  positionIds: z.array(z.string().uuid()).min(1),
+});
+
 const createPayrollBonusPenaltySchema = z.object({
   employeeId: z.string().uuid(),
   month: z.coerce.date(),
   amount: decimalSchema,
+  isBonus: z.boolean().optional(),
   reason: z.preprocess(
     nullableEmptyToNull,
     z.string().trim().min(1).nullable().optional(),
@@ -288,6 +315,45 @@ router.post(
   ...canSetupPayrollPolicies,
   validate(assignAllowancePolicySchema),
   payrollPolicyController.assignAllowancePolicy,
+);
+
+router.get(
+  "/auto-penalties",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getAutoPenaltyPolicies,
+);
+router.get(
+  "/auto-penalties/assignments",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getAutoPenaltyAssignments,
+);
+router.get(
+  "/auto-penalties/:id",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getAutoPenaltyPolicyById,
+);
+router.post(
+  "/auto-penalties",
+  ...canSetupPayrollPolicies,
+  validate(createAutoPenaltyPolicySchema),
+  payrollPolicyController.createAutoPenaltyPolicy,
+);
+router.put(
+  "/auto-penalties/:id",
+  ...canSetupPayrollPolicies,
+  validate(updateAutoPenaltyPolicySchema),
+  payrollPolicyController.updateAutoPenaltyPolicy,
+);
+router.delete(
+  "/auto-penalties/:id",
+  ...canSetupPayrollPolicies,
+  payrollPolicyController.deleteAutoPenaltyPolicy,
+);
+router.post(
+  "/auto-penalties/assign",
+  ...canSetupPayrollPolicies,
+  validate(assignAutoPenaltyPolicySchema),
+  payrollPolicyController.assignAutoPenaltyPolicy,
 );
 
 router.get(

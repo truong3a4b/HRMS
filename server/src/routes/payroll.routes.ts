@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { UserRole } from "../../generated/prisma/client";
+import { PayrollPaymentMode, UserRole } from "../../generated/prisma/client";
 import { payrollController } from "../controllers/payroll.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate.middleware";
@@ -53,6 +53,10 @@ const bonusPenaltyLineSchema = z.object({
     nullableEmptyToNull,
     z.string().uuid().nullable().optional(),
   ),
+  autoPenaltyPolicyId: z.preprocess(
+    nullableEmptyToNull,
+    z.string().uuid().nullable().optional(),
+  ),
   isBonus: z.boolean().optional(),
   reason: z.preprocess(
     nullableEmptyToNull,
@@ -61,11 +65,22 @@ const bonusPenaltyLineSchema = z.object({
   amount: optionalDecimalSchema,
 });
 
-const createPayrollSchema = z.object({
-  employeeId: z.string().uuid(),
-  month: z.number().int().min(1).max(12),
-  year: z.number().int().min(1900).max(9999),
-});
+const createPayrollSchema = z
+  .object({
+    employeeId: z.string().uuid(),
+    periodId: z.string().trim().min(1).optional(),
+    month: z.number().int().min(1).max(12).optional(),
+    year: z.number().int().min(1900).max(9999).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.periodId && (!data.month || !data.year)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["periodId"],
+        message: "periodId or month/year is required",
+      });
+    }
+  });
 
 const updatePayrollSchema = z.object({
   employeeId: z.string().uuid().optional(),
@@ -94,17 +109,80 @@ const updatePayrollSchema = z.object({
   bonusPenaltyLines: z.array(bonusPenaltyLineSchema).optional(),
 });
 
-const createPayrollByTargetsSchema = z.object({
-  month: z.number().int().min(1).max(12),
-  year: z.number().int().min(1900).max(9999),
-  departmentIds: z.array(z.string().uuid()).min(1),
-  positionIds: z.array(z.string().uuid()).min(1),
-  skipExisting: z.boolean().optional(),
-});
+const createPayrollByTargetsSchema = z
+  .object({
+    periodId: z.string().trim().min(1).optional(),
+    month: z.number().int().min(1).max(12).optional(),
+    year: z.number().int().min(1900).max(9999).optional(),
+    periodName: z.preprocess(
+      nullableEmptyToNull,
+      z.string().trim().min(1).nullable().optional(),
+    ),
+    note: z.preprocess(
+      nullableEmptyToNull,
+      z.string().trim().min(1).nullable().optional(),
+    ),
+    departmentIds: z.array(z.string().uuid()).min(1),
+    positionIds: z.array(z.string().uuid()).min(1),
+    skipExisting: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.periodId && (!data.month || !data.year)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["periodId"],
+        message: "periodId or month/year is required",
+      });
+    }
+  });
 
 const idsSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
 });
+
+const createPayrollPaymentBatchSchema = z
+  .object({
+    month: z.number().int().min(1).max(12).optional(),
+    year: z.number().int().min(1900).max(9999).optional(),
+    periodId: z.string().trim().min(1).optional(),
+    employeeIds: z.array(z.string().uuid()).min(1),
+    mode: z.enum(PayrollPaymentMode),
+    amount: decimalSchema.optional(),
+    percent: decimalSchema.optional(),
+    paymentDate: z.coerce.date().optional(),
+    note: z.preprocess(
+      nullableEmptyToNull,
+      z.string().trim().min(1).nullable().optional(),
+    ),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.periodId && (!data.month || !data.year)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["periodId"],
+        message: "periodId or month/year is required",
+      });
+    }
+
+    if (data.mode === PayrollPaymentMode.AMOUNT && data.amount === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["amount"],
+        message: "amount is required when mode is AMOUNT",
+      });
+    }
+
+    if (
+      data.mode === PayrollPaymentMode.PERCENT &&
+      data.percent === undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["percent"],
+        message: "percent is required when mode is PERCENT",
+      });
+    }
+  });
 
 router.use(authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE));
 
@@ -116,8 +194,53 @@ router.post(
 );
 router.post("/", validate(createPayrollSchema), payrollController.create);
 router.get("/", payrollController.getAll);
+router.get("/periods", payrollController.getPeriods);
+router.get(
+  "/periods/:periodId/overview",
+  payrollController.getPeriodOverviewById,
+);
+router.get(
+  "/periods/:periodId/employees/:employeeId",
+  payrollController.getPeriodEmployeeDetailById,
+);
+router.post(
+  "/periods/:periodId/request-approval",
+  payrollController.requestPeriodApprovalById,
+);
+router.post(
+  "/periods/:periodId/recalculate",
+  payrollController.recalculatePeriodById,
+);
+router.post(
+  "/periods/:periodId/approve",
+  payrollController.approvePeriodById,
+);
+router.get(
+  "/periods/:year/:month/overview",
+  payrollController.getPeriodOverview,
+);
+router.get(
+  "/periods/:year/:month/employees/:employeeId",
+  payrollController.getPeriodEmployeeDetail,
+);
+router.post(
+  "/periods/:year/:month/request-approval",
+  payrollController.requestPeriodApproval,
+);
+router.post(
+  "/periods/:year/:month/recalculate",
+  payrollController.recalculatePeriod,
+);
+router.post("/periods/:year/:month/approve", payrollController.approvePeriod);
 router.post("/approve-many", validate(idsSchema), payrollController.approveMany);
 router.post("/pay-many", validate(idsSchema), payrollController.payMany);
+router.get("/payments", payrollController.getPaymentBatches);
+router.post(
+  "/payments",
+  validate(createPayrollPaymentBatchSchema),
+  payrollController.createPaymentBatch,
+);
+router.get("/payments/:id", payrollController.getPaymentBatchById);
 router.get("/:id", payrollController.getById);
 router.put("/:id", validate(updatePayrollSchema), payrollController.update);
 router.post("/:id/request-approval", payrollController.requestApproval);

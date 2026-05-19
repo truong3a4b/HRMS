@@ -8,6 +8,11 @@ import { DepartmentListPage } from "../../features/departments/pages/DepartmentL
 import { EmployeeDetailPage } from "../../features/employees/pages/EmployeeDetailPage";
 import { EmployeeListPage } from "../../features/employees/pages/EmployeeListPage";
 import { HomePage } from "../../features/home/pages/HomePage";
+import { PayrollEmployeeDetailPage } from "../../features/payroll/pages/PayrollEmployeeDetailPage";
+import { PayrollPage } from "../../features/payroll/pages/PayrollPage";
+import { PayrollPeriodListPage } from "../../features/payroll/pages/PayrollPeriodListPage";
+import { PayrollPeriodOverviewPage } from "../../features/payroll/pages/PayrollPeriodOverviewPage";
+import { PayrollPolicyPage } from "../../features/payroll-policies/pages/PayrollPolicyPage";
 import { PositionListPage } from "../../features/positions/pages/PositionListPage";
 import { RecruitmentApplicationListPage } from "../../features/recruitment/pages/RecruitmentApplicationListPage";
 import { RecruitmentJobListPage } from "../../features/recruitment/pages/RecruitmentJobListPage";
@@ -170,6 +175,46 @@ export function AppRouter() {
               initialTab="employeeTimesheet"
               tabs={["employeeTimesheet"]}
             />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollManagement}
+        element={
+          <ProtectedRoute>
+            <PayrollPeriodListPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollPeriodOverviewRoute}
+        element={
+          <ProtectedRoute>
+            <PayrollPeriodOverviewPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollEmployeeDetailRoute}
+        element={
+          <ProtectedRoute>
+            <PayrollEmployeeDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollMine}
+        element={
+          <ProtectedRoute>
+            <PayrollPage mode="mine" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollPolicies}
+        element={
+          <ProtectedRoute>
+            <PayrollPolicyPage />
           </ProtectedRoute>
         }
       />

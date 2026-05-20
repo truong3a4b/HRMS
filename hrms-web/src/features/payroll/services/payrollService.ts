@@ -1,6 +1,7 @@
 import { apiClient } from "../../../services/http/apiClient";
 import type { ApiResponse } from "../../auth/types/auth.types";
 import type {
+  CreatePayrollPayload,
   CreatePayrollByTargetsPayload,
   CreatePayrollByTargetsResult,
   PayrollDetail,
@@ -8,7 +9,6 @@ import type {
   PayrollPeriodOverview,
   PayrollQuery,
   PayrollSummary,
-  RecalculatePayrollPeriodResult,
 } from "../types/payroll.types";
 
 const removeEmptyParams = (params: Record<string, unknown>) =>
@@ -50,17 +50,17 @@ export const payrollService = {
     return response.data.data;
   },
 
-  async recalculatePeriod(periodId: string) {
-    const response = await apiClient.post<
-      ApiResponse<RecalculatePayrollPeriodResult>
-    >(`/payrolls/periods/${periodId}/recalculate`);
+  async approvePeriod(periodId: string) {
+    const response = await apiClient.post<ApiResponse<PayrollPeriodOverview>>(
+      `/payrolls/periods/${periodId}/approve`,
+    );
 
     return response.data.data;
   },
 
-  async approvePeriod(periodId: string) {
+  async cancelPeriod(periodId: string) {
     const response = await apiClient.post<ApiResponse<PayrollPeriodOverview>>(
-      `/payrolls/periods/${periodId}/approve`,
+      `/payrolls/periods/${periodId}/cancel`,
     );
 
     return response.data.data;
@@ -92,10 +92,27 @@ export const payrollService = {
     return response.data.data;
   },
 
+  async create(payload: CreatePayrollPayload) {
+    const response = await apiClient.post<ApiResponse<PayrollDetail>>(
+      "/payrolls",
+      payload,
+    );
+
+    return response.data.data;
+  },
+
   async createByTargets(payload: CreatePayrollByTargetsPayload) {
     const response = await apiClient.post<
       ApiResponse<CreatePayrollByTargetsResult>
     >("/payrolls/by-targets", payload);
+
+    return response.data.data;
+  },
+
+  async removeEmployeeFromPeriod(periodId: string, employeeId: string) {
+    const response = await apiClient.delete<ApiResponse<PayrollPeriodOverview>>(
+      `/payrolls/periods/${periodId}/employees/${employeeId}`,
+    );
 
     return response.data.data;
   },

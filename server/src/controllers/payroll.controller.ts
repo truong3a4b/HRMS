@@ -242,6 +242,30 @@ export const payrollController = {
     }
   },
 
+  async removePeriodEmployeeById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollService.removeEmployeeFromPeriod(
+        getCurrentUser(req),
+        {
+          periodId: getParamValue(req.params.periodId),
+          employeeId: getParamValue(req.params.employeeId),
+        },
+      );
+      return sendResponse(
+        res,
+        200,
+        "Payroll employee removed from period successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async requestPeriodApproval(
     req: Request,
     res: Response,
@@ -287,47 +311,6 @@ export const payrollController = {
     }
   },
 
-  async recalculatePeriod(req: Request, res: Response, next: NextFunction) {
-    try {
-      const result = await payrollService.recalculatePeriod(
-        getCurrentUser(req),
-        {
-          month: getMonthParam(req.params.month),
-          year: getYearParam(req.params.year),
-        },
-      );
-      return sendResponse(
-        res,
-        200,
-        "Payroll period recalculated successfully",
-        result,
-      );
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  async recalculatePeriodById(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) {
-    try {
-      const result = await payrollService.recalculatePeriod(
-        getCurrentUser(req),
-        { periodId: getParamValue(req.params.periodId) },
-      );
-      return sendResponse(
-        res,
-        200,
-        "Payroll period recalculated successfully",
-        result,
-      );
-    } catch (error) {
-      next(error);
-    }
-  },
-
   async approvePeriod(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await payrollService.approvePeriod(getCurrentUser(req), {
@@ -354,6 +337,39 @@ export const payrollController = {
         res,
         200,
         "Payroll period approved successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async cancelPeriod(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await payrollService.cancelPeriod(getCurrentUser(req), {
+        month: getMonthParam(req.params.month),
+        year: getYearParam(req.params.year),
+      });
+      return sendResponse(
+        res,
+        200,
+        "Payroll period cancelled successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async cancelPeriodById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await payrollService.cancelPeriod(getCurrentUser(req), {
+        periodId: getParamValue(req.params.periodId),
+      });
+      return sendResponse(
+        res,
+        200,
+        "Payroll period cancelled successfully",
         result,
       );
     } catch (error) {

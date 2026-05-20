@@ -1413,7 +1413,9 @@ export function PayrollPolicyPage() {
             <tr className="border-b border-[#ebedf2] bg-[#f9fafb]">
               <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Chính sách</th>
               <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Thông số chính</th>
-              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Thời gian áp dụng</th>
+              {activeTab !== "autoPenalties" && (
+                <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Thời gian áp dụng</th>
+              )}
               <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Trạng thái</th>
               <th className="px-5 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-[#667085]">Thao tác</th>
             </tr>
@@ -1510,19 +1512,12 @@ export function PayrollPolicyPage() {
                     </div>
                   )}
                 </td>
-                <td className="px-5 py-4 text-sm text-[#344054]">
-                  {activeTab === "autoPenalties" ? (
-                    <>
-                      <div className="font-medium text-[#243247]">Rule trong server</div>
-                      <div className="text-xs text-[#667085]">Admin cấu hình tiền phạt</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="font-medium text-[#243247]">{formatDate(policy.effectiveFrom)}</div>
-                      <div className="text-xs text-[#667085]">{policy.effectiveTo ? `Đến ${formatDate(policy.effectiveTo)}` : "Không giới hạn"}</div>
-                    </>
-                  )}
-                </td>
+                {activeTab !== "autoPenalties" && (
+                  <td className="px-5 py-4 text-sm text-[#344054]">
+                    <div className="font-medium text-[#243247]">{formatDate(policy.effectiveFrom)}</div>
+                    <div className="text-xs text-[#667085]">{policy.effectiveTo ? `Đến ${formatDate(policy.effectiveTo)}` : "Không giới hạn"}</div>
+                  </td>
+                )}
                 <td className="px-5 py-4">
                   <StatusBadge active={policy.isActive} />
                 </td>

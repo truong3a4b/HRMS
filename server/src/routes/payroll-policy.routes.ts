@@ -238,6 +238,7 @@ router.post(
   validate(createTaxPolicySchema),
   payrollPolicyController.createTaxPolicy,
 );
+
 router.put(
   "/tax/:id",
   ...canSetupPayrollPolicies,

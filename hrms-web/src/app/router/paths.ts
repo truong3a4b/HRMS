@@ -38,6 +38,11 @@ export const paths = {
   scheduleRegister: '/schedule/register',
   scheduleLeaveRequest: '/schedule/leave-request',
 
+  // Requests
+  requestsMine: '/requests/mine',
+  requestsPending: '/requests/pending',
+  requestsAll: '/requests/all',
+
   // Salary
   salaryCurrent: '/salary/current',
   salaryAdvance: '/salary/advance',

@@ -72,6 +72,28 @@ export function getDrawerItems(
       : []),
   ];
 
+  const requestChildren = [
+    {
+      key: "requests-mine",
+      label: "Yêu cầu của tôi",
+      path: paths.requestsMine,
+    },
+    {
+      key: "requests-pending",
+      label: "Chờ tôi duyệt",
+      path: paths.requestsPending,
+    },
+    ...(isAdmin
+      ? [
+          {
+            key: "requests-all",
+            label: "Tất cả yêu cầu",
+            path: paths.requestsAll,
+          },
+        ]
+      : []),
+  ];
+
   return [
     {
       key: "overview",
@@ -79,12 +101,17 @@ export function getDrawerItems(
       icon: <CalendarDays className={drawerIconClass} />,
       path: paths.home,
     },
-    {
-      key: "approval",
-      label: "Yêu cầu chờ duyệt",
-      icon: <ClipboardList className={drawerIconClass} />,
-      badge: 1,
-    },
+    ...(!isCandidate
+      ? [
+          {
+            key: "requests",
+            label: "Yêu cầu",
+            icon: <ClipboardList className={drawerIconClass} />,
+            expandable: true,
+            children: requestChildren,
+          },
+        ]
+      : []),
     {
       key: "recruitment",
       label: "Tuyển dụng",

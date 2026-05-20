@@ -23,6 +23,31 @@ export type PayrollEmployee = {
   positionId?: string | null;
   department?: EmployeeOption | null;
   position?: EmployeeOption | null;
+  payrollProfile?: {
+    isInsuranceApplicable: boolean;
+    isTaxApplicable: boolean;
+    insuranceSalary?: MoneyValue | null;
+    dependentCount: number;
+    insurancePolicy?: {
+      id: string;
+      name: string;
+      employeeSocialRate: MoneyValue;
+      employeeHealthRate: MoneyValue;
+      employeeUnemploymentRate: MoneyValue;
+    } | null;
+    taxPolicy?: {
+      id: string;
+      name: string;
+      personalDeduction: MoneyValue;
+      dependentDeduction: MoneyValue;
+      brackets: Array<{
+        id: string;
+        fromAmount: MoneyValue;
+        toAmount?: MoneyValue | null;
+        rate: MoneyValue;
+      }>;
+    } | null;
+  } | null;
 };
 
 export type MoneyValue = string | number;
@@ -48,7 +73,6 @@ export type PayrollSummary = {
   socialInsurance: MoneyValue;
   healthInsurance: MoneyValue;
   unemploymentInsurance: MoneyValue;
-  laborAccidentInsurance: MoneyValue;
   personalIncomeTax: MoneyValue;
   grossSalary: MoneyValue;
   totalDeduction: MoneyValue;
@@ -128,6 +152,13 @@ export type PayrollBonusPenaltyLine = {
     type: string;
     name: string;
   } | null;
+  payrollBonusPenalty?: {
+    id: string;
+    month: string;
+    isBonus: boolean;
+    reason?: string | null;
+    amount: MoneyValue;
+  } | null;
 };
 
 export type PayrollDetail = PayrollSummary & {
@@ -146,6 +177,13 @@ export type PayrollQuery = {
   status?: PayrollStatus | "";
 };
 
+export type CreatePayrollPayload = {
+  employeeId: string;
+  periodId?: string;
+  month?: number;
+  year?: number;
+};
+
 export type CreatePayrollByTargetsPayload = {
   periodId?: string;
   month?: number;
@@ -159,11 +197,7 @@ export type CreatePayrollByTargetsPayload = {
 
 export type CreatePayrollByTargetsResult = {
   createdCount: number;
+  updatedCount?: number;
   skippedCount: number;
   payrolls: PayrollSummary[];
-};
-
-export type RecalculatePayrollPeriodResult = {
-  recalculatedCount: number;
-  overview: PayrollPeriodOverview;
 };

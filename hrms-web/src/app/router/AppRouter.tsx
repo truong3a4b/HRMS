@@ -16,6 +16,7 @@ import { PayrollPolicyPage } from "../../features/payroll-policies/pages/Payroll
 import { PositionListPage } from "../../features/positions/pages/PositionListPage";
 import { RecruitmentApplicationListPage } from "../../features/recruitment/pages/RecruitmentApplicationListPage";
 import { RecruitmentJobListPage } from "../../features/recruitment/pages/RecruitmentJobListPage";
+import { RequestListPage } from "../../features/requests/pages/RequestListPage";
 import { ScheduleAssignPage } from "../../features/schedules/pages/ScheduleAssignPage";
 import { ScheduleRegisterPage } from "../../features/schedules/pages/ScheduleRegisterPage";
 import { ScheduleWeeklyPage } from "../../features/schedules/pages/ScheduleWeeklyPage";
@@ -123,6 +124,30 @@ export function AppRouter() {
         element={
           <ProtectedRoute>
             <ScheduleRegisterPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.requestsMine}
+        element={
+          <ProtectedRoute>
+            <RequestListPage defaultTab="mine" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.requestsPending}
+        element={
+          <ProtectedRoute>
+            <RequestListPage defaultTab="pending" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.requestsAll}
+        element={
+          <ProtectedRoute>
+            <RequestListPage defaultTab="all" />
           </ProtectedRoute>
         }
       />

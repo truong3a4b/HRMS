@@ -1108,8 +1108,6 @@ model Payroll {
   socialInsurance        Decimal @default(0) // BHXH
   healthInsurance        Decimal @default(0) // BHYT
   unemploymentInsurance  Decimal @default(0) // BHTN
-  laborAccidentInsurance Decimal @default(0) // BHLD/BNN neu co
-
   // Thuế
   personalIncomeTax Decimal @default(0)
 

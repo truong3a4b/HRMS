@@ -1,5 +1,5 @@
 import { Modal } from "antd";
-import { CalendarDays, Eye, FilePlus2, RefreshCcw } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, FilePlus2, RefreshCcw } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { paths } from "../../../app/router/paths";
@@ -178,13 +178,14 @@ export function PayrollPeriodListPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [year, setYear] = useState(currentDate.getFullYear());
 
   const loadData = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
       const [periodResult, departmentResult, positionResult] = await Promise.all([
-        payrollService.getPeriods(),
+        payrollService.getPeriods({ year }),
         employeeService.getDepartments(),
         employeeService.getPositions(),
       ]);
@@ -200,7 +201,7 @@ export function PayrollPeriodListPage() {
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [year]);
 
   const createPeriod = async (payload: CreatePayrollByTargetsPayload) => {
     const result = await payrollService.createByTargets(payload);
@@ -219,12 +220,31 @@ export function PayrollPeriodListPage() {
               <h1 className="text-2xl font-bold text-[#243247]">Kỳ lương</h1>
               <p className="text-sm text-[#667085]">Quản lý các kỳ lương và quy trình duyệt.</p>
             </div>
-            <div className="flex gap-2">
-              <button className="grid h-10 w-10 place-items-center rounded-lg border border-[#d0d5dd] bg-white" type="button" onClick={() => void loadData()}>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 rounded-lg border border-[#e2e8f0] bg-white p-1 shadow-sm">
+                <button
+                  type="button"
+                  className="grid h-8 w-8 place-items-center rounded-md text-[#64748b] transition-all hover:bg-[#f0f7ff] hover:text-[#006fd5] active:scale-95"
+                  onClick={() => setYear((y) => y - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="w-14 text-center text-sm font-semibold text-[#1e293b]">
+                  {year}
+                </span>
+                <button
+                  type="button"
+                  className="grid h-8 w-8 place-items-center rounded-md text-[#64748b] transition-all hover:bg-[#f0f7ff] hover:text-[#006fd5] active:scale-95"
+                  onClick={() => setYear((y) => y + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <button className="grid h-10 w-10 place-items-center rounded-lg border border-[#e2e8f0] bg-white text-[#64748b] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:text-[#006fd5] hover:shadow-md active:scale-95" title="Tải lại" type="button" onClick={() => void loadData()}>
                 <RefreshCcw className="h-4 w-4" />
               </button>
               {canManage ? (
-                <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#006fd5] px-4 text-sm font-semibold text-white!" type="button" onClick={() => setCreateOpen(true)}>
+                <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-[#006fd5] to-[#005bb5] px-4 text-sm font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:from-[#005bb5] hover:to-[#004a99] hover:shadow-lg active:scale-95" type="button" onClick={() => setCreateOpen(true)}>
                   <FilePlus2 className="h-4 w-4" />
                   Tạo kỳ lương
                 </button>
@@ -268,7 +288,7 @@ export function PayrollPeriodListPage() {
                         <td className="px-4 py-3 text-[#667085]">{formatDate(period.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex justify-center">
-                            <button className="grid h-8 w-8 place-items-center rounded-lg bg-[#f0f7ff] text-[#006fd5] hover:bg-[#006fd5] hover:text-white!" type="button" onClick={() => navigate(paths.payrollPeriodOverview(period.id))}>
+                            <button className="grid h-8 w-8 place-items-center rounded-lg bg-[#f0f7ff] text-[#006fd5] transition-all hover:-translate-y-0.5 hover:bg-[#006fd5] hover:text-white hover:shadow-md active:scale-95" type="button" onClick={() => navigate(paths.payrollPeriodOverview(period.id))}>
                               <Eye className="h-4 w-4" />
                             </button>
                           </div>

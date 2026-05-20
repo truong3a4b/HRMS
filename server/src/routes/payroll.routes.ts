@@ -99,7 +99,6 @@ const updatePayrollSchema = z.object({
   socialInsurance: optionalDecimalSchema,
   healthInsurance: optionalDecimalSchema,
   unemploymentInsurance: optionalDecimalSchema,
-  laborAccidentInsurance: optionalDecimalSchema,
   personalIncomeTax: optionalDecimalSchema,
   grossSalary: optionalDecimalSchema,
   totalDeduction: optionalDecimalSchema,
@@ -203,17 +202,21 @@ router.get(
   "/periods/:periodId/employees/:employeeId",
   payrollController.getPeriodEmployeeDetailById,
 );
+router.delete(
+  "/periods/:periodId/employees/:employeeId",
+  payrollController.removePeriodEmployeeById,
+);
 router.post(
   "/periods/:periodId/request-approval",
   payrollController.requestPeriodApprovalById,
 );
 router.post(
-  "/periods/:periodId/recalculate",
-  payrollController.recalculatePeriodById,
-);
-router.post(
   "/periods/:periodId/approve",
   payrollController.approvePeriodById,
+);
+router.post(
+  "/periods/:periodId/cancel",
+  payrollController.cancelPeriodById,
 );
 router.get(
   "/periods/:year/:month/overview",
@@ -227,11 +230,8 @@ router.post(
   "/periods/:year/:month/request-approval",
   payrollController.requestPeriodApproval,
 );
-router.post(
-  "/periods/:year/:month/recalculate",
-  payrollController.recalculatePeriod,
-);
 router.post("/periods/:year/:month/approve", payrollController.approvePeriod);
+router.post("/periods/:year/:month/cancel", payrollController.cancelPeriod);
 router.post("/approve-many", validate(idsSchema), payrollController.approveMany);
 router.post("/pay-many", validate(idsSchema), payrollController.payMany);
 router.get("/payments", payrollController.getPaymentBatches);

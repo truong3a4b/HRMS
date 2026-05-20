@@ -38,6 +38,8 @@ type PeriodSummary = {
   grossSalary: number;
   netSalary: number;
   totalDeduction: number;
+  paidAmount: number;
+  remainingAmount: number;
   statuses: Partial<Record<PayrollStatus, number>>;
 };
 
@@ -86,6 +88,22 @@ function formatMoney(value?: string | number | null) {
 
 function formatNumber(value?: string | number | null) {
   return toNumber(value).toLocaleString("vi-VN");
+}
+
+function getInsuranceTotal(payroll: PayrollSummary) {
+  return (
+    toNumber(payroll.socialInsurance) +
+    toNumber(payroll.healthInsurance) +
+    toNumber(payroll.unemploymentInsurance)
+  );
+}
+
+function getRemainingAmount(payroll: PayrollSummary) {
+  if (payroll.remainingAmount !== undefined && payroll.remainingAmount !== null) {
+    return toNumber(payroll.remainingAmount);
+  }
+
+  return Math.max(0, toNumber(payroll.netSalary) - toNumber(payroll.paidAmount));
 }
 
 function getStatusLabel(status: PayrollStatus) {
@@ -141,6 +159,8 @@ function buildPeriods(payrolls: PayrollSummary[]) {
         grossSalary: 0,
         netSalary: 0,
         totalDeduction: 0,
+        paidAmount: 0,
+        remainingAmount: 0,
         statuses: {
           DRAFT: 0,
           WAITING_APPROVAL: 0,
@@ -155,6 +175,8 @@ function buildPeriods(payrolls: PayrollSummary[]) {
     current.grossSalary += toNumber(payroll.grossSalary);
     current.netSalary += toNumber(payroll.netSalary);
     current.totalDeduction += toNumber(payroll.totalDeduction);
+    current.paidAmount += toNumber(payroll.paidAmount);
+    current.remainingAmount += getRemainingAmount(payroll);
     current.statuses[payroll.status] = (current.statuses[payroll.status] ?? 0) + 1;
     map.set(key, current);
   });
@@ -622,6 +644,156 @@ function PayrollDetailModal({
   );
 }
 
+function MinePayrollDetailSection({
+  payroll,
+  loading,
+}: {
+  payroll: PayrollDetail | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
+        <EmptyState text="Đang tải chi tiết bảng lương..." />
+      </section>
+    );
+  }
+
+  if (!payroll) {
+    return (
+      <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
+        <EmptyState text="Chưa có bảng lương phù hợp." />
+      </section>
+    );
+  }
+
+  const insuranceTotal =
+    toNumber(payroll.socialInsurance) +
+    toNumber(payroll.healthInsurance) +
+    toNumber(payroll.unemploymentInsurance);
+
+  return (
+    <section className="grid gap-5">
+      <div className="rounded-lg border border-[#e2e8f0] bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-xl font-bold text-[#243247]">
+              Tháng {payroll.month}/{payroll.year}
+            </div>
+            <div className="text-sm text-[#667085]">
+              {payroll.employee?.name ?? "-"} · {payroll.employee?.employeeId ?? "-"}
+            </div>
+          </div>
+          <StatusBadge status={payroll.status} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-3 max-[960px]:grid-cols-2 max-[560px]:grid-cols-1">
+        {[
+          ["Lương thực tế", payroll.actualSalary],
+          ["Gross", payroll.grossSalary],
+          ["Khấu trừ", payroll.totalDeduction],
+          ["Thực nhận", payroll.netSalary],
+        ].map(([label, value]) => (
+          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm" key={label}>
+            <div className="text-xs font-semibold uppercase text-[#667085]">{label}</div>
+            <div className="mt-1 text-xl font-bold text-[#243247]">{formatMoney(value)}</div>
+          </div>
+        ))}
+      </div>
+
+      <section className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
+        <div className="border-b border-[#e2e8f0] px-4 py-3 text-base font-bold text-[#243247]">
+          Tổng hợp
+        </div>
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-[#e2e8f0]">
+            {[
+              ["Lương cơ bản", payroll.baseSalary],
+              ["Công chuẩn", `${formatNumber(payroll.standardWorkDays)} ngày`],
+              ["Công thực tế", `${formatNumber(payroll.actualWorkDays)} ngày`],
+              ["Lương thực tế", payroll.actualSalary],
+              ["Tăng ca", payroll.totalOvertimePay],
+              ["Phụ cấp", payroll.totalAllowance],
+              ["Thưởng", payroll.totalBonus],
+              ["Phạt", payroll.totalPenalty],
+              ["Bảo hiểm", insuranceTotal],
+              ["Thuế TNCN", payroll.personalIncomeTax],
+              ["Gross", payroll.grossSalary],
+              ["Khấu trừ", payroll.totalDeduction],
+              ["Thực nhận", payroll.netSalary],
+              ["Đã trả", payroll.paidAmount ?? 0],
+              ["Còn lại", getRemainingAmount(payroll)],
+            ].map(([label, value]) => (
+              <tr key={label}>
+                <td className="px-4 py-3 text-[#667085]">{label}</td>
+                <td className="px-4 py-3 text-right font-semibold text-[#243247]">
+                  {typeof value === "string" && value.includes("ngày") ? value : formatMoney(value)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
+        <div className="border-b border-[#e2e8f0] px-4 py-3 text-base font-bold text-[#243247]">
+          Dòng chi tiết
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-[#f8fafc] text-xs uppercase text-[#667085]">
+              <tr>
+                <th className="px-4 py-3 text-left">Loại</th>
+                <th className="px-4 py-3 text-left">Nội dung</th>
+                <th className="px-4 py-3 text-right">Số lượng</th>
+                <th className="px-4 py-3 text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e2e8f0]">
+              {payroll.overtimeLines.map((line) => (
+                <tr key={`ot-${line.id}`}>
+                  <td className="px-4 py-3">OT</td>
+                  <td className="px-4 py-3">{line.workShiftName}</td>
+                  <td className="px-4 py-3 text-right">{formatNumber(line.workDays)} công</td>
+                  <td className="px-4 py-3 text-right">{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+              {payroll.allowanceLines.map((line) => (
+                <tr key={`allowance-${line.id}`}>
+                  <td className="px-4 py-3">Phụ cấp</td>
+                  <td className="px-4 py-3">{line.allowanceName}</td>
+                  <td className="px-4 py-3 text-right">-</td>
+                  <td className="px-4 py-3 text-right">{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+              {payroll.bonusPenaltyLines.map((line) => (
+                <tr key={`bonus-penalty-${line.id}`}>
+                  <td className="px-4 py-3">{line.isBonus ? "Thưởng" : "Phạt"}</td>
+                  <td className="px-4 py-3">
+                    {line.autoPenaltyPolicy?.name || line.payrollBonusPenalty?.reason || line.reason || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-right">-</td>
+                  <td className="px-4 py-3 text-right">{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+              {!payroll.overtimeLines.length &&
+              !payroll.allowanceLines.length &&
+              !payroll.bonusPenaltyLines.length ? (
+                <tr>
+                  <td className="px-4 py-6 text-center text-[#667085]" colSpan={4}>
+                    Không có dòng chi tiết
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  );
+}
+
 export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
   const { user } = useAuth();
   const permissions = new Set(user?.permissions ?? []);
@@ -673,10 +845,7 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
     setErrorMessage(null);
     try {
       const result = isMine
-        ? await payrollService.getMine({
-            month: selectedPeriodData?.month,
-            year: selectedPeriodData?.year,
-          })
+        ? await payrollService.getMine({})
         : await payrollService.getPayrolls(query);
       setPayrolls(result);
     } catch (error) {
@@ -713,8 +882,27 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
   }, [isMine, query, selectedPeriodData]);
 
   const periods = useMemo(() => buildPeriods(payrolls), [payrolls]);
+  const mineYearOptions = useMemo(
+    () => [...new Set(payrolls.map((payroll) => payroll.year))].sort((a, b) => b - a),
+    [payrolls],
+  );
+  const mineSelectedMonth = selectedPeriodData?.month ?? payrolls[0]?.month ?? currentMonth;
+  const mineSelectedYear = selectedPeriodData?.year ?? payrolls[0]?.year ?? currentYear;
+
+  const changeMinePeriod = (month: number, year: number) => {
+    setSelectedPeriod(`${year}-${month}`);
+  };
 
   const filteredPayrolls = useMemo(() => {
+    if (isMine) {
+      if (!selectedPeriodData) return payrolls;
+      return payrolls.filter(
+        (payroll) =>
+          payroll.month === selectedPeriodData.month &&
+          payroll.year === selectedPeriodData.year,
+      );
+    }
+
     const keyword = searchTerm.trim().toLowerCase();
     if (!keyword) return payrolls;
 
@@ -729,7 +917,7 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(keyword)),
     );
-  }, [payrolls, searchTerm]);
+  }, [isMine, payrolls, searchTerm, selectedPeriodData]);
 
   const totals = useMemo(
     () => ({
@@ -745,9 +933,52 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
         (total, payroll) => total + toNumber(payroll.netSalary),
         0,
       ),
+      paid: filteredPayrolls.reduce(
+        (total, payroll) => total + toNumber(payroll.paidAmount),
+        0,
+      ),
+      remaining: filteredPayrolls.reduce(
+        (total, payroll) => total + getRemainingAmount(payroll),
+        0,
+      ),
     }),
     [filteredPayrolls],
   );
+
+  const selectedMinePayroll = useMemo(
+    () => (isMine ? filteredPayrolls[0] ?? null : null),
+    [filteredPayrolls, isMine],
+  );
+
+  useEffect(() => {
+    if (!isMine) return;
+
+    if (!selectedMinePayroll) {
+      setSelectedDetail(null);
+      return;
+    }
+
+    let ignore = false;
+    setDetailLoading(true);
+    payrollService
+      .getById(selectedMinePayroll.id)
+      .then((detail) => {
+        if (!ignore) setSelectedDetail(detail);
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setSelectedDetail(null);
+          setErrorMessage(getErrorMessage(error, "Không tải được chi tiết lương."));
+        }
+      })
+      .finally(() => {
+        if (!ignore) setDetailLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [isMine, selectedMinePayroll]);
 
   const openDetail = async (id: string) => {
     setDetailOpen(true);
@@ -823,29 +1054,53 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
             ) : null}
           </div>
 
+          {!isMine ? (
           <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2 max-[620px]:grid-cols-1">
-            {[
-              {
-                label: "Nhân viên",
-                value: filteredPayrolls.length.toLocaleString("vi-VN"),
-                icon: WalletCards,
-              },
-              {
-                label: "Tổng gross",
-                value: formatMoney(totals.gross),
-                icon: Banknote,
-              },
-              {
-                label: "Khấu trừ",
-                value: formatMoney(totals.deduction),
-                icon: FileCheck2,
-              },
-              {
-                label: "Thực nhận",
-                value: formatMoney(totals.net),
-                icon: BadgeCheck,
-              },
-            ].map((item) => {
+            {(isMine
+              ? [
+                  {
+                    label: "Kỳ lương",
+                    value: filteredPayrolls.length.toLocaleString("vi-VN"),
+                    icon: WalletCards,
+                  },
+                  {
+                    label: "Thực nhận",
+                    value: formatMoney(totals.net),
+                    icon: BadgeCheck,
+                  },
+                  {
+                    label: "Đã trả",
+                    value: formatMoney(totals.paid),
+                    icon: Banknote,
+                  },
+                  {
+                    label: "Còn phải trả",
+                    value: formatMoney(totals.remaining),
+                    icon: FileCheck2,
+                  },
+                ]
+              : [
+                  {
+                    label: "Nhân viên",
+                    value: filteredPayrolls.length.toLocaleString("vi-VN"),
+                    icon: WalletCards,
+                  },
+                  {
+                    label: "Tổng gross",
+                    value: formatMoney(totals.gross),
+                    icon: Banknote,
+                  },
+                  {
+                    label: "Khấu trừ",
+                    value: formatMoney(totals.deduction),
+                    icon: FileCheck2,
+                  },
+                  {
+                    label: "Thực nhận",
+                    value: formatMoney(totals.net),
+                    icon: BadgeCheck,
+                  },
+                ]).map((item) => {
               const Icon = item.icon;
               return (
                 <div
@@ -869,63 +1124,98 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
               );
             })}
           </div>
+          ) : null}
 
           <section className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-bold text-[#243247]">
                 <CalendarDays className="h-4 w-4 text-[#006fd5]" />
                 Kỳ lương
               </div>
-              <button
-                className="text-sm font-semibold text-[#006fd5]"
-                type="button"
-                onClick={() => setSelectedPeriod("")}
-              >
-                Tất cả kỳ
-              </button>
-            </div>
-            {periods.length ? (
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {periods.map((period) => (
-                  <button
-                    className={`min-w-[220px] rounded-lg border p-3 text-left transition-colors ${
-                      selectedPeriod === period.key
-                        ? "border-[#006fd5] bg-[#f0f7ff]"
-                        : "border-[#e2e8f0] hover:border-[#006fd5]"
-                    }`}
-                    key={period.key}
-                    type="button"
-                    onClick={() => setSelectedPeriod(period.key)}
+              {isMine ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="h-10 rounded-lg border border-[#d0d5dd] px-3 text-sm outline-none focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10"
+                    value={mineSelectedMonth}
+                    onChange={(event) =>
+                      changeMinePeriod(Number(event.target.value), mineSelectedYear)
+                    }
                   >
-                    <div className="text-sm font-bold text-[#243247]">
-                      Tháng {period.month}/{period.year}
-                    </div>
-                    <div className="mt-1 text-xs text-[#667085]">
-                      {period.count} bảng lương · {period.statuses.PAID} đã trả
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-[#006fd5]">
-                      {formatMoney(period.netSalary)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-[#667085]">Chưa có kỳ lương.</div>
-            )}
-          </section>
-
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm">
-            <div className="relative min-w-[240px] flex-1">
-              <Search className="absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
-              <input
-                className="w-full rounded-lg border border-[#d0d5dd] py-2 pl-9 pr-3 text-sm outline-none focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10"
-                placeholder="Tìm theo nhân viên, mã, phòng ban..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-              />
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                      <option key={month} value={month}>
+                        Tháng {month}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="h-10 rounded-lg border border-[#d0d5dd] px-3 text-sm outline-none focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10"
+                    value={mineSelectedYear}
+                    onChange={(event) =>
+                      changeMinePeriod(mineSelectedMonth, Number(event.target.value))
+                    }
+                  >
+                    {(mineYearOptions.length ? mineYearOptions : [currentYear]).map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <button
+                  className="text-sm font-semibold text-[#006fd5]"
+                  type="button"
+                  onClick={() => setSelectedPeriod("")}
+                >
+                  Tất cả kỳ
+                </button>
+              )}
             </div>
             {!isMine ? (
+              periods.length ? (
+                <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+                  {periods.map((period) => (
+                    <button
+                      className={`min-w-[220px] rounded-lg border p-3 text-left transition-colors ${
+                        selectedPeriod === period.key
+                          ? "border-[#006fd5] bg-[#f0f7ff]"
+                          : "border-[#e2e8f0] hover:border-[#006fd5]"
+                      }`}
+                      key={period.key}
+                      type="button"
+                      onClick={() => setSelectedPeriod(period.key)}
+                    >
+                      <div className="text-sm font-bold text-[#243247]">
+                        Tháng {period.month}/{period.year}
+                      </div>
+                      <div className="mt-1 text-xs text-[#667085]">
+                        {period.count} bảng lương · {period.statuses.PAID} đã trả
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-[#006fd5]">
+                        {formatMoney(period.netSalary)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 text-sm text-[#667085]">Chưa có kỳ lương.</div>
+              )
+            ) : null}
+          </section>
+
+          {!isMine ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm">
+            {!isMine ? (
               <>
+                <div className="relative min-w-[240px] flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
+                  <input
+                    className="w-full rounded-lg border border-[#d0d5dd] py-2 pl-9 pr-3 text-sm outline-none focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10"
+                    placeholder="Tìm theo nhân viên, mã, phòng ban..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                  />
+                </div>
                 <SearchableSelect
                   className="min-w-[180px]"
                   value={departmentId}
@@ -965,7 +1255,13 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
                   ))}
                 </select>
               </>
-            ) : null}
+            ) : (
+              <div className="min-w-0 flex-1 text-sm font-semibold text-[#243247]">
+                {selectedPeriodData
+                  ? `Tháng ${selectedPeriodData.month}/${selectedPeriodData.year}`
+                  : "Tất cả kỳ lương"}
+              </div>
+            )}
             <button
               className="grid h-10 w-10 place-items-center rounded-lg border border-[#d0d5dd] text-[#344054] hover:bg-[#f8fafc]"
               title="Tải lại"
@@ -975,6 +1271,7 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
               <RefreshCcw className="h-4.5 w-4.5" />
             </button>
           </div>
+          ) : null}
 
           {errorMessage ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -982,66 +1279,123 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
             </div>
           ) : null}
 
+          {isMine ? (
+            <MinePayrollDetailSection
+              payroll={selectedDetail}
+              loading={loading || detailLoading}
+            />
+          ) : (
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
             {loading ? (
               <EmptyState text="Đang tải bảng lương..." />
             ) : filteredPayrolls.length ? (
               <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full min-w-[1180px] text-sm">
+                <table className={`w-full text-sm ${isMine ? "min-w-[1680px]" : "min-w-[1180px]"}`}>
                   <thead className="sticky top-0 z-1 bg-[#f8fafc] text-xs uppercase text-[#667085]">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Nhân viên</th>
-                      <th className="px-4 py-3 text-left">Kỳ</th>
-                      <th className="px-4 py-3 text-right">Công</th>
-                      <th className="px-4 py-3 text-right">Gross</th>
-                      <th className="px-4 py-3 text-right">Thưởng/PC</th>
-                      <th className="px-4 py-3 text-right">Phạt</th>
-                      <th className="px-4 py-3 text-right">Khấu trừ</th>
-                      <th className="px-4 py-3 text-right">Thực nhận</th>
-                      <th className="px-4 py-3 text-left">Trạng thái</th>
-                      <th className="px-4 py-3 text-center">Thao tác</th>
-                    </tr>
+                    {isMine ? (
+                      <tr>
+                        <th className="px-4 py-3 text-left">Kỳ lương</th>
+                        <th className="px-4 py-3 text-right">Lương cơ bản</th>
+                        <th className="px-4 py-3 text-right">Công chuẩn</th>
+                        <th className="px-4 py-3 text-right">Công thực tế</th>
+                        <th className="px-4 py-3 text-right">Lương thực tế</th>
+                        <th className="px-4 py-3 text-right">Tăng ca</th>
+                        <th className="px-4 py-3 text-right">Phụ cấp</th>
+                        <th className="px-4 py-3 text-right">Thưởng</th>
+                        <th className="px-4 py-3 text-right">Phạt</th>
+                        <th className="px-4 py-3 text-right">Bảo hiểm</th>
+                        <th className="px-4 py-3 text-right">Thuế</th>
+                        <th className="px-4 py-3 text-right">Gross</th>
+                        <th className="px-4 py-3 text-right">Khấu trừ</th>
+                        <th className="px-4 py-3 text-right">Thực nhận</th>
+                        <th className="px-4 py-3 text-right">Đã trả</th>
+                        <th className="px-4 py-3 text-right">Còn lại</th>
+                        <th className="px-4 py-3 text-left">Trạng thái</th>
+                        <th className="px-4 py-3 text-center">Thao tác</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th className="px-4 py-3 text-left">Nhân viên</th>
+                        <th className="px-4 py-3 text-left">Kỳ</th>
+                        <th className="px-4 py-3 text-right">Công</th>
+                        <th className="px-4 py-3 text-right">Gross</th>
+                        <th className="px-4 py-3 text-right">Thưởng/PC</th>
+                        <th className="px-4 py-3 text-right">Phạt</th>
+                        <th className="px-4 py-3 text-right">Khấu trừ</th>
+                        <th className="px-4 py-3 text-right">Thực nhận</th>
+                        <th className="px-4 py-3 text-left">Trạng thái</th>
+                        <th className="px-4 py-3 text-center">Thao tác</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody className="divide-y divide-[#e2e8f0]">
                     {filteredPayrolls.map((payroll) => (
                       <tr className="hover:bg-[#f8fafc]" key={payroll.id}>
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-[#243247]">
-                            {payroll.employee?.name ?? "-"}
-                          </div>
-                          <div className="text-xs text-[#667085]">
-                            {payroll.employee?.employeeId ?? "-"} ·{" "}
-                            {payroll.employee?.department?.name ?? "-"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-[#344054]">
-                          {payroll.month}/{payroll.year}
-                        </td>
-                        <td className="px-4 py-3 text-right text-[#344054]">
-                          {formatNumber(payroll.actualWorkDays)}/
-                          {formatNumber(payroll.standardWorkDays)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-[#344054]">
-                          {formatMoney(payroll.grossSalary)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-emerald-700">
-                          {formatMoney(
-                            toNumber(payroll.totalAllowance) +
-                              toNumber(payroll.totalBonus),
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right text-rose-700">
-                          {formatMoney(payroll.totalPenalty)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-[#344054]">
-                          {formatMoney(payroll.totalDeduction)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-[#243247]">
-                          {formatMoney(payroll.netSalary)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={payroll.status} />
-                        </td>
+                        {isMine ? (
+                          <>
+                            <td className="px-4 py-3 font-semibold text-[#243247]">
+                              Tháng {payroll.month}/{payroll.year}
+                            </td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.baseSalary)}</td>
+                            <td className="px-4 py-3 text-right">{formatNumber(payroll.standardWorkDays)}</td>
+                            <td className="px-4 py-3 text-right">{formatNumber(payroll.actualWorkDays)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.actualSalary)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.totalOvertimePay)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.totalAllowance)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.totalBonus)}</td>
+                            <td className="px-4 py-3 text-right text-rose-700">{formatMoney(payroll.totalPenalty)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(getInsuranceTotal(payroll))}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.personalIncomeTax)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.grossSalary)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.totalDeduction)}</td>
+                            <td className="px-4 py-3 text-right font-bold text-[#243247]">{formatMoney(payroll.netSalary)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.paidAmount)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(getRemainingAmount(payroll))}</td>
+                            <td className="px-4 py-3">
+                              <StatusBadge status={payroll.status} />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-[#243247]">
+                                {payroll.employee?.name ?? "-"}
+                              </div>
+                              <div className="text-xs text-[#667085]">
+                                {payroll.employee?.employeeId ?? "-"} ·{" "}
+                                {payroll.employee?.department?.name ?? "-"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-[#344054]">
+                              {payroll.month}/{payroll.year}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[#344054]">
+                              {formatNumber(payroll.actualWorkDays)}/
+                              {formatNumber(payroll.standardWorkDays)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-[#344054]">
+                              {formatMoney(payroll.grossSalary)}
+                            </td>
+                            <td className="px-4 py-3 text-right text-emerald-700">
+                              {formatMoney(
+                                toNumber(payroll.totalAllowance) +
+                                  toNumber(payroll.totalBonus),
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right text-rose-700">
+                              {formatMoney(payroll.totalPenalty)}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[#344054]">
+                              {formatMoney(payroll.totalDeduction)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-[#243247]">
+                              {formatMoney(payroll.netSalary)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <StatusBadge status={payroll.status} />
+                            </td>
+                          </>
+                        )}
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-2">
                             <button
@@ -1066,6 +1420,7 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
               Hiển thị {filteredPayrolls.length} bảng lương
             </div>
           </section>
+          )}
         </div>
       </main>
 

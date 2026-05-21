@@ -14,6 +14,7 @@ import { PayrollPeriodListPage } from "../../features/payroll/pages/PayrollPerio
 import { PayrollPeriodOverviewPage } from "../../features/payroll/pages/PayrollPeriodOverviewPage";
 import { PayrollPolicyPage } from "../../features/payroll-policies/pages/PayrollPolicyPage";
 import { PositionListPage } from "../../features/positions/pages/PositionListPage";
+import { ProfilePage } from "../../features/profile/pages/ProfilePage";
 import { RecruitmentApplicationListPage } from "../../features/recruitment/pages/RecruitmentApplicationListPage";
 import { RecruitmentJobListPage } from "../../features/recruitment/pages/RecruitmentJobListPage";
 import { RequestListPage } from "../../features/requests/pages/RequestListPage";
@@ -36,6 +37,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute>
             <HomePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.profile}
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />
@@ -199,6 +208,17 @@ export function AppRouter() {
             <AttendanceManagementPage
               initialTab="employeeTimesheet"
               tabs={["employeeTimesheet"]}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.attendanceStandardWorkDays}
+        element={
+          <ProtectedRoute>
+            <AttendanceManagementPage
+              initialTab="standardWorkDays"
+              tabs={["standardWorkDays"]}
             />
           </ProtectedRoute>
         }

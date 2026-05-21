@@ -25,6 +25,16 @@ export type AttendanceEmployee = {
   employeeId: string;
   name: string;
   email: string;
+  departmentId?: string | null;
+  positionId?: string | null;
+  department?: {
+    id: string;
+    name: string;
+  } | null;
+  position?: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 export type EmployeeFingerprint = {
@@ -163,4 +173,28 @@ export type AttendanceTimesheetData = {
     leaveDays: number;
   };
   days: AttendanceTimesheetDay[];
+};
+
+export type EmployeeStandardWorkDay = {
+  id: string;
+  employeeId: string;
+  month: number;
+  year: number;
+  standardWorkDays: string | number;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+  employee: AttendanceEmployee;
+};
+
+export type StandardWorkDaysPayload = {
+  month: number;
+  year: number;
+  standardWorkDays: string | number;
+  note?: string | null;
+};
+
+export type AssignStandardWorkDaysPayload = StandardWorkDaysPayload & {
+  departmentIds?: string[];
+  positionIds?: string[];
 };

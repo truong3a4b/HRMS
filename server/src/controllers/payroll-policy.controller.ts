@@ -17,6 +17,19 @@ const getBooleanQuery = (value: unknown) => {
   return undefined;
 };
 
+const getNumberQuery = (value: unknown) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    return undefined;
+  }
+
+  return parsed;
+};
+
 export const payrollPolicyController = {
   async getInsurancePolicies(req: Request, res: Response, next: NextFunction) {
     try {
@@ -683,6 +696,121 @@ export const payrollPolicyController = {
         res,
         200,
         "Payroll bonus penalty deleted successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getStandardWorkDays(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await payrollPolicyService.standardWorkDays.getAll({
+        employeeId:
+          typeof req.query.employeeId === "string"
+            ? req.query.employeeId
+            : undefined,
+        departmentId:
+          typeof req.query.departmentId === "string"
+            ? req.query.departmentId
+            : undefined,
+        positionId:
+          typeof req.query.positionId === "string"
+            ? req.query.positionId
+            : undefined,
+        month: getNumberQuery(req.query.month),
+        year: getNumberQuery(req.query.year),
+      });
+      return sendResponse(
+        res,
+        200,
+        "Standard work days configs fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getEmployeeStandardWorkDays(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.standardWorkDays.getByEmployeeMonth(
+          getParamValue(req.params.employeeId),
+          Number(getParamValue(req.params.month)),
+          Number(getParamValue(req.params.year)),
+        );
+      return sendResponse(
+        res,
+        200,
+        "Employee standard work days config fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async upsertEmployeeStandardWorkDays(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.standardWorkDays.upsertEmployee({
+          employeeId: getParamValue(req.params.employeeId),
+          ...req.body,
+        });
+      return sendResponse(
+        res,
+        200,
+        "Employee standard work days config saved successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async assignStandardWorkDays(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.standardWorkDays.assign(req.body);
+      return sendResponse(
+        res,
+        200,
+        "Standard work days configs assigned successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteEmployeeStandardWorkDays(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.standardWorkDays.deleteByEmployeeMonth(
+          getParamValue(req.params.employeeId),
+          Number(getParamValue(req.params.month)),
+          Number(getParamValue(req.params.year)),
+        );
+      return sendResponse(
+        res,
+        200,
+        "Employee standard work days config deleted successfully",
         result,
       );
     } catch (error) {

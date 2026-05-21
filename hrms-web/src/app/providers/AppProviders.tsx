@@ -2,6 +2,7 @@ import { ConfigProvider } from 'antd'
 import type { PropsWithChildren } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from '../../features/auth/services/AuthProvider'
+import { NotificationProvider } from '../../features/notifications/services/NotificationProvider'
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
@@ -15,7 +16,9 @@ export function AppProviders({ children }: PropsWithChildren) {
       }}
     >
       <BrowserRouter>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <NotificationProvider>{children}</NotificationProvider>
+        </AuthProvider>
       </BrowserRouter>
     </ConfigProvider>
   )

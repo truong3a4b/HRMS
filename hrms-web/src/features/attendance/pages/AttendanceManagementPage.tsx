@@ -10,6 +10,7 @@ import { AttendanceTimesheetTab } from "../components/AttendanceTimesheetTab";
 import { DeviceFormModal } from "../components/DeviceFormModal";
 import { EmployeeFingerprintTab } from "../components/EmployeeFingerprintTab";
 import { RegisterFingerprintModal } from "../components/RegisterFingerprintModal";
+import { StandardWorkDaysTab } from "../components/StandardWorkDaysTab";
 import { attendanceService } from "../services/attendanceService";
 import type {
   AttendanceDevice,
@@ -24,7 +25,8 @@ type AttendanceTab =
   | "myLogs"
   | "myTimesheet"
   | "employeeLogs"
-  | "employeeTimesheet";
+  | "employeeTimesheet"
+  | "standardWorkDays";
 
 type AttendanceManagementPageProps = {
   initialTab?: AttendanceTab;
@@ -38,6 +40,7 @@ const allTabs: Array<{ key: AttendanceTab; label: string }> = [
   { key: "myTimesheet", label: "Bảng công của tôi" },
   { key: "employeeLogs", label: "Lịch sử nhân viên" },
   { key: "employeeTimesheet", label: "Bảng công nhân viên" },
+  { key: "standardWorkDays", label: "Công chuẩn" },
 ];
 
 const pageTitles: Record<AttendanceTab, { title: string; subtitle: string }> = {
@@ -64,6 +67,10 @@ const pageTitles: Record<AttendanceTab, { title: string; subtitle: string }> = {
   employeeTimesheet: {
     title: "Bảng công nhân viên",
     subtitle: "Theo dõi bảng công tháng của từng nhân viên",
+  },
+  standardWorkDays: {
+    title: "Cấu hình công chuẩn",
+    subtitle: "Thiết lập công chuẩn theo tháng cho nhân viên",
   },
 };
 
@@ -115,6 +122,8 @@ export function AttendanceManagementPage({
     useState<AttendanceTimesheetData | null>(null);
   const [employeeTimesheet, setEmployeeTimesheet] =
     useState<AttendanceTimesheetData | null>(null);
+  const [standardWorkDaysRefreshKey, setStandardWorkDaysRefreshKey] =
+    useState(0);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<AttendanceDevice | null>(
@@ -355,6 +364,17 @@ export function AttendanceManagementPage({
         />
       );
     }
+    if (activeTab === "standardWorkDays") {
+      return (
+        <StandardWorkDaysTab
+          employees={employees}
+          loadingEmployees={loading}
+          refreshKey={standardWorkDaysRefreshKey}
+          onError={setError}
+          onNotice={setNotice}
+        />
+      );
+    }
     return (
       <AttendanceTimesheetTab
         data={employeeTimesheet}
@@ -378,6 +398,9 @@ export function AttendanceManagementPage({
     if (activeTab === "myTimesheet") void loadMyTimesheet();
     if (activeTab === "employeeLogs") void loadEmployeeHistory();
     if (activeTab === "employeeTimesheet") void loadEmployeeTimesheet();
+    if (activeTab === "standardWorkDays") {
+      setStandardWorkDaysRefreshKey((value) => value + 1);
+    }
   };
 
   return (

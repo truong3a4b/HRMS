@@ -199,6 +199,15 @@ export function getDrawerItems(
               },
             ]
           : []),
+        ...(hasPermission("PAYROLL_POLICY_SETUP")
+          ? [
+              {
+                key: "attendance-standard-work-days",
+                label: "Công chuẩn",
+                path: paths.attendanceStandardWorkDays,
+              },
+            ]
+          : []),
       ],
     },
     {

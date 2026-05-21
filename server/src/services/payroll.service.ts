@@ -803,6 +803,16 @@ const calculatePayrollForEmployee = async (
           attendanceBonusPolicy: true,
         },
       },
+      standardWorkDayConfigs: {
+        where: {
+          month,
+          year,
+        },
+        select: {
+          standardWorkDays: true,
+        },
+        take: 1,
+      },
       workSchedules: {
         where: {
           date: {
@@ -866,17 +876,24 @@ const calculatePayrollForEmployee = async (
 
   const baseSalary = toNumber(employee.salary);
 
-  const standardWorkDays = employee.workSchedules.reduce((total, schedule) => {
-    const dayUnits = schedule.shiftLinks.reduce((dayTotal, shiftLink) => {
-      if (shiftLink.workShift.isOvertime) {
-        return dayTotal;
-      }
+  const scheduledStandardWorkDays = employee.workSchedules.reduce(
+    (total, schedule) => {
+      const dayUnits = schedule.shiftLinks.reduce((dayTotal, shiftLink) => {
+        if (shiftLink.workShift.isOvertime) {
+          return dayTotal;
+        }
 
-      return dayTotal + toNumber(shiftLink.workShift.workUnits);
-    }, 0);
+        return dayTotal + toNumber(shiftLink.workShift.workUnits);
+      }, 0);
 
-    return total + dayUnits;
-  }, 0);
+      return total + dayUnits;
+    },
+    0,
+  );
+  const configuredStandardWorkDays = employee.standardWorkDayConfigs[0];
+  const standardWorkDays = configuredStandardWorkDays
+    ? toNumber(configuredStandardWorkDays.standardWorkDays)
+    : scheduledStandardWorkDays;
 
   const attendedDetails = employee.attendanceRecords.flatMap((record) =>
     record.details

@@ -282,6 +282,7 @@ model Employee {
   attendanceRecords            AttendanceRecord[]
   attendanceCorrectionRequests AttendanceCorrectionRequest[]
   leaveBalances                EmployeeLeaveBalance[]
+  standardWorkDayConfigs       EmployeeStandardWorkDay[]
   allowances                   EmployeeAllowance[]
   autoPenaltyPolicies          EmployeeAutoPenaltyPolicy[]
   payrollProfile               EmployeePayrollProfile?
@@ -939,6 +940,24 @@ model AttendanceBonusPolicy {
   @@map("attendance_bonus_policies")
 }
 
+model EmployeeStandardWorkDay {
+  id               String   @id @default(uuid())
+  employeeId       String
+  month            Int
+  year             Int
+  standardWorkDays Decimal  @db.Decimal(6, 2)
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+  @@index([year, month])
+  @@index([employeeId])
+  @@map("employee_standard_work_days")
+}
+
 //phu cap
 model AllowancePolicy {
   id            String    @id @default(uuid())
@@ -1105,11 +1124,11 @@ model Payroll {
   totalPenalty   Decimal @default(0)
 
   // Bảo hiểm
-  socialInsurance        Decimal @default(0) // BHXH
-  healthInsurance        Decimal @default(0) // BHYT
-  unemploymentInsurance  Decimal @default(0) // BHTN
+  socialInsurance       Decimal @default(0) // BHXH
+  healthInsurance       Decimal @default(0) // BHYT
+  unemploymentInsurance Decimal @default(0) // BHTN
   // Thuế
-  personalIncomeTax Decimal @default(0)
+  personalIncomeTax     Decimal @default(0)
 
   // Tổng kết
   grossSalary    Decimal @default(0)

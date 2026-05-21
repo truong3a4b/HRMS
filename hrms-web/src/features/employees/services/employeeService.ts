@@ -6,6 +6,7 @@ import type {
   Employee,
   EmployeeListData,
   EmployeeOption,
+  UpdateEmployeeAdditionalPayload,
   UpdateEmployeeBasicPayload,
   UpdateEmployeeJobPayload,
 } from "../types/employee.types";
@@ -47,6 +48,12 @@ export const employeeService = {
     return response.data.data;
   },
 
+  async getMe() {
+    const response = await apiClient.get<ApiResponse<Employee>>("/employees/me");
+
+    return response.data.data;
+  },
+
   async createEmployee(payload: CreateEmployeePayload) {
     const response = await apiClient.post<ApiResponse<Employee>>(
       "/employees",
@@ -59,6 +66,24 @@ export const employeeService = {
   async updateEmployeeBasic(id: string, payload: UpdateEmployeeBasicPayload) {
     const response = await apiClient.patch<ApiResponse<Employee>>(
       `/employees/${id}/basic`,
+      removeEmptyStrings(payload),
+    );
+
+    return response.data.data;
+  },
+
+  async updateMyBasic(payload: UpdateEmployeeBasicPayload) {
+    const response = await apiClient.patch<ApiResponse<Employee>>(
+      "/employees/me/basic",
+      removeEmptyStrings(payload),
+    );
+
+    return response.data.data;
+  },
+
+  async updateMyAdditional(payload: UpdateEmployeeAdditionalPayload) {
+    const response = await apiClient.patch<ApiResponse<Employee>>(
+      "/employees/me/additional",
       removeEmptyStrings(payload),
     );
 

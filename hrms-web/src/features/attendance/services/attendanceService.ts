@@ -6,9 +6,12 @@ import type {
   AttendanceDeviceListData,
   AttendanceHistoryData,
   AttendanceTimesheetData,
+  AssignStandardWorkDaysPayload,
   CreateAttendanceDevicePayload,
   EmployeeFingerprint,
+  EmployeeStandardWorkDay,
   RegisterFingerprintPayload,
+  StandardWorkDaysPayload,
   UpdateAttendanceDevicePayload,
 } from "../types/attendance.types";
 
@@ -122,6 +125,54 @@ export const attendanceService = {
     const response = await apiClient.get<ApiResponse<AttendanceTimesheetData>>(
       `/attendance/timesheet/employees/${employeeId}`,
       { params: { month } },
+    );
+
+    return response.data.data;
+  },
+
+  async getStandardWorkDays(params: {
+    month?: number;
+    year?: number;
+    employeeId?: string;
+    departmentId?: string;
+    positionId?: string;
+  }) {
+    const response = await apiClient.get<ApiResponse<EmployeeStandardWorkDay[]>>(
+      "/payroll-policies/standard-work-days",
+      { params: removeEmptyParams(params) },
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async assignStandardWorkDays(payload: AssignStandardWorkDaysPayload) {
+    const response = await apiClient.post<ApiResponse<EmployeeStandardWorkDay[]>>(
+      "/payroll-policies/standard-work-days/assign",
+      payload,
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async upsertEmployeeStandardWorkDays(
+    employeeId: string,
+    payload: StandardWorkDaysPayload,
+  ) {
+    const response = await apiClient.put<ApiResponse<EmployeeStandardWorkDay>>(
+      `/payroll-policies/standard-work-days/employees/${employeeId}`,
+      payload,
+    );
+
+    return response.data.data;
+  },
+
+  async deleteEmployeeStandardWorkDays(
+    employeeId: string,
+    year: number,
+    month: number,
+  ) {
+    const response = await apiClient.delete<ApiResponse<EmployeeStandardWorkDay>>(
+      `/payroll-policies/standard-work-days/employees/${employeeId}/${year}/${month}`,
     );
 
     return response.data.data;

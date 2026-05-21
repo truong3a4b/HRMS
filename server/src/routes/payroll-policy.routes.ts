@@ -181,6 +181,31 @@ const createPayrollBonusPenaltySchema = z.object({
 const updatePayrollBonusPenaltySchema =
   createPayrollBonusPenaltySchema.partial();
 
+const standardWorkDaysSchema = z.object({
+  month: z.number().int().min(1).max(12),
+  year: z.number().int().min(1900).max(9999),
+  standardWorkDays: decimalSchema,
+  note: z.preprocess(
+    nullableEmptyToNull,
+    z.string().trim().min(1).nullable().optional(),
+  ),
+});
+
+const assignStandardWorkDaysSchema = standardWorkDaysSchema
+  .extend({
+    departmentIds: idArraySchema,
+    positionIds: idArraySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.departmentIds?.length && !data.positionIds?.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["departmentIds"],
+        message: "departmentIds or positionIds is required",
+      });
+    }
+  });
+
 const canViewPayrollPolicies = [
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(
@@ -383,6 +408,34 @@ router.delete(
   "/bonus-penalties/:id",
   ...canSetupPayrollPolicies,
   payrollPolicyController.deletePayrollBonusPenalty,
+);
+
+router.get(
+  "/standard-work-days",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getStandardWorkDays,
+);
+router.post(
+  "/standard-work-days/assign",
+  ...canSetupPayrollPolicies,
+  validate(assignStandardWorkDaysSchema),
+  payrollPolicyController.assignStandardWorkDays,
+);
+router.get(
+  "/standard-work-days/employees/:employeeId/:year/:month",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getEmployeeStandardWorkDays,
+);
+router.put(
+  "/standard-work-days/employees/:employeeId",
+  ...canSetupPayrollPolicies,
+  validate(standardWorkDaysSchema),
+  payrollPolicyController.upsertEmployeeStandardWorkDays,
+);
+router.delete(
+  "/standard-work-days/employees/:employeeId/:year/:month",
+  ...canSetupPayrollPolicies,
+  payrollPolicyController.deleteEmployeeStandardWorkDays,
 );
 
 router.get(

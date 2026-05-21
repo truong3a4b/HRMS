@@ -100,6 +100,28 @@ type AssignPayrollPoliciesInput = {
   taxCode?: string | null;
 };
 
+type StandardWorkDayQuery = PayrollProfileQuery & {
+  month?: number;
+  year?: number;
+};
+
+type AssignStandardWorkDaysInput = {
+  departmentIds?: string[];
+  positionIds?: string[];
+  month: number;
+  year: number;
+  standardWorkDays: DecimalInput;
+  note?: string | null;
+};
+
+type UpsertEmployeeStandardWorkDaysInput = {
+  employeeId: string;
+  month: number;
+  year: number;
+  standardWorkDays: DecimalInput;
+  note?: string | null;
+};
+
 type AssignAllowancePolicyInput = {
   allowancePolicyId: string;
   departmentIds?: string[];
@@ -318,18 +340,22 @@ const getTargetEmployeeIds = async (data: {
   departmentIds?: string[];
   positionIds?: string[];
 }) => {
-  if (!data.departmentIds?.length || !data.positionIds?.length) {
+  if (!data.departmentIds?.length && !data.positionIds?.length) {
     throw new ApiError(
       400,
-      "departmentIds and positionIds are required for assignment",
+      "departmentIds or positionIds is required for assignment",
       "ASSIGNMENT_TARGET_REQUIRED",
     );
   }
 
   const employees = await prisma.employee.findMany({
     where: {
-      departmentId: { in: data.departmentIds },
-      positionId: { in: data.positionIds },
+      ...(data.departmentIds?.length
+        ? { departmentId: { in: data.departmentIds } }
+        : {}),
+      ...(data.positionIds?.length
+        ? { positionId: { in: data.positionIds } }
+        : {}),
     },
     select: { id: true },
   });
@@ -430,6 +456,31 @@ const payrollBonusPenaltyInclude = {
   },
 };
 
+const standardWorkDayInclude = {
+  employee: {
+    select: {
+      id: true,
+      employeeId: true,
+      name: true,
+      email: true,
+      departmentId: true,
+      positionId: true,
+      department: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      position: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
+};
+
 const ensureEmployeeExists = async (employeeId: string) => {
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
@@ -438,6 +489,28 @@ const ensureEmployeeExists = async (employeeId: string) => {
 
   if (!employee) {
     throw new ApiError(404, "Employee not found", "EMPLOYEE_NOT_FOUND");
+  }
+};
+
+const ensureMonthYear = (month: number, year: number) => {
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new ApiError(400, "month must be between 1 and 12", "INVALID_MONTH");
+  }
+
+  if (!Number.isInteger(year) || year < 1900 || year > 9999) {
+    throw new ApiError(400, "year must be between 1900 and 9999", "INVALID_YEAR");
+  }
+};
+
+const ensurePositiveStandardWorkDays = (standardWorkDays: DecimalInput) => {
+  const value = Number(standardWorkDays);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new ApiError(
+      400,
+      "standardWorkDays must be greater than 0",
+      "INVALID_STANDARD_WORK_DAYS",
+    );
   }
 };
 
@@ -1098,6 +1171,135 @@ export const payrollPolicyService = {
       return prisma.payrollBonusPenalty.delete({
         where: { id },
         include: payrollBonusPenaltyInclude,
+      });
+    },
+  },
+
+  standardWorkDays: {
+    getAll(query: StandardWorkDayQuery) {
+      return prisma.employeeStandardWorkDay.findMany({
+        where: {
+          ...(query.employeeId ? { employeeId: query.employeeId } : {}),
+          ...(query.month ? { month: query.month } : {}),
+          ...(query.year ? { year: query.year } : {}),
+          employee: {
+            ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+            ...(query.positionId ? { positionId: query.positionId } : {}),
+          },
+        },
+        include: standardWorkDayInclude,
+        orderBy: [{ year: "desc" }, { month: "desc" }, { employee: { name: "asc" } }],
+      });
+    },
+
+    async getByEmployeeMonth(employeeId: string, month: number, year: number) {
+      ensureMonthYear(month, year);
+      await ensureEmployeeExists(employeeId);
+
+      const config = await prisma.employeeStandardWorkDay.findUnique({
+        where: {
+          employeeId_month_year: {
+            employeeId,
+            month,
+            year,
+          },
+        },
+        include: standardWorkDayInclude,
+      });
+
+      if (!config) {
+        throw new ApiError(
+          404,
+          "Employee standard work days config not found",
+          "STANDARD_WORK_DAYS_NOT_FOUND",
+        );
+      }
+
+      return config;
+    },
+
+    async upsertEmployee(data: UpsertEmployeeStandardWorkDaysInput) {
+      ensureMonthYear(data.month, data.year);
+      ensurePositiveStandardWorkDays(data.standardWorkDays);
+      await ensureEmployeeExists(data.employeeId);
+
+      return prisma.employeeStandardWorkDay.upsert({
+        where: {
+          employeeId_month_year: {
+            employeeId: data.employeeId,
+            month: data.month,
+            year: data.year,
+          },
+        },
+        update: {
+          standardWorkDays: data.standardWorkDays,
+          ...(data.note !== undefined ? { note: data.note } : {}),
+        },
+        create: {
+          employeeId: data.employeeId,
+          month: data.month,
+          year: data.year,
+          standardWorkDays: data.standardWorkDays,
+          note: data.note,
+        },
+        include: standardWorkDayInclude,
+      });
+    },
+
+    async assign(data: AssignStandardWorkDaysInput) {
+      ensureMonthYear(data.month, data.year);
+      ensurePositiveStandardWorkDays(data.standardWorkDays);
+
+      const employeeIds = await getTargetEmployeeIds(data);
+
+      await prisma.$transaction(
+        employeeIds.map((employeeId) =>
+          prisma.employeeStandardWorkDay.upsert({
+            where: {
+              employeeId_month_year: {
+                employeeId,
+                month: data.month,
+                year: data.year,
+              },
+            },
+            update: {
+              standardWorkDays: data.standardWorkDays,
+              ...(data.note !== undefined ? { note: data.note } : {}),
+            },
+            create: {
+              employeeId,
+              month: data.month,
+              year: data.year,
+              standardWorkDays: data.standardWorkDays,
+              note: data.note,
+            },
+          }),
+        ),
+      );
+
+      return prisma.employeeStandardWorkDay.findMany({
+        where: {
+          employeeId: { in: employeeIds },
+          month: data.month,
+          year: data.year,
+        },
+        include: standardWorkDayInclude,
+        orderBy: { employee: { name: "asc" } },
+      });
+    },
+
+    async deleteByEmployeeMonth(employeeId: string, month: number, year: number) {
+      await this.getByEmployeeMonth(employeeId, month, year);
+
+      return prisma.employeeStandardWorkDay.delete({
+        where: {
+          employeeId_month_year: {
+            employeeId,
+            month,
+            year,
+          },
+        },
+        include: standardWorkDayInclude,
       });
     },
   },

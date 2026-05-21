@@ -5,6 +5,29 @@ export type EmployeeOption = {
   name: string;
 };
 
+export type UpdateEmployeeAdditionalPayload = {
+  maritalStatus?: string | null;
+  nationality?: string | null;
+  religion?: string | null;
+  identityCardNumber?: string | null;
+  identityCardIssueDate?: string | null;
+  frontIdentityCardImage?: string | null;
+  backIdentityCardImage?: string | null;
+};
+
+export type UpdateEmployeeBasicPayload = {
+  name?: string;
+  phone?: string | null;
+  avatar?: string | null;
+  dateOfBirth?: string | null;
+  gender?: "MALE" | "FEMALE" | "OTHER" | null;
+  address?: string | null;
+  bankAccount?: string | null;
+  bank?: EmployeeOption | Record<string, unknown> | null;
+  province?: EmployeeOption | Record<string, unknown> | null;
+  ward?: EmployeeOption | Record<string, unknown> | null;
+};
+
 export type Employee = {
   id: string;
   employeeId: string;
@@ -22,6 +45,16 @@ export type Employee = {
   gender?: "MALE" | "FEMALE" | "OTHER" | null;
   address?: string | null;
   bankAccount?: string | null;
+  bank?: EmployeeOption | Record<string, unknown> | null;
+  maritalStatus?: string | null;
+  nationality?: string | null;
+  religion?: string | null;
+  identityCardNumber?: string | null;
+  identityCardIssueDate?: string | null;
+  frontIdentityCardImage?: string | null;
+  backIdentityCardImage?: string | null;
+  province?: EmployeeOption | Record<string, unknown> | null;
+  ward?: EmployeeOption | Record<string, unknown> | null;
   department?: EmployeeOption | null;
   position?: EmployeeOption | null;
   departmentId?: string | null;
@@ -63,15 +96,6 @@ export type CreateEmployeePayload = {
   positionId: string;
   hireDate: string;
   salary: number;
-};
-
-export type UpdateEmployeeBasicPayload = {
-  name: string;
-  phone?: string | null;
-  dateOfBirth?: string | null;
-  gender?: "MALE" | "FEMALE" | "OTHER" | null;
-  address?: string | null;
-  bankAccount?: string | null;
 };
 
 export type UpdateEmployeeJobPayload = {

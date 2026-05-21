@@ -29,6 +29,7 @@ export const paths = {
   attendanceTimesheet: '/attendance/timesheet',
   attendanceEmployeeHistory: '/attendance/employees/history',
   attendanceEmployeeTimesheet: '/attendance/employees/timesheet',
+  attendanceStandardWorkDays: '/attendance/standard-work-days',
   attendanceOvertime: '/attendance/overtime-request',
 
   // Work Schedule

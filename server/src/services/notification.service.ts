@@ -72,7 +72,7 @@ export const notificationService = {
 
     await ensureUsersExist(userIds);
 
-    const notification = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const createdNotification = await tx.notification.create({
         data: {
           type: input.type ?? NotificationType.GENERAL,
@@ -90,21 +90,40 @@ export const notificationService = {
         })),
       });
 
-      return tx.notification.findUnique({
-        where: {
-          id: createdNotification.id,
-        },
-        include: notificationBaseInclude,
-      });
+      const [notification, recipients] = await Promise.all([
+        tx.notification.findUnique({
+          where: {
+            id: createdNotification.id,
+          },
+          include: notificationBaseInclude,
+        }),
+        tx.notificationRecipient.findMany({
+          where: {
+            notificationId: createdNotification.id,
+            userId: {
+              in: userIds,
+            },
+          },
+          include: notificationListInclude,
+        }),
+      ]);
+
+      return { notification, recipients };
     });
 
-    if (!notification) {
+    if (!result.notification) {
       throw new ApiError(500, "Failed to create notification");
     }
 
-    emitNotificationToUsers(userIds, notificationEvents.created, notification);
+    result.recipients.forEach((recipient) => {
+      emitNotificationToUsers(
+        [recipient.userId],
+        notificationEvents.created,
+        recipient,
+      );
+    });
 
-    return notification;
+    return result.notification;
   },
 
   async getMyNotifications(userId: string, page: number, limit: number) {

@@ -56,6 +56,12 @@ type ProfileForm = {
   bankName: string;
 };
 
+type ProfileFiles = {
+  cvFile: File | null;
+  frontIdentityCardImageFile: File | null;
+  backIdentityCardImageFile: File | null;
+};
+
 const fieldClass =
   "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
 
@@ -80,6 +86,12 @@ const emptyForm: ProfileForm = {
   backIdentityCardImage: "",
   bankAccount: "",
   bankName: "",
+};
+
+const emptyFiles: ProfileFiles = {
+  cvFile: null,
+  frontIdentityCardImageFile: null,
+  backIdentityCardImageFile: null,
 };
 
 function toDateInput(value?: string | null) {
@@ -123,14 +135,19 @@ function getErrorMessage(error: unknown) {
 
 function Field({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label>
-      <span className={labelClass}>{label}</span>
+      <span className={labelClass}>
+        {label}
+        {required && <span className="ml-1 text-[#b42318]">*</span>}
+      </span>
       {children}
     </label>
   );
@@ -155,6 +172,50 @@ function FormSection({
   );
 }
 
+function FileField({
+  label,
+  accept,
+  currentUrl,
+  file,
+  onChange,
+}: {
+  label: string;
+  accept: string;
+  currentUrl?: string | null;
+  file: File | null;
+  onChange: (file: File | null) => void;
+}) {
+  return (
+    <div>
+      <span className={labelClass}>{label}</span>
+      <div className="grid gap-2">
+        <input
+          className={fieldClass}
+          type="file"
+          accept={accept}
+          onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+        />
+        <div className="min-h-5 text-xs text-[#667085]">
+          {file ? (
+            <span className="font-medium text-[#344054]">{file.name}</span>
+          ) : currentUrl ? (
+            <a
+              className="font-medium text-[#0e67a7] hover:underline"
+              href={currentUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Tệp hiện tại
+            </a>
+          ) : (
+            <span>Chưa có file</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProfileEditModal({
   open,
   kind,
@@ -165,6 +226,7 @@ export function ProfileEditModal({
   onSubmit,
 }: ProfileEditModalProps) {
   const [form, setForm] = useState<ProfileForm>(emptyForm);
+  const [files, setFiles] = useState<ProfileFiles>(emptyFiles);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -225,6 +287,7 @@ export function ProfileEditModal({
       setForm(emptyForm);
     }
 
+    setFiles(emptyFiles);
     setError(null);
   }, [candidate, employee, kind, open]);
 
@@ -233,6 +296,13 @@ export function ProfileEditModal({
       ...current,
       [key]: value,
       ...(key === "provinceId" ? { wardId: "" } : {}),
+    }));
+  };
+
+  const updateFile = (key: keyof ProfileFiles, file: File | null) => {
+    setFiles((current) => ({
+      ...current,
+      [key]: file,
     }));
   };
 
@@ -257,6 +327,7 @@ export function ProfileEditModal({
         avatar: toNullableString(form.avatar),
         dateOfBirth: toNullableDate(form.dateOfBirth),
         gender: form.gender || null,
+        cvFile: files.cvFile,
         cvUrl: toNullableString(form.cvUrl),
         address: toNullableString(form.address),
         province,
@@ -288,7 +359,9 @@ export function ProfileEditModal({
       identityCardNumber: toNullableString(form.identityCardNumber),
       identityCardIssueDate: toNullableDate(form.identityCardIssueDate),
       frontIdentityCardImage: toNullableString(form.frontIdentityCardImage),
+      frontIdentityCardImageFile: files.frontIdentityCardImageFile,
       backIdentityCardImage: toNullableString(form.backIdentityCardImage),
+      backIdentityCardImageFile: files.backIdentityCardImageFile,
     };
   };
 
@@ -344,7 +417,9 @@ export function ProfileEditModal({
         identityCardNumber: toNullableString(form.identityCardNumber),
         identityCardIssueDate: toNullableDate(form.identityCardIssueDate),
         frontIdentityCardImage: toNullableString(form.frontIdentityCardImage),
+        frontIdentityCardImageFile: files.frontIdentityCardImageFile,
         backIdentityCardImage: toNullableString(form.backIdentityCardImage),
+        backIdentityCardImageFile: files.backIdentityCardImageFile,
       },
     };
   };
@@ -354,7 +429,7 @@ export function ProfileEditModal({
     setError(null);
 
     if (section === "basic" && !form.name.trim()) {
-      setError("Vui long nhap ho ten");
+      setError("Vui lòng nhập họ tên");
       return;
     }
 
@@ -394,7 +469,7 @@ export function ProfileEditModal({
             type="button"
             onClick={onClose}
           >
-            Huy
+            Hủy
           </button>
           <button
             className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
@@ -402,7 +477,7 @@ export function ProfileEditModal({
             form="profileEditForm"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Dang luu..." : "Luu thay doi"}
+            {isSubmitting ? "Đang lưu..." : "Lưu thay đổi"}
           </button>
         </div>
       }
@@ -415,29 +490,22 @@ export function ProfileEditModal({
         ) : null}
 
         {section === "basic" ? (
-          <FormSection title="Thong tin ca nhan">
-            <Field label="Ho ten">
+          <FormSection title="Thông tin cá nhân">
+            <Field label="Họ tên" required>
               <input
                 className={fieldClass}
                 value={form.name}
                 onChange={(event) => update("name", event.target.value)}
               />
             </Field>
-            <Field label="So dien thoai">
+            <Field label="Số điện thoại">
               <input
                 className={fieldClass}
                 value={form.phone}
                 onChange={(event) => update("phone", event.target.value)}
               />
             </Field>
-            <Field label="Avatar URL">
-              <input
-                className={fieldClass}
-                value={form.avatar}
-                onChange={(event) => update("avatar", event.target.value)}
-              />
-            </Field>
-            <Field label="Ngay sinh">
+            <Field label="Ngày sinh">
               <input
                 className={fieldClass}
                 type="date"
@@ -445,40 +513,40 @@ export function ProfileEditModal({
                 onChange={(event) => update("dateOfBirth", event.target.value)}
               />
             </Field>
-            <Field label="Gioi tinh">
+            <Field label="Giới tính">
               <select
                 className={fieldClass}
                 value={form.gender}
                 onChange={(event) => update("gender", event.target.value)}
               >
-                <option value="">Chua chon</option>
+                <option value="">Chưa chọn</option>
                 <option value="MALE">Nam</option>
-                <option value="FEMALE">Nu</option>
-                <option value="OTHER">Khac</option>
+                <option value="FEMALE">Nữ</option>
+                <option value="OTHER">Khác</option>
               </select>
             </Field>
             {kind === "candidate" ? (
-              <Field label="CV URL">
-                <input
-                  className={fieldClass}
-                  value={form.cvUrl}
-                  onChange={(event) => update("cvUrl", event.target.value)}
-                />
-              </Field>
+              <FileField
+                label="CV"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                currentUrl={form.cvUrl}
+                file={files.cvFile}
+                onChange={(file) => updateFile("cvFile", file)}
+              />
             ) : null}
-            <Field label="Dia chi">
+            <Field label="Địa chỉ">
               <input
                 className={fieldClass}
                 value={form.address}
                 onChange={(event) => update("address", event.target.value)}
               />
             </Field>
-            <Field label="Tinh/Thanh">
+            <Field label="Tỉnh/Thành phố">
               <SearchableSelect
                 value={form.provinceId}
                 onChange={(value) => update("provinceId", value)}
                 options={[
-                  { value: "", label: "Chon tinh/thanh" },
+                  { value: "", label: "Chọn tỉnh/thành phố" },
                   ...provinceOptions.map((province) => ({
                     value: province.id,
                     label: province.name,
@@ -486,12 +554,12 @@ export function ProfileEditModal({
                 ]}
               />
             </Field>
-            <Field label="Phuong/Xa">
+            <Field label="Phường/Xã">
               <SearchableSelect
                 value={form.wardId}
                 onChange={(value) => update("wardId", value)}
                 options={[
-                  { value: "", label: "Chon phuong/xa" },
+                  { value: "", label: "Chọn phường/xã" },
                   ...wardOptions.map((wardItem) => ({
                     value: wardItem.id,
                     label: wardItem.name,
@@ -499,14 +567,14 @@ export function ProfileEditModal({
                 ]}
               />
             </Field>
-            <Field label="So tai khoan">
+            <Field label="Số tài khoản">
               <input
                 className={fieldClass}
                 value={form.bankAccount}
                 onChange={(event) => update("bankAccount", event.target.value)}
               />
             </Field>
-            <Field label="Ngan hang">
+            <Field label="Ngân hàng">
               <input
                 className={fieldClass}
                 value={form.bankName}
@@ -517,20 +585,20 @@ export function ProfileEditModal({
         ) : null}
 
         {section === "address" ? (
-          <FormSection title="Dia chi">
-            <Field label="Dia chi">
+          <FormSection title="Địa chỉ">
+            <Field label="Địa chỉ">
               <input
                 className={fieldClass}
                 value={form.address}
                 onChange={(event) => update("address", event.target.value)}
               />
             </Field>
-            <Field label="Tinh/Thanh">
+            <Field label="Tỉnh/Thành phố">
               <SearchableSelect
                 value={form.provinceId}
                 onChange={(value) => update("provinceId", value)}
                 options={[
-                  { value: "", label: "Chon tinh/thanh" },
+                  { value: "", label: "Chọn tỉnh/thành phố" },
                   ...provinceOptions.map((province) => ({
                     value: province.id,
                     label: province.name,
@@ -538,12 +606,12 @@ export function ProfileEditModal({
                 ]}
               />
             </Field>
-            <Field label="Phuong/Xa">
+            <Field label="Phường/Xã">
               <SearchableSelect
                 value={form.wardId}
                 onChange={(value) => update("wardId", value)}
                 options={[
-                  { value: "", label: "Chon phuong/xa" },
+                  { value: "", label: "Chọn phường/xã" },
                   ...wardOptions.map((wardItem) => ({
                     value: wardItem.id,
                     label: wardItem.name,
@@ -555,15 +623,15 @@ export function ProfileEditModal({
         ) : null}
 
         {section === "bank" ? (
-          <FormSection title="Ngan hang">
-            <Field label="So tai khoan">
+          <FormSection title="Ngân hàng">
+            <Field label="Số tài khoản">
               <input
                 className={fieldClass}
                 value={form.bankAccount}
                 onChange={(event) => update("bankAccount", event.target.value)}
               />
             </Field>
-            <Field label="Ngan hang">
+            <Field label="Ngân hàng">
               <input
                 className={fieldClass}
                 value={form.bankName}
@@ -574,29 +642,29 @@ export function ProfileEditModal({
         ) : null}
 
         {section === "additional" ? (
-          <FormSection title="Thong tin bo sung va giay to">
-            <Field label="Tinh trang hon nhan">
+          <FormSection title="Thông tin bổ sung và giấy tờ">
+            <Field label="Tình trạng hôn nhân">
             <input
               className={fieldClass}
               value={form.maritalStatus}
               onChange={(event) => update("maritalStatus", event.target.value)}
             />
           </Field>
-          <Field label="Quoc tich">
+          <Field label="Quốc tịch">
             <input
               className={fieldClass}
               value={form.nationality}
               onChange={(event) => update("nationality", event.target.value)}
             />
           </Field>
-          <Field label="Ton giao">
+          <Field label="Tôn giáo">
             <input
               className={fieldClass}
               value={form.religion}
               onChange={(event) => update("religion", event.target.value)}
             />
           </Field>
-          <Field label="So CCCD/CMND">
+          <Field label="Số CCCD/CMND">
             <input
               className={fieldClass}
               value={form.identityCardNumber}
@@ -605,7 +673,7 @@ export function ProfileEditModal({
               }
             />
           </Field>
-          <Field label="Ngay cap CCCD/CMND">
+          <Field label="Ngày cấp CCCD/CMND">
             <input
               className={fieldClass}
               type="date"
@@ -615,24 +683,20 @@ export function ProfileEditModal({
               }
             />
           </Field>
-          <Field label="Anh mat truoc CCCD">
-            <input
-              className={fieldClass}
-              value={form.frontIdentityCardImage}
-              onChange={(event) =>
-                update("frontIdentityCardImage", event.target.value)
-              }
-            />
-          </Field>
-          <Field label="Anh mat sau CCCD">
-            <input
-              className={fieldClass}
-              value={form.backIdentityCardImage}
-              onChange={(event) =>
-                update("backIdentityCardImage", event.target.value)
-              }
-            />
-            </Field>
+          <FileField
+            label="Ảnh mặt trước CCCD"
+            accept="image/jpeg,image/png,image/webp"
+            currentUrl={form.frontIdentityCardImage}
+            file={files.frontIdentityCardImageFile}
+            onChange={(file) => updateFile("frontIdentityCardImageFile", file)}
+          />
+          <FileField
+            label="Ảnh mặt sau CCCD"
+            accept="image/jpeg,image/png,image/webp"
+            currentUrl={form.backIdentityCardImage}
+            file={files.backIdentityCardImageFile}
+            onChange={(file) => updateFile("backIdentityCardImageFile", file)}
+          />
           </FormSection>
         ) : null}
       </form>

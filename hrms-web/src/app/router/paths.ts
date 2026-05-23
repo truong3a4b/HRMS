@@ -3,6 +3,9 @@ export const paths = {
   login: '/login',
   register: '/register',
   verifyOtp: '/verify-otp',
+  forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
+  changePassword: '/profile/security',
 
   // Home
   home: '/home',
@@ -40,7 +43,9 @@ export const paths = {
   scheduleLeaveRequest: '/schedule/leave-request',
 
   // Requests
+  requestsCreate: '/requests/create',
   requestsMine: '/requests/mine',
+  requestsWatching: '/requests/watching',
   requestsPending: '/requests/pending',
   requestsAll: '/requests/all',
 

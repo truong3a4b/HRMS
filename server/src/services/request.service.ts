@@ -1,6 +1,8 @@
 import {
   ApprovalMode,
   AttendanceStatus,
+  LateEarlyType,
+  LeaveType,
   Prisma,
   RequestApprovalStatus,
   RequestStatus,
@@ -35,7 +37,16 @@ const requestInclude = {
       },
     },
   },
-  leaveRequest: true,
+  leaveRequest: {
+    include: {
+      workShift: true,
+    },
+  },
+  lateEarlyRequest: {
+    include: {
+      workShift: true,
+    },
+  },
   attendanceCorrectionRequest: true,
   workScheduleRequest: true,
 } satisfies Prisma.RequestInclude;
@@ -72,9 +83,10 @@ export type CreateRequestInput = {
 export type CreateLeaveRequestInput = {
   startDate: string;
   endDate: string;
-  leaveType: string;
-  reason?: string;
-  title?: string;
+  leaveType: LeaveType;
+  workShiftId?: string;
+  reason: string;
+  title: string;
   description?: string;
   approvalMode?: ApprovalMode;
   approverIds: string[];
@@ -86,10 +98,22 @@ export type LateEarlyRequestType = "LATE_ARRIVAL" | "EARLY_LEAVE";
 export type CreateLateEarlyRequestInput = {
   date: string;
   type: LateEarlyRequestType;
+  workShiftId: string;
   startTime: string;
   endTime: string;
   reason: string;
-  title?: string;
+  title: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+export type CreateAttendanceCorrectionRequestInput = {
+  attendanceDate: string;
+  workShiftId: string;
+  reason: string;
+  title: string;
   description?: string;
   approvalMode?: ApprovalMode;
   approverIds: string[];
@@ -107,7 +131,7 @@ const finalRequestStatuses = new Set<RequestStatus>([
   RequestStatus.APPROVED,
 ]);
 
-const lateEarlyLeaveTypes = new Set(["LATE_ARRIVAL", "EARLY_LEAVE"]);
+const leaveTypes = new Set<LeaveType>(Object.values(LeaveType));
 const paidLeaveStatus = "PAID_LEAVE" as AttendanceStatus;
 const unpaidLeaveStatus = "UNPAID_LEAVE" as AttendanceStatus;
 const leaveAttendanceStatuses = new Set<AttendanceStatus>([
@@ -191,6 +215,19 @@ const combineDateAndTime = (date: Date, time: string, fieldName: string) => {
 const toUtcDateOnly = (date: Date) =>
   new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+
+const toUtcEndOfDate = (date: Date) =>
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
   );
 
 const addUtcDays = (date: Date, days: number) =>
@@ -330,6 +367,61 @@ const ensureEmployeeRequester = async (userId: string) => {
   return employee;
 };
 
+const getEmployeeScheduleShiftsByDate = async (
+  client: Prisma.TransactionClient | typeof prisma,
+  employeeId: string,
+  date: Date,
+) => {
+  const dateOnly = toUtcDateOnly(date);
+
+  const schedule = await client.workSchedule.findUnique({
+    where: {
+      employeeId_date: {
+        employeeId,
+        date: dateOnly,
+      },
+    },
+    include: {
+      shiftLinks: {
+        include: {
+          workShift: true,
+        },
+        orderBy: {
+          workShift: {
+            startTime: "asc",
+          },
+        },
+      },
+    },
+  });
+
+  return schedule?.shiftLinks.map((link) => link.workShift) ?? [];
+};
+
+const ensureLeaveWorkShiftInSchedule = async (
+  employeeId: string,
+  date: Date,
+  workShiftId?: string,
+) => {
+  if (!workShiftId) {
+    return;
+  }
+
+  const shifts = await getEmployeeScheduleShiftsByDate(
+    prisma,
+    employeeId,
+    date,
+  );
+  const found = shifts.some((shift) => shift.id === workShiftId);
+
+  if (!found) {
+    throw new ApiError(
+      400,
+      "workShiftId must belong to the employee schedule on selected date",
+    );
+  }
+};
+
 const tryConsumePaidLeaveDays = async (
   tx: Prisma.TransactionClient,
   employeeId: string,
@@ -390,6 +482,11 @@ const createRequestWithApprovals = async (
 ) => {
   const approverIds = normalizeIds(input.approverIds);
   const watcherIds = normalizeIds(input.watcherIds ?? []);
+  const title = input.title.trim();
+
+  if (title.length < 2) {
+    throw new ApiError(400, "Title is required");
+  }
 
   if (approverIds.length === 0) {
     throw new ApiError(400, "At least one approver is required");
@@ -408,7 +505,7 @@ const createRequestWithApprovals = async (
     const createdRequest = await tx.request.create({
       data: {
         type: input.type,
-        title: input.title,
+        title,
         description: input.description,
         requesterId: userId,
         approvalMode: input.approvalMode ?? ApprovalMode.PARALLEL,
@@ -660,6 +757,8 @@ const executeRequestLogic = async (
       return await executeScheduleApprovalLogic(tx, request, decidedAt);
     case RequestType.LEAVE:
       return await executeLeaveLogic(tx, request, decidedAt);
+    case RequestType.LATE_EARLY:
+      return await executeLateEarlyLogic(tx, request, decidedAt);
     case RequestType.ATTENDANCE_CORRECTION:
       return await executeAttendanceCorrectionLogic(tx, request, decidedAt);
     case RequestType.OVERTIME:
@@ -748,16 +847,6 @@ const executeLeaveLogic = async (
 
   const employee = await getEmployeeByUserId(tx, request.requesterId);
 
-  if (lateEarlyLeaveTypes.has(leaveRequest.leaveType)) {
-    await applyLateEarlyApproval(
-      tx,
-      employee.id,
-      leaveRequest.startDate,
-      leaveRequest.endDate,
-    );
-    return;
-  }
-
   const startDate = toUtcDateOnly(leaveRequest.startDate);
   const endDateExclusive = addUtcDays(toUtcDateOnly(leaveRequest.endDate), 1);
   const schedules = await tx.workSchedule.findMany({
@@ -797,6 +886,11 @@ const executeLeaveLogic = async (
 
     for (const shiftLink of schedule.shiftLinks) {
       const shift = shiftLink.workShift;
+
+      if (leaveRequest.workShiftId && shift.id !== leaveRequest.workShiftId) {
+        continue;
+      }
+
       const shiftStartAt = buildDateTimeOnDate(schedule.date, shift.startTime);
       const shiftEndAt = getShiftEndDateTime(
         schedule.date,
@@ -959,6 +1053,7 @@ const applyLateEarlyApproval = async (
   employeeId: string,
   startDate: Date,
   endDate: Date,
+  workShiftId: string | null,
 ) => {
   const attendanceDate = toUtcDateOnly(startDate);
   const attendanceRecord = await tx.attendanceRecord.findUnique({
@@ -986,6 +1081,10 @@ const applyLateEarlyApproval = async (
       return false;
     }
 
+    if (workShiftId && detail.workShiftId !== workShiftId) {
+      return false;
+    }
+
     return rangesOverlap(
       startDate,
       endDate,
@@ -1004,6 +1103,45 @@ const applyLateEarlyApproval = async (
       },
     });
   }
+};
+
+/** Xử lý logic cho đơn đi muộn về sớm
+ */
+const executeLateEarlyLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  const lateEarlyRequest = await tx.lateEarlyRequest.findUnique({
+    where: {
+      requestId: request.id,
+    },
+  });
+
+  if (!lateEarlyRequest) {
+    throw new ApiError(
+      400,
+      "Late/early request data is missing",
+      "LATE_EARLY_REQUEST_NOT_FOUND",
+    );
+  }
+
+  await applyLateEarlyApproval(
+    tx,
+    lateEarlyRequest.employeeId,
+    lateEarlyRequest.startDate,
+    lateEarlyRequest.endDate,
+    lateEarlyRequest.workShiftId,
+  );
+
+  await tx.lateEarlyRequest.update({
+    where: {
+      requestId: request.id,
+    },
+    data: {
+      appliedAt: decidedAt,
+    },
+  });
 };
 
 export const requestService = {
@@ -1078,31 +1216,52 @@ export const requestService = {
     return request;
   },
 
+  async getMyLeaveShiftsByDate(userId: string, dateValue: string) {
+    const employee = await ensureEmployeeRequester(userId);
+    const date = parseDateOnly(dateValue, "date");
+    return getEmployeeScheduleShiftsByDate(prisma, employee.id, date);
+  },
+
+  async getMyScheduleShiftsByDate(userId: string, dateValue: string) {
+    const employee = await ensureEmployeeRequester(userId);
+    const date = parseDateOnly(dateValue, "date");
+    return getEmployeeScheduleShiftsByDate(prisma, employee.id, date);
+  },
+
   async createRequest(userId: string, input: CreateRequestInput) {
     return createRequestWithApprovals(userId, input);
   },
 
   async createLeaveRequest(userId: string, input: CreateLeaveRequestInput) {
-    await ensureEmployeeRequester(userId);
+    const employee = await ensureEmployeeRequester(userId);
 
-    const startDate = parseDateTime(input.startDate, "startDate");
-    const endDate = parseDateTime(input.endDate, "endDate");
+    const startDate = parseDateOnly(input.startDate, "startDate");
+    const endDate = toUtcEndOfDate(parseDateOnly(input.endDate, "endDate"));
 
-    if (endDate.getTime() <= startDate.getTime()) {
-      throw new ApiError(400, "endDate must be after startDate");
+    if (endDate.getTime() < startDate.getTime()) {
+      throw new ApiError(400, "endDate must be on or after startDate");
     }
 
-    const reason = input.reason?.trim();
-    const title =
-      input.title ??
-      `Leave request ${startDate.toISOString().slice(0, 10)} - ${endDate
-        .toISOString()
-        .slice(0, 10)}`;
+    if (!leaveTypes.has(input.leaveType)) {
+      throw new ApiError(400, "leaveType is invalid");
+    }
+
+    await ensureLeaveWorkShiftInSchedule(
+      employee.id,
+      startDate,
+      input.workShiftId,
+    );
+
+    const reason = input.reason.trim();
+    if (!reason) {
+      throw new ApiError(400, "reason is required");
+    }
+    const title = input.title.trim();
 
     return createRequestWithApprovals(userId, {
       type: RequestType.LEAVE,
       title,
-      description: input.description ?? reason,
+      description: input.description,
       approvalMode: input.approvalMode,
       approverIds: input.approverIds,
       watcherIds: input.watcherIds,
@@ -1113,6 +1272,7 @@ export const requestService = {
             startDate,
             endDate,
             leaveType: input.leaveType,
+            workShiftId: input.workShiftId || null,
             reason,
           },
         });
@@ -1124,7 +1284,7 @@ export const requestService = {
     userId: string,
     input: CreateLateEarlyRequestInput,
   ) {
-    await ensureEmployeeRequester(userId);
+    const employee = await ensureEmployeeRequester(userId);
 
     const date = parseDateOnly(input.date, "date");
     const startDate = combineDateAndTime(date, input.startTime, "startTime");
@@ -1134,27 +1294,109 @@ export const requestService = {
       throw new ApiError(400, "endTime must be after startTime");
     }
 
-    const typeLabel =
-      input.type === "LATE_ARRIVAL" ? "Late arrival" : "Early leave";
-    const title =
-      input.title ??
-      `${typeLabel} request ${input.date} ${input.startTime}-${input.endTime}`;
+    const scheduleShifts = await getEmployeeScheduleShiftsByDate(
+      prisma,
+      employee.id,
+      date,
+    );
+    const selectedShift = scheduleShifts.find(
+      (shift) => shift.id === input.workShiftId,
+    );
+
+    if (!selectedShift) {
+      throw new ApiError(
+        400,
+        "workShiftId must belong to the employee schedule on selected date",
+      );
+    }
+
+    const shiftStartAt = buildDateTimeOnDate(date, selectedShift.startTime);
+    const shiftEndAt = getShiftEndDateTime(
+      date,
+      selectedShift.startTime,
+      selectedShift.endTime,
+      selectedShift.isOvernight,
+    );
+
+    if (!rangesOverlap(startDate, endDate, shiftStartAt, shiftEndAt)) {
+      throw new ApiError(400, "Selected time range must overlap work shift");
+    }
+
+    const title = input.title.trim();
 
     return createRequestWithApprovals(userId, {
-      type: RequestType.LEAVE,
+      type: RequestType.LATE_EARLY,
       title,
-      description: input.description ?? input.reason,
+      description: input.description,
       approvalMode: input.approvalMode,
       approverIds: input.approverIds,
       watcherIds: input.watcherIds,
       createExtra: async (tx, requestId) => {
-        await tx.leaveRequest.create({
+        await tx.lateEarlyRequest.create({
           data: {
             requestId,
+            employeeId: employee.id,
+            date,
             startDate,
             endDate,
-            leaveType: input.type,
+            requestType: input.type as LateEarlyType,
+            workShiftId: selectedShift.id,
             reason: input.reason,
+          },
+        });
+      },
+    });
+  },
+
+  async createAttendanceCorrectionRequest(
+    userId: string,
+    input: CreateAttendanceCorrectionRequestInput,
+  ) {
+    const employee = await ensureEmployeeRequester(userId);
+    const attendanceDate = parseDateOnly(
+      input.attendanceDate,
+      "attendanceDate",
+    );
+    const reason = input.reason.trim();
+
+    if (!reason) {
+      throw new ApiError(400, "reason is required");
+    }
+
+    const scheduleShifts = await getEmployeeScheduleShiftsByDate(
+      prisma,
+      employee.id,
+      attendanceDate,
+    );
+    const selectedShift = scheduleShifts.find(
+      (shift) => shift.id === input.workShiftId,
+    );
+
+    if (!selectedShift) {
+      throw new ApiError(
+        400,
+        "workShiftId must belong to the employee schedule on selected date",
+      );
+    }
+
+    const title = input.title.trim();
+
+    return createRequestWithApprovals(userId, {
+      type: RequestType.ATTENDANCE_CORRECTION,
+      title,
+      description: input.description,
+      approvalMode: input.approvalMode,
+      approverIds: input.approverIds,
+      watcherIds: input.watcherIds,
+      createExtra: async (tx, requestId) => {
+        await tx.attendanceCorrectionRequest.create({
+          data: {
+            requestId,
+            employeeId: employee.id,
+            attendanceDate,
+            workShiftId: selectedShift.id,
+            addedWorkUnits: selectedShift.workUnits,
+            reason,
           },
         });
       },

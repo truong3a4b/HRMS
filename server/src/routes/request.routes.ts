@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   ApprovalMode,
+  LeaveType,
   RequestApprovalStatus,
   RequestType,
   UserRole,
@@ -14,7 +15,7 @@ const router = Router();
 
 const createRequestSchema = z.object({
   type: z.nativeEnum(RequestType),
-  title: z.string().min(2, "Title is required"),
+  title: z.string().trim().min(2, "Title is required"),
   description: z.string().optional(),
   approvalMode: z
     .nativeEnum(ApprovalMode)
@@ -27,7 +28,7 @@ const createRequestSchema = z.object({
 });
 
 const approvalFieldsSchema = {
-  title: z.string().min(2).optional(),
+  title: z.string().trim().min(2, "Title is required"),
   description: z.string().optional(),
   approvalMode: z
     .nativeEnum(ApprovalMode)
@@ -41,10 +42,15 @@ const approvalFieldsSchema = {
 
 const createLeaveRequestSchema = z.object({
   ...approvalFieldsSchema,
-  startDate: z.string().min(1, "startDate is required"),
-  endDate: z.string().min(1, "endDate is required"),
-  leaveType: z.string().min(1, "leaveType is required"),
-  reason: z.string().optional(),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "startDate must be in YYYY-MM-DD format"),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "endDate must be in YYYY-MM-DD format"),
+  leaveType: z.nativeEnum(LeaveType),
+  workShiftId: z.string().min(1).optional(),
+  reason: z.string().trim().min(2, "reason is required"),
 });
 
 const createLateEarlyRequestSchema = z.object({
@@ -53,12 +59,25 @@ const createLateEarlyRequestSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be in YYYY-MM-DD format"),
   type: z.enum(["LATE_ARRIVAL", "EARLY_LEAVE"]),
+  workShiftId: z.string().min(1, "workShiftId is required"),
   startTime: z
     .string()
     .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "startTime must be in HH:mm format"),
   endTime: z
     .string()
     .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "endTime must be in HH:mm format"),
+  reason: z.string().min(2, "reason is required"),
+});
+
+const createAttendanceCorrectionRequestSchema = z.object({
+  ...approvalFieldsSchema,
+  attendanceDate: z
+    .string()
+    .regex(
+      /^\d{4}-\d{2}-\d{2}$/,
+      "attendanceDate must be in YYYY-MM-DD format",
+    ),
+  workShiftId: z.string().min(1, "workShiftId is required"),
   reason: z.string().min(2, "reason is required"),
 });
 
@@ -87,6 +106,16 @@ router.get(
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   requestController.getRequests,
 );
+router.get(
+  "/leave/shifts",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  requestController.getMyLeaveShiftsByDate,
+);
+router.get(
+  "/schedule-shifts",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  requestController.getMyScheduleShiftsByDate,
+);
 router.post(
   "/leave",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
@@ -98,6 +127,12 @@ router.post(
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   validate(createLateEarlyRequestSchema),
   requestController.createLateEarlyRequest,
+);
+router.post(
+  "/attendance-correction",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  validate(createAttendanceCorrectionRequestSchema),
+  requestController.createAttendanceCorrectionRequest,
 );
 router.post(
   "/",

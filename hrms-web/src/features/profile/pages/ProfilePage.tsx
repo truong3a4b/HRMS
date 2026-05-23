@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
+  Camera,
   Edit3,
   FileText,
+  Gift,
+  HandCoins,
   IdCard,
   Mail,
   MapPin,
+  Percent,
+  ShieldCheck,
+  TriangleAlert,
   UserRound,
 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
@@ -89,6 +95,29 @@ function formatCurrency(value?: string | number | null) {
   }).format(amount);
 }
 
+function formatPercent(value?: string | number | null) {
+  if (value == null || value === "") return "-";
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return String(value);
+  return `${amount.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`;
+}
+
+function formatPolicyPeriod(from?: string | null, to?: string | null) {
+  if (!from && !to) return "-";
+  return `${formatDate(from)} - ${to ? formatDate(to) : "Hien tai"}`;
+}
+
+function getAutoPenaltyTypeLabel(type?: string) {
+  const labels: Record<string, string> = {
+    LATE_EARLY: "Di muon/ve som",
+    LATE_EARLY_PROGRESSIVE: "Di muon/ve som luy tien",
+    UNAUTHORIZED_ABSENCE: "Nghi khong phep",
+    UNAUTHORIZED_ABSENCE_PROGRESSIVE: "Nghi khong phep luy tien",
+  };
+
+  return type ? labels[type] ?? type : "-";
+}
+
 function getErrorMessage(error: unknown) {
   if (
     typeof error === "object" &&
@@ -119,17 +148,17 @@ function DetailSection({
   onEdit?: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-[#e5eaf0] bg-white p-5 shadow-[0_12px_28px_rgba(16,24,40,0.06)]">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f5] pb-4">
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#e9f3ff] text-[#0e67a7]">
+    <section className="rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eaecf0] px-6 py-4">
+        <div className="flex items-center gap-2">
+          <div className="grid h-8 w-8 place-items-center rounded bg-[#eef7ff] text-[#006fd5]">
             {icon}
-          </span>
-          <h2 className="text-lg font-bold text-[#1f2937]">{title}</h2>
+          </div>
+          <h2 className="text-base font-bold text-[#101828]">{title}</h2>
         </div>
         {canEdit ? (
           <button
-            className="inline-flex items-center gap-2 rounded-lg border border-[#c7dcf2] bg-white px-3 py-2 text-sm font-semibold text-[#0e67a7] transition-colors hover:bg-[#f2f8ff]"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-[#067647] transition-colors hover:bg-[#d1fadf] border border-transparent hover:border-[#a6f4c5]"
             type="button"
             onClick={onEdit}
           >
@@ -138,21 +167,191 @@ function DetailSection({
           </button>
         ) : null}
       </div>
-      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
+      <div className="grid grid-cols-2 p-6 max-[760px]:grid-cols-1">
         {rows.map((row) => (
           <div
-            className="min-w-0 rounded-lg border border-[#edf1f5] bg-[#fbfcfe] px-4 py-3"
+            className="flex flex-col justify-center border-b border-[#eaecf0] px-4 py-3 last:border-0 [&:nth-last-child(2):nth-child(odd)]:border-0"
             key={row.label}
           >
-            <span className="block text-xs font-medium uppercase text-[#667085]">
-              {row.label}
-            </span>
-            <span className="mt-1 block min-w-0 break-words text-sm font-semibold text-[#243247]">
-              {row.value}
-            </span>
+            <span className="text-xs font-medium text-[#667085]">{row.label}</span>
+            <span className="mt-1 break-words text-sm font-medium text-[#101828]">{row.value}</span>
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+function PolicyStatus({
+  enabled,
+  active,
+}: {
+  enabled: boolean;
+  active?: boolean;
+}) {
+  const label = !enabled ? "Khong ap dung" : active === false ? "Tam dung" : "Dang ap dung";
+  const className = !enabled
+    ? "bg-[#f2f4f7] text-[#667085]"
+    : active === false
+      ? "bg-[#fff6ed] text-[#c4320a]"
+      : "bg-[#ecfdf3] text-[#067647]";
+
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${className}`}>
+      {label}
+    </span>
+  );
+}
+
+function PayrollPolicyCard({ employee }: { employee: Employee }) {
+  const profile = employee.payrollProfile;
+  const insurance = profile?.insurancePolicy;
+  const tax = profile?.taxPolicy;
+  const attendanceBonus = profile?.attendanceBonusPolicy;
+  const allowancePolicies =
+    employee.allowances?.map((item) => item.allowancePolicy).filter(Boolean) ?? [];
+  const autoPenaltyPolicies =
+    employee.autoPenaltyPolicies
+      ?.map((item) => item.autoPenaltyPolicy)
+      .filter(Boolean) ?? [];
+
+  return (
+    <section className="rounded-lg border border-[#e5eaf0] bg-white p-5 shadow-[0_12px_28px_rgba(16,24,40,0.06)]">
+      <div className="mb-4 flex items-center gap-3 border-b border-[#edf1f5] pb-4">
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#ecfdf3] text-[#067647]">
+          <HandCoins className="h-5 w-5" />
+        </span>
+        <h2 className="text-lg font-bold text-[#1f2937]">
+          Chinh sach luong dang ap dung
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 max-[920px]:grid-cols-1">
+        <article className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-[#0e67a7]" />
+              <strong className="truncate text-sm text-[#243247]">Bao hiem</strong>
+            </div>
+            <PolicyStatus
+              enabled={Boolean(profile?.isInsuranceApplicable && insurance)}
+              active={insurance?.isActive}
+            />
+          </div>
+          <div className="grid gap-2 text-sm text-[#475467]">
+            <div className="font-semibold text-[#243247]">{insurance?.name ?? "-"}</div>
+            <div>Luong dong BH: {formatCurrency(profile?.insuranceSalary ?? employee.salary)}</div>
+            <div>
+              NLD: BHXH {formatPercent(insurance?.employeeSocialRate)} | BHYT{" "}
+              {formatPercent(insurance?.employeeHealthRate)} | BHTN{" "}
+              {formatPercent(insurance?.employeeUnemploymentRate)}
+            </div>
+            <div className="text-xs text-[#667085]">
+              Hieu luc: {formatPolicyPeriod(insurance?.effectiveFrom, insurance?.effectiveTo)}
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Percent className="h-4 w-4 shrink-0 text-[#7a5af8]" />
+              <strong className="truncate text-sm text-[#243247]">Thue TNCN</strong>
+            </div>
+            <PolicyStatus
+              enabled={Boolean(profile?.isTaxApplicable && tax)}
+              active={tax?.isActive}
+            />
+          </div>
+          <div className="grid gap-2 text-sm text-[#475467]">
+            <div className="font-semibold text-[#243247]">{tax?.name ?? "-"}</div>
+            <div>Ma so thue: {profile?.taxCode || "-"}</div>
+            <div>
+              Giam tru ban than: {formatCurrency(tax?.personalDeduction)} | Phu thuoc:{" "}
+              {profile?.dependentCount ?? 0} nguoi
+            </div>
+            <div className="text-xs text-[#667085]">
+              Bac thue: {tax?.brackets?.length ?? 0} | Hieu luc:{" "}
+              {formatPolicyPeriod(tax?.effectiveFrom, tax?.effectiveTo)}
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Gift className="h-4 w-4 shrink-0 text-[#f79009]" />
+              <strong className="truncate text-sm text-[#243247]">Thuong chuyen can</strong>
+            </div>
+            <PolicyStatus
+              enabled={Boolean(profile?.isAttendanceBonusApplicable && attendanceBonus)}
+              active={attendanceBonus?.isActive}
+            />
+          </div>
+          <div className="grid gap-2 text-sm text-[#475467]">
+            <div className="font-semibold text-[#243247]">
+              {attendanceBonus?.name ?? "-"}
+            </div>
+            <div>So tien: {formatCurrency(attendanceBonus?.amount)}</div>
+            <div>
+              Cong yeu cau: {attendanceBonus?.requiredWorkDays ?? "-"} | Vang toi da:{" "}
+              {attendanceBonus?.maxAbsentDays ?? "-"}
+            </div>
+            <div className="text-xs text-[#667085]">
+              Hieu luc:{" "}
+              {formatPolicyPeriod(attendanceBonus?.effectiveFrom, attendanceBonus?.effectiveTo)}
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <HandCoins className="h-4 w-4 shrink-0 text-[#067647]" />
+            <strong className="text-sm text-[#243247]">Phu cap</strong>
+          </div>
+          {allowancePolicies.length ? (
+            <div className="grid gap-2">
+              {allowancePolicies.map((policy) => (
+                <div className="flex items-center justify-between gap-3 text-sm" key={policy!.id}>
+                  <span className="min-w-0 truncate font-semibold text-[#243247]">
+                    {policy!.name}
+                  </span>
+                  <span className="shrink-0 text-[#067647]">
+                    {formatCurrency(policy!.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-[#667085]">Chua co phu cap duoc gan</div>
+          )}
+        </article>
+      </div>
+
+      <article className="mt-3 rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <TriangleAlert className="h-4 w-4 shrink-0 text-[#d92d20]" />
+          <strong className="text-sm text-[#243247]">Phat tu dong</strong>
+        </div>
+        {autoPenaltyPolicies.length ? (
+          <div className="grid grid-cols-2 gap-2 max-[760px]:grid-cols-1">
+            {autoPenaltyPolicies.map((policy) => (
+              <div
+                className="rounded-lg border border-[#edf1f5] bg-white px-3 py-2 text-sm"
+                key={policy!.id}
+              >
+                <div className="font-semibold text-[#243247]">{policy!.name}</div>
+                <div className="mt-1 text-xs text-[#667085]">
+                  {getAutoPenaltyTypeLabel(policy!.type)} | Muc phat:{" "}
+                  {formatCurrency(policy!.amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-[#667085]">Chua co chinh sach phat tu dong</div>
+        )}
+      </article>
     </section>
   );
 }
@@ -163,13 +362,20 @@ function ProfileHero({
   email,
   kind,
   subtitle,
+  canEditAvatar = false,
+  avatarUploading = false,
+  onAvatarFileSelect,
 }: {
   avatar?: string | null;
   name: string;
   email: string;
   kind: ProfileKind;
   subtitle: string;
+  canEditAvatar?: boolean;
+  avatarUploading?: boolean;
+  onAvatarFileSelect?: (file: File) => void;
 }) {
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const roleLabel =
     kind === "candidate"
       ? "Ứng viên"
@@ -178,30 +384,60 @@ function ProfileHero({
         : "Tài khoản";
 
   return (
-    <section className="rounded-lg border border-[#dbe7f4] bg-white p-5 shadow-[0_16px_36px_rgba(16,24,40,0.08)]">
-      <div className="flex flex-wrap items-center gap-4">
-        <Avatar
-          alt={name}
-          src={avatar ?? undefined}
-          sizeClass="h-20 w-20"
-          className="ring-4 ring-[#e9f3ff]"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-[#e9f3ff] px-3 py-1 text-xs font-bold text-[#0e67a7]">
-            <BadgeCheck className="h-3.5 w-3.5" />
-            {roleLabel}
-          </div>
-          <h1 className="truncate text-2xl font-bold text-[#172033]">{name}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#667085]">
-            <span className="inline-flex items-center gap-1.5">
-              <Mail className="h-4 w-4" />
-              {email}
-            </span>
-            <span>{subtitle}</span>
-          </div>
+    <aside className="sticky top-5 w-[320px] shrink-0 max-[900px]:static max-[900px]:w-full">
+      <div className="rounded-2xl border border-[#d0d5dd] bg-white p-6 text-center shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+        <div className="relative mx-auto mb-4 h-24 w-24">
+          <Avatar
+            alt={name}
+            src={avatar ?? undefined}
+            sizeClass="h-24 w-24"
+            className="ring-4 ring-[#f9fafb]"
+          />
+          {canEditAvatar ? (
+            <>
+              <button
+                className="absolute bottom-0 right-0 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-[#006fd5] text-white shadow-sm transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-70"
+                type="button"
+                aria-label="Chọn ảnh cá nhân"
+                title="Chọn ảnh cá nhân"
+                disabled={avatarUploading}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                <Camera className="h-4 w-4" />
+              </button>
+              <input
+                ref={avatarInputRef}
+                className="hidden"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  if (file) {
+                    onAvatarFileSelect?.(file);
+                    event.currentTarget.value = "";
+                  }
+                }}
+              />
+            </>
+          ) : null}
+        </div>
+        
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#eef7ff] px-3 py-1 text-xs font-bold text-[#006fd5]">
+          <BadgeCheck className="h-3.5 w-3.5" />
+          {roleLabel}
+        </div>
+        <h1 className="mb-1 text-xl font-bold text-[#101828] break-words w-full">{name}</h1>
+        <div className="flex flex-col items-center gap-2 text-sm text-[#475467] w-full">
+          <span className="flex items-center gap-1.5 min-w-0 w-full justify-center">
+            <Mail className="h-4 w-4 shrink-0 text-[#667085]" />
+            <span className="truncate">{email}</span>
+          </span>
+          <span className="flex items-center gap-1.5 font-medium text-[#344054] break-words w-full justify-center text-center">
+            {subtitle}
+          </span>
         </div>
       </div>
-    </section>
+    </aside>
   );
 }
 
@@ -213,9 +449,11 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [editSection, setEditSection] = useState<ProfileEditSection | null>(
     null,
   );
+  const [activeTab, setActiveTab] = useState<"personal" | "work" | "payroll" | "application">("personal");
 
   const loadProfile = useCallback(
     async (ignore = false) => {
@@ -301,6 +539,34 @@ export function ProfilePage() {
 
     setEditSection(null);
     setNotice("Đã cập nhật thông tin cá nhân");
+  };
+
+  const handleAvatarFileSelect = async (file: File) => {
+    if (kind === "account") return;
+
+    setNotice(null);
+    setError(null);
+    setAvatarUploading(true);
+
+    try {
+      if (kind === "candidate") {
+        const updated = await profileService.updateCandidateProfile({
+          avatarFile: file,
+        });
+        setCandidate(updated);
+      } else {
+        const updated = await employeeService.updateMyBasic({
+          avatarFile: file,
+        });
+        setEmployee(updated);
+      }
+
+      setNotice("Da cap nhat anh ca nhan");
+    } catch (uploadError) {
+      setError(getErrorMessage(uploadError));
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const accountRows = useMemo<DetailRow[]>(
@@ -453,133 +719,225 @@ export function ProfilePage() {
     <AppLayout>
       <main className="h-full min-w-0 overflow-y-auto">
         <div className="flex min-h-full flex-col gap-5 px-5 py-5 max-[640px]:px-4">
-          <ProfileHero
-            avatar={hero.avatar}
-            name={hero.name}
-            email={hero.email}
-            kind={kind}
-            subtitle={hero.subtitle || "-"}
-          />
-
-          {loading ? (
-            <div className="rounded-lg border border-[#e5eaf0] bg-white px-5 py-8 text-center text-sm font-semibold text-[#667085]">
-              Đang tải thông tin cá nhân...
-            </div>
-          ) : null}
-
-          {error ? (
-            <div className="rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318]">
-              {error}
-            </div>
-          ) : null}
-          {notice ? (
-            <div className="rounded-lg border border-[#abefc6] bg-[#f6fef9] px-4 py-3 text-sm text-[#067647]">
-              {notice}
-            </div>
-          ) : null}
-
-          {!loading && kind === "employee" && employee ? (
-            <div className="grid gap-5">
-              <DetailSection
-                title="Thông tin cá nhân"
-                icon={<UserRound className="h-5 w-5" />}
-                rows={employeePersonalRows}
-                canEdit={canEditProfile}
-                onEdit={() => setEditSection("basic")}
-              />
-              <DetailSection
-                title="Thông tin công việc"
-                icon={<BriefcaseBusiness className="h-5 w-5" />}
-                rows={employeeWorkRows}
-              />
-              <DetailSection
-                title="Thông tin bổ sung"
-                icon={<IdCard className="h-5 w-5" />}
-                rows={employeeAdditionalRows}
-                canEdit={canEditProfile}
-                onEdit={() => setEditSection("additional")}
-              />
-            </div>
-          ) : null}
-
-          {!loading && kind === "candidate" && candidate ? (
-            <div className="grid gap-5">
-              <DetailSection
-                title="Thông tin ứng viên"
-                icon={<UserRound className="h-5 w-5" />}
-                rows={candidatePersonalRows}
-                canEdit={canEditProfile}
-                onEdit={() => setEditSection("basic")}
-              />
-              <DetailSection
-                title="Hồ sơ và giấy tờ"
-                icon={<IdCard className="h-5 w-5" />}
-                rows={candidateAdditionalRows}
-                canEdit={canEditProfile}
-                onEdit={() => setEditSection("additional")}
-              />
-              <section className="rounded-lg border border-[#e5eaf0] bg-white p-5 shadow-[0_12px_28px_rgba(16,24,40,0.06)]">
-                <div className="mb-4 flex items-center gap-3 border-b border-[#edf1f5] pb-4">
-                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#fff4e5] text-[#f79009]">
-                    <FileText className="h-5 w-5" />
-                  </span>
-                  <h2 className="text-lg font-bold text-[#1f2937]">
-                    Hồ sơ ứng tuyển
-                  </h2>
-                </div>
-                <div className="grid gap-3">
-                  {candidate.applications?.length ? (
-                    candidate.applications.map((application) => (
-                      <article
-                        className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] px-4 py-3"
-                        key={application.id}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-bold text-[#243247]">
-                              {application.recruitmentJob?.title ??
-                                application.position?.name ??
-                                "Vị trí ứng tuyển"}
-                            </div>
-                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#667085]">
-                              <span className="inline-flex items-center gap-1">
-                                <BriefcaseBusiness className="h-3.5 w-3.5" />
-                                {application.position?.name ?? "-"}
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <MapPin className="h-3.5 w-3.5" />
-                                {application.department?.name ?? "-"}
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <CalendarDays className="h-3.5 w-3.5" />
-                                {formatDate(application.appliedAt)}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="rounded-full bg-[#e9f3ff] px-3 py-1 text-xs font-bold text-[#0e67a7]">
-                            {applicationStatusLabels[application.status] ??
-                              application.status}
-                          </span>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-[#d7dde8] bg-[#fbfcff] px-4 py-6 text-center text-sm text-[#667085]">
-                      Chưa có hồ sơ ứng tuyển.
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
-          ) : null}
-
-          {!loading && kind === "account" ? (
-            <DetailSection
-              title="Thông tin tài khoản"
-              icon={<Mail className="h-5 w-5" />}
-              rows={accountRows}
+          <div className="flex items-start gap-6 max-[900px]:flex-col">
+            <ProfileHero
+              avatar={hero.avatar}
+              name={hero.name}
+              email={hero.email}
+              kind={kind}
+              subtitle={hero.subtitle || "-"}
+              canEditAvatar={canEditProfile && kind !== "account"}
+              avatarUploading={avatarUploading}
+              onAvatarFileSelect={handleAvatarFileSelect}
             />
-          ) : null}
+
+            <section className="grid min-w-0 flex-1 content-start gap-5">
+              {loading ? (
+                <div className="rounded-2xl border border-[#d0d5dd] bg-white px-5 py-8 text-center text-sm font-semibold text-[#667085] shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+                  Đang tải thông tin cá nhân...
+                </div>
+              ) : null}
+
+              {error ? (
+                <div className="rounded-2xl border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318] shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+                  {error}
+                </div>
+              ) : null}
+              {notice ? (
+                <div className="rounded-2xl border border-[#abefc6] bg-[#f6fef9] px-4 py-3 text-sm text-[#067647] shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+                  {notice}
+                </div>
+              ) : null}
+
+              {!loading && kind === "employee" && employee ? (
+                <>
+                  <div className="flex border-b border-[#d0d5dd] bg-transparent">
+                    <button
+                      className={`inline-flex min-h-14 items-center justify-center gap-2 border-b-2 px-8 text-sm font-semibold transition-all duration-300 max-[640px]:flex-1 max-[640px]:px-4 ${
+                        activeTab === "personal"
+                          ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                          : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                      }`}
+                      type="button"
+                      onClick={() => setActiveTab("personal")}
+                    >
+                      <UserRound className="h-4 w-4" />
+                      Cá nhân
+                    </button>
+                    <button
+                      className={`inline-flex min-h-14 items-center justify-center gap-2 border-b-2 px-8 text-sm font-semibold transition-all duration-300 max-[640px]:flex-1 max-[640px]:px-4 ${
+                        activeTab === "work"
+                          ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                          : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                      }`}
+                      type="button"
+                      onClick={() => setActiveTab("work")}
+                    >
+                      <BriefcaseBusiness className="h-4 w-4" />
+                      Công việc
+                    </button>
+                    <button
+                      className={`inline-flex min-h-14 items-center justify-center gap-2 border-b-2 px-8 text-sm font-semibold transition-all duration-300 max-[640px]:flex-1 max-[640px]:px-4 ${
+                        activeTab === "payroll"
+                          ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                          : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                      }`}
+                      type="button"
+                      onClick={() => setActiveTab("payroll")}
+                    >
+                      <HandCoins className="h-4 w-4" />
+                      Lương & Chính sách
+                    </button>
+                  </div>
+
+                  {activeTab === "personal" ? (
+                    <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <DetailSection
+                        title="Thông tin cá nhân"
+                        icon={<UserRound className="h-5 w-5" />}
+                        rows={employeePersonalRows}
+                        canEdit={canEditProfile}
+                        onEdit={() => setEditSection("basic")}
+                      />
+                      <DetailSection
+                        title="Thông tin bổ sung"
+                        icon={<IdCard className="h-5 w-5" />}
+                        rows={employeeAdditionalRows}
+                        canEdit={canEditProfile}
+                        onEdit={() => setEditSection("additional")}
+                      />
+                    </div>
+                  ) : activeTab === "work" ? (
+                    <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <DetailSection
+                        title="Thông tin công việc"
+                        icon={<BriefcaseBusiness className="h-5 w-5" />}
+                        rows={employeeWorkRows}
+                      />
+                    </div>
+                  ) : activeTab === "payroll" ? (
+                    <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <PayrollPolicyCard employee={employee} />
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+
+              {!loading && kind === "candidate" && candidate ? (
+                <>
+                  <div className="flex border-b border-[#d0d5dd] bg-transparent">
+                    <button
+                      className={`inline-flex min-h-14 items-center justify-center gap-2 border-b-2 px-8 text-sm font-semibold transition-all duration-300 max-[640px]:flex-1 max-[640px]:px-4 ${
+                        activeTab === "personal"
+                          ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                          : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                      }`}
+                      type="button"
+                      onClick={() => setActiveTab("personal")}
+                    >
+                      <UserRound className="h-4 w-4" />
+                      Cá nhân
+                    </button>
+                    <button
+                      className={`inline-flex min-h-14 items-center justify-center gap-2 border-b-2 px-8 text-sm font-semibold transition-all duration-300 max-[640px]:flex-1 max-[640px]:px-4 ${
+                        activeTab === "application"
+                          ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                          : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                      }`}
+                      type="button"
+                      onClick={() => setActiveTab("application")}
+                    >
+                      <FileText className="h-4 w-4" />
+                      Hồ sơ ứng tuyển
+                    </button>
+                  </div>
+
+                  {activeTab === "personal" || activeTab !== "application" ? (
+                    <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <DetailSection
+                        title="Thông tin ứng viên"
+                        icon={<UserRound className="h-5 w-5" />}
+                        rows={candidatePersonalRows}
+                        canEdit={canEditProfile}
+                        onEdit={() => setEditSection("basic")}
+                      />
+                      <DetailSection
+                        title="Hồ sơ và giấy tờ"
+                        icon={<IdCard className="h-5 w-5" />}
+                        rows={candidateAdditionalRows}
+                        canEdit={canEditProfile}
+                        onEdit={() => setEditSection("additional")}
+                      />
+                    </div>
+                  ) : activeTab === "application" ? (
+                    <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <section className="rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+                        <div className="mb-4 flex items-center gap-3 border-b border-[#eaecf0] px-6 py-4">
+                          <span className="grid h-8 w-8 place-items-center rounded bg-[#fff4e5] text-[#f79009]">
+                            <FileText className="h-4 w-4" />
+                          </span>
+                          <h2 className="text-base font-bold text-[#101828]">
+                            Hồ sơ ứng tuyển
+                          </h2>
+                        </div>
+                        <div className="grid gap-3 p-6">
+                          {candidate.applications?.length ? (
+                            candidate.applications.map((application) => (
+                              <article
+                                className="rounded-lg border border-[#eaecf0] bg-[#f9fafb] px-4 py-3"
+                                key={application.id}
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-[#101828]">
+                                      {application.recruitmentJob?.title ??
+                                        application.position?.name ??
+                                        "Vị trí ứng tuyển"}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#475467]">
+                                      <span className="inline-flex items-center gap-1">
+                                        <BriefcaseBusiness className="h-3.5 w-3.5 text-[#667085]" />
+                                        {application.position?.name ?? "-"}
+                                      </span>
+                                      <span className="inline-flex items-center gap-1">
+                                        <MapPin className="h-3.5 w-3.5 text-[#667085]" />
+                                        {application.department?.name ?? "-"}
+                                      </span>
+                                      <span className="inline-flex items-center gap-1">
+                                        <CalendarDays className="h-3.5 w-3.5 text-[#667085]" />
+                                        {formatDate(application.appliedAt)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <span className="rounded-full bg-[#eef7ff] px-3 py-1 text-xs font-bold text-[#006fd5]">
+                                    {applicationStatusLabels[application.status] ??
+                                      application.status}
+                                  </span>
+                                </div>
+                              </article>
+                            ))
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-[#d0d5dd] bg-[#fcfcfd] px-4 py-6 text-center text-sm text-[#667085]">
+                              Chưa có hồ sơ ứng tuyển.
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+
+              {!loading && kind === "account" ? (
+                <DetailSection
+                  title="Thông tin tài khoản"
+                  icon={<Mail className="h-5 w-5" />}
+                  rows={accountRows}
+                />
+              ) : null}
+            </section>
+          </div>
+          
           <ProfileEditModal
             open={editSection !== null}
             kind={kind === "candidate" ? "candidate" : "employee"}

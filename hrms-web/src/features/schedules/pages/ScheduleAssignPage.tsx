@@ -114,10 +114,13 @@ function MultiSelectDropdown({
     }
   };
 
-  const selectedLabels = selected
-    .map((id) => options.find((o) => o.id === id)?.label)
-    .filter(Boolean)
-    .join(", ");
+  const selectedLabels =
+    selected.length > 1
+      ? `Đã chọn ${selected.length} mục`
+      : selected
+          .map((id) => options.find((o) => o.id === id)?.label)
+          .filter(Boolean)
+          .join(", ");
 
   return (
     <div ref={ref} className="relative min-w-0 max-w-full">

@@ -52,10 +52,12 @@ export type CandidateProfile = {
 export type CandidateProfilePayload = {
   fullName?: string | null;
   phone?: string | null;
+  avatarFile?: File | null;
   dateOfBirth?: string | null;
   gender?: "MALE" | "FEMALE" | "OTHER" | null;
   address?: string | null;
   avatar?: string | null;
+  cvFile?: File | null;
   cvUrl?: string | null;
   maritalStatus?: string | null;
   nationality?: string | null;
@@ -64,7 +66,9 @@ export type CandidateProfilePayload = {
   bank?: Record<string, unknown> | null;
   identityCardNumber?: string | null;
   identityCardIssueDate?: string | null;
+  frontIdentityCardImageFile?: File | null;
   frontIdentityCardImage?: string | null;
+  backIdentityCardImageFile?: File | null;
   backIdentityCardImage?: string | null;
   province?: Record<string, unknown> | null;
   ward?: Record<string, unknown> | null;

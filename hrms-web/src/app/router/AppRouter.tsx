@@ -1,5 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "../../features/auth/pages/LoginPage";
+import { ForgotPasswordPage } from "../../features/auth/pages/ForgotPasswordPage";
+import { ChangePasswordPage } from "../../features/auth/pages/ChangePasswordPage";
+import { ResetPasswordPage } from "../../features/auth/pages/ResetPasswordPage";
 import { RegisterPage } from "../../features/auth/pages/RegisterPage";
 import { VerifyOtpPage } from "../../features/auth/pages/VerifyOtpPage";
 import { AttendanceManagementPage } from "../../features/attendance/pages/AttendanceManagementPage";
@@ -17,7 +20,11 @@ import { PositionListPage } from "../../features/positions/pages/PositionListPag
 import { ProfilePage } from "../../features/profile/pages/ProfilePage";
 import { RecruitmentApplicationListPage } from "../../features/recruitment/pages/RecruitmentApplicationListPage";
 import { RecruitmentJobListPage } from "../../features/recruitment/pages/RecruitmentJobListPage";
-import { RequestListPage } from "../../features/requests/pages/RequestListPage";
+import { RequestCreatePage } from "../../features/requests/pages/RequestCreatePage";
+import { RequestMinePage } from "../../features/requests/pages/RequestMinePage";
+import { RequestWatchingPage } from "../../features/requests/pages/RequestWatchingPage";
+import { RequestPendingPage } from "../../features/requests/pages/RequestPendingPage";
+import { RequestAllPage } from "../../features/requests/pages/RequestAllPage";
 import { ScheduleAssignPage } from "../../features/schedules/pages/ScheduleAssignPage";
 import { ScheduleRegisterPage } from "../../features/schedules/pages/ScheduleRegisterPage";
 import { ScheduleWeeklyPage } from "../../features/schedules/pages/ScheduleWeeklyPage";
@@ -32,6 +39,8 @@ export function AppRouter() {
       <Route path={paths.login} element={<LoginPage />} />
       <Route path={paths.register} element={<RegisterPage />} />
       <Route path={paths.verifyOtp} element={<VerifyOtpPage />} />
+      <Route path={paths.forgotPassword} element={<ForgotPasswordPage />} />
+      <Route path={paths.resetPassword} element={<ResetPasswordPage />} />
       <Route
         path={paths.home}
         element={
@@ -45,6 +54,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute>
             <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.changePassword}
+        element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
           </ProtectedRoute>
         }
       />
@@ -137,10 +154,26 @@ export function AppRouter() {
         }
       />
       <Route
+        path={paths.requestsCreate}
+        element={
+          <ProtectedRoute>
+            <RequestCreatePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path={paths.requestsMine}
         element={
           <ProtectedRoute>
-            <RequestListPage defaultTab="mine" />
+            <RequestMinePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.requestsWatching}
+        element={
+          <ProtectedRoute>
+            <RequestWatchingPage />
           </ProtectedRoute>
         }
       />
@@ -148,7 +181,7 @@ export function AppRouter() {
         path={paths.requestsPending}
         element={
           <ProtectedRoute>
-            <RequestListPage defaultTab="pending" />
+            <RequestPendingPage />
           </ProtectedRoute>
         }
       />
@@ -156,7 +189,7 @@ export function AppRouter() {
         path={paths.requestsAll}
         element={
           <ProtectedRoute>
-            <RequestListPage defaultTab="all" />
+            <RequestAllPage />
           </ProtectedRoute>
         }
       />

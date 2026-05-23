@@ -202,6 +202,7 @@ function ApplicationDetailModal({
     decision: "ACCEPTED" as "ACCEPTED" | "DECLINED",
     note: "",
   });
+  const [activeTab, setActiveTab] = useState<"info" | "interviews" | "evaluations" | "offer">("info");
 
   useEffect(() => {
     if (!open) {
@@ -308,311 +309,374 @@ function ApplicationDetailModal({
       <Modal
         open={open}
         title="Chi tiết đơn ứng tuyển"
-        width={860}
+        width={1100}
         onCancel={onClose}
         centered
-        styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
-        footer={
-          <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-[#edf0f5]">
-            {canManage && !isFinal ? (
-              <>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-                  type="button"
-                  onClick={() => setAction("interview")}
-                >
-                  <CalendarPlus className="h-4 w-4" />
-                  Lên lịch
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-                  type="button"
-                  onClick={() => setAction("evaluation")}
-                >
-                  <FileCheck2 className="h-4 w-4" />
-                  Đánh giá
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
-                  type="button"
-                  onClick={() =>
-                    Modal.confirm({
-                      title: "Từ chối ứng viên",
-                      content: "Bạn có chắc chắn muốn từ chối ứng viên này?",
-                      okText: "Từ chối",
-                      cancelText: "Hủy",
-                      okButtonProps: { danger: true },
-                      onOk: async () => {
-                        await recruitmentService.rejectApplication(application.id);
-                        await onRefresh();
-                      },
-                    })
-                  }
-                >
-                  <XCircle className="h-4 w-4" />
-                  Từ chối
-                </button>
-              </>
-            ) : null}
-            {canOffer && !isFinal ? (
-              <button
-                className="inline-flex items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] [&_*]:!text-white"
-                type="button"
-                onClick={() => setAction("offer")}
-              >
-                <Gift className="h-4 w-4" />
-                Gửi offer
-              </button>
-            ) : null}
-            {isCandidate && application.status === "OFFER_SENT" ? (
-              <button
-                className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8]"
-                type="button"
-                onClick={() => setAction("offerResponse")}
-              >
-                Phản hồi offer
-              </button>
-            ) : null}
-            {isCandidate && !isFinal ? (
-              <button
-                className="rounded-lg border border-[#fecdca] px-4 py-2 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
-                type="button"
-                onClick={() =>
-                  Modal.confirm({
-                    title: "Hủy đơn ứng tuyển",
-                    content: "Bạn có chắc chắn muốn hủy đơn ứng tuyển này?",
-                    okText: "Hủy đơn",
-                    cancelText: "Đóng",
-                    okButtonProps: { danger: true },
-                    onOk: async () => {
-                      await recruitmentService.cancelApplication(application.id);
-                      await onRefresh();
-                    },
-                  })
-                }
-              >
-                Hủy đơn
-              </button>
-            ) : null}
-          </div>
-        }
+        styles={{ body: { maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', paddingRight: '8px' } }}
+        footer={null}
       >
-        <div className="grid gap-4">
-          <DetailCard title="Thông tin ứng viên">
-            <div className="mb-3 flex items-center gap-3">
-              <Avatar
-                src={candidate.avatar}
-                alt={candidate.name}
-                sizeClass="h-12 w-12"
-              />
-              <div className="min-w-0">
-                <strong className="block truncate text-base text-[#243247]">
-                  {candidate.name}
-                </strong>
-                <span className="block truncate text-sm text-[#667085]">
-                  {candidate.email}
-                </span>
+        <div className="mt-4 flex items-start gap-6 max-[900px]:flex-col">
+          <aside className="sticky top-0 w-[320px] shrink-0 max-[900px]:static max-[900px]:w-full grid gap-4 content-start">
+            <div className="rounded-2xl border border-[#d0d5dd] bg-white p-6 text-center shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+              <div className="relative mx-auto mb-4 h-20 w-20">
+                <Avatar
+                  src={candidate.avatar}
+                  alt={candidate.name}
+                  sizeClass="h-20 w-20"
+                  className="ring-4 ring-[#f9fafb]"
+                />
               </div>
-            </div>
-            <InfoRow label="Số điện thoại" value={candidate.phone ?? "-"} />
-            <InfoRow
-              label="CV"
-              value={
-                candidate.cvUrl ? (
-                  <a
-                    className="text-[#006fd5]"
-                    href={candidate.cvUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Xem CV
-                  </a>
-                ) : (
-                  "-"
-                )
-              }
-            />
-          </DetailCard>
-
-          <DetailCard title="Thông tin công việc">
-            <InfoRow
-              label="Tin tuyển dụng"
-              value={application.recruitmentJob?.title ?? "-"}
-            />
-            <InfoRow label="Chức vụ" value={application.position?.name ?? "-"} />
-            <InfoRow label="Bộ phận" value={application.department?.name ?? "-"} />
-            <InfoRow
-              label="Hạn ứng tuyển"
-              value={formatDate(application.recruitmentJob?.deadline)}
-            />
-          </DetailCard>
-
-          <DetailCard title="Thông tin ứng tuyển">
-            <InfoRow
-              label="Trạng thái"
-              value={<ApplicationStatusBadge status={application.status} />}
-            />
-            <InfoRow
-              label="Ngày ứng tuyển"
-              value={formatDateTime(application.appliedAt)}
-            />
-            <InfoRow label="Cover letter" value={application.coverLetter ?? "-"} />
-            <InfoRow label="Ghi chú" value={application.notes ?? "-"} />
-          </DetailCard>
-
-          <DetailCard title="Lịch phỏng vấn">
-            {application.interviewSchedules?.length ? (
-              <div className="grid gap-2">
-                {application.interviewSchedules.map((item) => (
-                  <div
-                    className="flex items-center justify-between gap-3 rounded-lg border border-[#edf0f5] bg-[#fbfcff] p-3 text-sm max-[640px]:flex-col max-[640px]:items-stretch"
-                    key={item.id}
-                  >
-                    <div className="min-w-0">
-                      <strong className="block text-[#243247]">{item.title}</strong>
-                      <span className="text-[#667085]">
-                        {formatDateTime(item.scheduledAt)} | {item.type} |{" "}
-                        {item.location || "-"} | {item.status}
-                      </span>
-                    </div>
-                    {isCandidate && item.status === "INVITED" ? (
+              <div className="mb-2">
+                <ApplicationStatusBadge status={application.status} />
+              </div>
+              <h3 className="mb-1 text-lg font-bold text-[#101828] break-words w-full">{candidate.name}</h3>
+              <div className="flex flex-col items-center gap-1.5 text-sm text-[#475467] w-full">
+                <span className="truncate w-full">{candidate.email}</span>
+                {candidate.phone && <span className="truncate w-full">{candidate.phone}</span>}
+              </div>
+              
+              <div className="mt-6 flex flex-col gap-2">
+                {canManage && !isFinal ? (
+                  <>
+                    <button
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-semibold text-[#067647] hover:bg-[#d1fadf] transition-colors"
+                      type="button"
+                      onClick={() => setAction("interview")}
+                    >
+                      <CalendarPlus className="h-4 w-4" />
+                      Lên lịch phỏng vấn
+                    </button>
+                    <button
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#eef7ff] px-4 py-2 text-sm font-semibold text-[#006fd5] hover:bg-[#d1e9ff] transition-colors"
+                      type="button"
+                      onClick={() => setAction("evaluation")}
+                    >
+                      <FileCheck2 className="h-4 w-4" />
+                      Thêm đánh giá
+                    </button>
+                    {canOffer ? (
                       <button
-                        className="shrink-0 rounded-lg bg-[#006fd5] px-3 py-1.5 text-sm font-semibold text-white! hover:bg-[#0055a8]"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0055a8] transition-colors"
                         type="button"
-                        onClick={() => {
-                          setSelectedInterview(item);
-                          setInterviewResponseForm({
-                            decision: "CONFIRMED",
-                            note: "",
-                          });
-                          setAction("interviewResponse");
-                        }}
+                        onClick={() => setAction("offer")}
                       >
-                        Phản hồi
+                        <Gift className="h-4 w-4" />
+                        Gửi offer
                       </button>
                     ) : null}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-[#667085]">Chưa có lịch phỏng vấn</div>
-            )}
-          </DetailCard>
-
-          <DetailCard title="Đánh giá">
-            {application.evaluations?.length ? (
-              <div className="grid gap-2">
-                {application.evaluations.map((item) => (
-                  <div
-                    className="flex items-center justify-between gap-3 rounded-lg border border-[#edf0f5] bg-[#fbfcff] p-3 text-sm max-[680px]:flex-col max-[680px]:items-stretch"
-                    key={item.id}
+                    <button
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#fef3f2] px-4 py-2 text-sm font-semibold text-[#b42318] hover:bg-[#fee4e2] transition-colors"
+                      type="button"
+                      onClick={() =>
+                        Modal.confirm({
+                          title: "Từ chối ứng viên",
+                          content: "Bạn có chắc chắn muốn từ chối ứng viên này?",
+                          okText: "Từ chối",
+                          cancelText: "Hủy",
+                          okButtonProps: { danger: true },
+                          onOk: async () => {
+                            await recruitmentService.rejectApplication(application.id);
+                            await onRefresh();
+                          },
+                        })
+                      }
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Từ chối
+                    </button>
+                  </>
+                ) : null}
+                {isCandidate && application.status === "OFFER_SENT" ? (
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0055a8] transition-colors"
+                    type="button"
+                    onClick={() => setAction("offerResponse")}
                   >
-                    <div className="min-w-0">
-                      <strong className="block text-[#243247]">{item.title}</strong>
-                      <span className="block text-[#667085]">
-                        Người đánh giá: {item.evaluator?.name ?? "-"}
-                        {item.evaluator?.email ? ` | ${item.evaluator.email}` : ""}
-                      </span>
-                      <span className="block text-[#667085]">
-                        Điểm: {item.score ?? "-"}
-                      </span>
+                    Phản hồi offer
+                  </button>
+                ) : null}
+                {isCandidate && !isFinal ? (
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#fecdca] bg-white px-4 py-2 text-sm font-semibold text-[#b42318] hover:bg-[#fef3f2] transition-colors"
+                    type="button"
+                    onClick={() =>
+                      Modal.confirm({
+                        title: "Hủy đơn ứng tuyển",
+                        content: "Bạn có chắc chắn muốn hủy đơn ứng tuyển này?",
+                        okText: "Hủy đơn",
+                        cancelText: "Đóng",
+                        okButtonProps: { danger: true },
+                        onOk: async () => {
+                          await recruitmentService.cancelApplication(application.id);
+                          await onRefresh();
+                        },
+                      })
+                    }
+                  >
+                    Hủy đơn
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </aside>
+
+          <section className="grid min-w-0 flex-1 content-start gap-5">
+            <div className="flex border-b border-[#d0d5dd] bg-transparent overflow-x-auto">
+              <button
+                className={`inline-flex min-h-14 shrink-0 items-center justify-center gap-2 border-b-2 px-6 text-sm font-semibold transition-all duration-300 ${
+                  activeTab === "info"
+                    ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                    : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                }`}
+                type="button"
+                onClick={() => setActiveTab("info")}
+              >
+                Hồ sơ
+              </button>
+              <button
+                className={`inline-flex min-h-14 shrink-0 items-center justify-center gap-2 border-b-2 px-6 text-sm font-semibold transition-all duration-300 ${
+                  activeTab === "interviews"
+                    ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                    : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                }`}
+                type="button"
+                onClick={() => setActiveTab("interviews")}
+              >
+                Phỏng vấn
+              </button>
+              <button
+                className={`inline-flex min-h-14 shrink-0 items-center justify-center gap-2 border-b-2 px-6 text-sm font-semibold transition-all duration-300 ${
+                  activeTab === "evaluations"
+                    ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                    : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                }`}
+                type="button"
+                onClick={() => setActiveTab("evaluations")}
+              >
+                Đánh giá
+              </button>
+              <button
+                className={`inline-flex min-h-14 shrink-0 items-center justify-center gap-2 border-b-2 px-6 text-sm font-semibold transition-all duration-300 ${
+                  activeTab === "offer"
+                    ? "border-[#006fd5] bg-[#eef7ff] text-[#006fd5] shadow-[inset_0_-2px_0_0_#006fd5]"
+                    : "border-transparent text-[#667085] hover:bg-slate-50 hover:text-[#344054]"
+                }`}
+                type="button"
+                onClick={() => setActiveTab("offer")}
+              >
+                Offer
+              </button>
+            </div>
+
+            {activeTab === "info" ? (
+              <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <DetailCard title="Thông tin cá nhân & Liên hệ">
+                  <InfoRow
+                    label="CV"
+                    value={
+                      candidate.cvUrl ? (
+                        <a
+                          className="font-medium text-[#006fd5] hover:underline"
+                          href={candidate.cvUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Xem CV đính kèm
+                        </a>
+                      ) : (
+                        "-"
+                      )
+                    }
+                  />
+                  <InfoRow label="Số điện thoại" value={candidate.phone ?? "-"} />
+                  <InfoRow label="Email" value={candidate.email ?? "-"} />
+                </DetailCard>
+
+                <DetailCard title="Thông tin ứng tuyển">
+                  <InfoRow
+                    label="Tin tuyển dụng"
+                    value={application.recruitmentJob?.title ?? "-"}
+                  />
+                  <InfoRow label="Chức vụ" value={application.position?.name ?? "-"} />
+                  <InfoRow label="Bộ phận" value={application.department?.name ?? "-"} />
+                  <InfoRow
+                    label="Hạn ứng tuyển"
+                    value={formatDate(application.recruitmentJob?.deadline)}
+                  />
+                  <InfoRow
+                    label="Ngày ứng tuyển"
+                    value={formatDateTime(application.appliedAt)}
+                  />
+                  <InfoRow label="Cover letter" value={application.coverLetter ?? "-"} />
+                  <InfoRow label="Ghi chú" value={application.notes ?? "-"} />
+                </DetailCard>
+              </div>
+            ) : activeTab === "interviews" ? (
+              <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <DetailCard title="Lịch phỏng vấn">
+                  {application.interviewSchedules?.length ? (
+                    <div className="grid gap-3">
+                      {application.interviewSchedules.map((item) => (
+                        <div
+                          className="flex items-center justify-between gap-3 rounded-xl border border-[#eaecf0] bg-[#f9fafb] p-4 text-sm max-[640px]:flex-col max-[640px]:items-stretch"
+                          key={item.id}
+                        >
+                          <div className="min-w-0">
+                            <strong className="block text-base text-[#101828] mb-1">{item.title}</strong>
+                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-[#475467]">
+                              <span>Lúc: <strong className="text-[#344054]">{formatDateTime(item.scheduledAt)}</strong></span>
+                              <span>Hình thức: <strong className="text-[#344054]">{item.type}</strong></span>
+                              <span>Tại: <strong className="text-[#344054]">{item.location || "-"}</strong></span>
+                              <span>Trạng thái: <strong className="text-[#344054]">{item.status}</strong></span>
+                            </span>
+                          </div>
+                          {isCandidate && item.status === "INVITED" ? (
+                            <button
+                              className="shrink-0 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0055a8]"
+                              type="button"
+                              onClick={() => {
+                                setSelectedInterview(item);
+                                setInterviewResponseForm({
+                                  decision: "CONFIRMED",
+                                  note: "",
+                                });
+                                setAction("interviewResponse");
+                              }}
+                            >
+                              Phản hồi
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <button
-                        className="rounded-lg border border-[#d0d5dd] px-3 py-1.5 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-                        type="button"
-                        onClick={async () => {
-                          const detail =
-                            await recruitmentService.getEvaluationById(
-                              application.id,
-                              item.id,
-                            );
-                          setSelectedEvaluation(detail);
-                          setAction("evaluationDetail");
-                        }}
-                      >
-                        Chi tiết
-                      </button>
-                      {canManage ? (
-                        <>
-                          <button
-                            className="rounded-lg border border-[#d0d5dd] px-3 py-1.5 text-sm font-medium text-[#344054] hover:bg-[#f9fafb]"
-                            type="button"
-                            onClick={async () => {
-                              const detail =
-                                await recruitmentService.getEvaluationById(
-                                  application.id,
-                                  item.id,
-                                );
-                              setSelectedEvaluation(detail);
-                              setEvaluationForm({
-                                title: detail.title ?? "",
-                                score:
-                                  detail.score != null ? String(detail.score) : "",
-                                strengths: detail.strengths ?? "",
-                                concerns: detail.concerns ?? "",
-                                recommendation: detail.recommendation ?? "",
-                                comments: detail.comments ?? "",
-                              });
-                              setAction("evaluationEdit");
-                            }}
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            className="rounded-lg border border-[#fecdca] px-3 py-1.5 text-sm font-medium text-[#b42318] hover:bg-[#fffbfa]"
-                            type="button"
-                            onClick={() =>
-                              Modal.confirm({
-                                title: "Xóa đánh giá",
-                                content:
-                                  "Bạn có chắc chắn muốn xóa đánh giá này?",
-                                okText: "Xóa",
-                                cancelText: "Hủy",
-                                okButtonProps: { danger: true },
-                                onOk: async () => {
-                                  await recruitmentService.deleteEvaluation(
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-[#d0d5dd] bg-[#fcfcfd] px-4 py-6 text-center text-sm text-[#667085]">
+                      Chưa có lịch phỏng vấn
+                    </div>
+                  )}
+                </DetailCard>
+              </div>
+            ) : activeTab === "evaluations" ? (
+              <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <DetailCard title="Đánh giá từ người phỏng vấn">
+                  {application.evaluations?.length ? (
+                    <div className="grid gap-3">
+                      {application.evaluations.map((item) => (
+                        <div
+                          className="flex items-center justify-between gap-3 rounded-xl border border-[#eaecf0] bg-[#f9fafb] p-4 text-sm max-[680px]:flex-col max-[680px]:items-stretch"
+                          key={item.id}
+                        >
+                          <div className="min-w-0">
+                            <strong className="block text-base text-[#101828] mb-1">{item.title}</strong>
+                            <div className="grid gap-1 text-[#475467]">
+                              <span>Người đánh giá: <strong className="text-[#344054]">{item.evaluator?.name ?? "-"}</strong></span>
+                              <span>Điểm: <strong className="text-[#006fd5]">{item.score ?? "-"} / 10</strong></span>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            <button
+                              className="rounded-lg border border-[#d0d5dd] bg-white px-3 py-1.5 text-sm font-semibold text-[#344054] hover:bg-slate-50"
+                              type="button"
+                              onClick={async () => {
+                                const detail =
+                                  await recruitmentService.getEvaluationById(
                                     application.id,
                                     item.id,
                                   );
-                                  await onRefresh();
-                                },
-                              })
-                            }
-                          >
-                            Xóa
-                          </button>
-                        </>
-                      ) : null}
+                                setSelectedEvaluation(detail);
+                                setAction("evaluationDetail");
+                              }}
+                            >
+                              Chi tiết
+                            </button>
+                            {canManage ? (
+                              <>
+                                <button
+                                  className="rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-[#067647] hover:bg-[#d1fadf] transition-colors"
+                                  type="button"
+                                  onClick={async () => {
+                                    const detail =
+                                      await recruitmentService.getEvaluationById(
+                                        application.id,
+                                        item.id,
+                                      );
+                                    setSelectedEvaluation(detail);
+                                    setEvaluationForm({
+                                      title: detail.title ?? "",
+                                      score:
+                                        detail.score != null ? String(detail.score) : "",
+                                      strengths: detail.strengths ?? "",
+                                      concerns: detail.concerns ?? "",
+                                      recommendation: detail.recommendation ?? "",
+                                      comments: detail.comments ?? "",
+                                    });
+                                    setAction("evaluationEdit");
+                                  }}
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  className="rounded-lg bg-[#fef3f2] px-3 py-1.5 text-sm font-semibold text-[#b42318] hover:bg-[#fee4e2] transition-colors"
+                                  type="button"
+                                  onClick={() =>
+                                    Modal.confirm({
+                                      title: "Xóa đánh giá",
+                                      content:
+                                        "Bạn có chắc chắn muốn xóa đánh giá này?",
+                                      okText: "Xóa",
+                                      cancelText: "Hủy",
+                                      okButtonProps: { danger: true },
+                                      onOk: async () => {
+                                        await recruitmentService.deleteEvaluation(
+                                          application.id,
+                                          item.id,
+                                        );
+                                        await onRefresh();
+                                      },
+                                    })
+                                  }
+                                >
+                                  Xóa
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-[#d0d5dd] bg-[#fcfcfd] px-4 py-6 text-center text-sm text-[#667085]">
+                      Chưa có đánh giá
+                    </div>
+                  )}
+                </DetailCard>
               </div>
-            ) : (
-              <div className="text-sm text-[#667085]">Chưa có đánh giá</div>
-            )}
-          </DetailCard>
-
-          <DetailCard title="Offer">
-            {latestOffer ? (
-              <>
-                <InfoRow label="Trạng thái" value={latestOffer.status} />
-                <InfoRow
-                  label="Lương đề xuất"
-                  value={formatMoney(latestOffer.proposedSalary)}
-                />
-                <InfoRow
-                  label="Ngày vào làm"
-                  value={formatDate(latestOffer.proposedHireDate)}
-                />
-                <InfoRow label="Ghi chú" value={latestOffer.notes ?? "-"} />
-              </>
-            ) : (
-              <div className="text-sm text-[#667085]">Chưa có offer</div>
-            )}
-          </DetailCard>
+            ) : activeTab === "offer" ? (
+              <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <DetailCard title="Đề xuất & Offer">
+                  {latestOffer ? (
+                    <div className="grid gap-0">
+                      <InfoRow label="Trạng thái Offer" value={<span className="font-bold text-[#006fd5]">{latestOffer.status}</span>} />
+                      <InfoRow
+                        label="Lương đề xuất"
+                        value={<span className="text-lg font-bold text-[#067647]">{formatMoney(latestOffer.proposedSalary)}</span>}
+                      />
+                      <InfoRow
+                        label="Ngày vào làm dự kiến"
+                        value={formatDate(latestOffer.proposedHireDate)}
+                      />
+                      <InfoRow label="Ghi chú thêm" value={latestOffer.notes ?? "-"} />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-[#d0d5dd] bg-[#fcfcfd] px-4 py-6 text-center text-sm text-[#667085]">
+                      Chưa có Offer nào được gửi.
+                    </div>
+                  )}
+                </DetailCard>
+              </div>
+            ) : null}
+          </section>
         </div>
-
       </Modal>
 
       <ActionFormModal

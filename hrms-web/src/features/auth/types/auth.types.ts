@@ -13,6 +13,30 @@ export type VerifyOtpPayload = {
   otp: string
 }
 
+export type ForgotPasswordPayload = {
+  email: string
+}
+
+export type ResetPasswordPayload = {
+  resetToken: string
+  newPassword: string
+}
+
+export type VerifyResetOtpPayload = {
+  email: string
+  otp: string
+}
+
+export type VerifyResetOtpResponseData = {
+  email: string
+  resetToken: string
+}
+
+export type ChangePasswordPayload = {
+  currentPassword: string
+  newPassword: string
+}
+
 export type AuthUser = {
   id: string
   email: string
@@ -27,6 +51,11 @@ export type LoginResponseData = {
 }
 
 export type RegisterResponseData = {
+  email: string
+  expiresAt: string
+}
+
+export type ForgotPasswordResponseData = {
   email: string
   expiresAt: string
 }

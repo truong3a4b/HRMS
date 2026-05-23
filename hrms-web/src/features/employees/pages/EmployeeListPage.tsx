@@ -241,7 +241,7 @@ export function EmployeeListPage() {
             </button>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+          <div className="flex gap-3 overflow-x-auto rounded-2xl border border-[#d0d5dd] bg-white p-4 shadow-[0_4px_24px_rgba(16,24,40,0.06)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
             <div className="relative min-w-[200px] flex-1">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#667085]" />
               <input
@@ -310,7 +310,7 @@ export function EmployeeListPage() {
             </div>
           ) : null}
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#ebedf2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
             <EmployeeTable
               employees={employees}
               isLoading={isLoading}
@@ -318,7 +318,7 @@ export function EmployeeListPage() {
               onEdit={handleEdit}
               onView={handleView}
             />
-            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#ebedf2] px-4 py-3 max-[720px]:flex-col max-[720px]:items-stretch">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#d0d5dd] px-4 py-3 max-[720px]:flex-col max-[720px]:items-stretch">
               <span className="text-sm text-[#667085]">
                 Hiển thị {visibleStart}-{visibleEnd} / {meta.total} nhân viên
               </span>

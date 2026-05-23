@@ -87,6 +87,7 @@ type CreateAutoPenaltyPolicyInput = {
 type UpdateAutoPenaltyPolicyInput = Partial<CreateAutoPenaltyPolicyInput>;
 
 type AssignPayrollPoliciesInput = {
+  employeeIds?: string[];
   departmentIds?: string[];
   positionIds?: string[];
   insurancePolicyId?: string | null;
@@ -106,6 +107,7 @@ type StandardWorkDayQuery = PayrollProfileQuery & {
 };
 
 type AssignStandardWorkDaysInput = {
+  employeeIds?: string[];
   departmentIds?: string[];
   positionIds?: string[];
   month: number;
@@ -124,12 +126,14 @@ type UpsertEmployeeStandardWorkDaysInput = {
 
 type AssignAllowancePolicyInput = {
   allowancePolicyId: string;
+  employeeIds?: string[];
   departmentIds?: string[];
   positionIds?: string[];
 };
 
 type AssignAutoPenaltyPolicyInput = {
   autoPenaltyPolicyId: string;
+  employeeIds?: string[];
   departmentIds?: string[];
   positionIds?: string[];
 };
@@ -337,13 +341,32 @@ const buildPolicyWhere = (query: PolicyQuery) => ({
 });
 
 const getTargetEmployeeIds = async (data: {
+  employeeIds?: string[];
   departmentIds?: string[];
   positionIds?: string[];
 }) => {
+  if (data.employeeIds?.length) {
+    const employees = await prisma.employee.findMany({
+      where: { id: { in: data.employeeIds } },
+      select: { id: true },
+    });
+    const employeeIds = [...new Set(employees.map((employee) => employee.id))];
+
+    if (employeeIds.length === 0) {
+      throw new ApiError(
+        404,
+        "No employees matched assignment target",
+        "NO_EMPLOYEE_MATCHED",
+      );
+    }
+
+    return employeeIds;
+  }
+
   if (!data.departmentIds?.length && !data.positionIds?.length) {
     throw new ApiError(
       400,
-      "departmentIds or positionIds is required for assignment",
+      "employeeIds, departmentIds or positionIds is required for assignment",
       "ASSIGNMENT_TARGET_REQUIRED",
     );
   }

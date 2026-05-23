@@ -12,6 +12,10 @@ import {
   permissionMiddleware,
   selfOrPermissionMiddleware,
 } from "../middlewares/auth.middleware";
+import {
+  attachUploadedProfileFileUrls,
+  uploadProfileFiles,
+} from "../middlewares/upload.middleware";
 import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
@@ -175,12 +179,16 @@ router.get(
 router.patch(
   "/me/basic",
   authMiddleware(),
+  uploadProfileFiles,
+  attachUploadedProfileFileUrls,
   validate(updateBasicSchema),
   employeeController.updateMyBasic,
 );
 router.patch(
   "/me/additional",
   authMiddleware(),
+  uploadProfileFiles,
+  attachUploadedProfileFileUrls,
   validate(updateAdditionalSchema),
   employeeController.updateMyAdditional,
 );
@@ -198,6 +206,8 @@ router.patch(
     PERMISSIONS.EMPLOYEE_UPDATE_BASIC,
     PERMISSIONS.EMPLOYEE_UPDATE_SELF_BASIC,
   ),
+  uploadProfileFiles,
+  attachUploadedProfileFileUrls,
   validate(updateBasicSchema),
   employeeController.updateBasic,
 );
@@ -208,6 +218,8 @@ router.patch(
     PERMISSIONS.EMPLOYEE_UPDATE_BASIC,
     PERMISSIONS.EMPLOYEE_UPDATE_SELF_BASIC,
   ),
+  uploadProfileFiles,
+  attachUploadedProfileFileUrls,
   validate(updateAdditionalSchema),
   employeeController.updateAdditional,
 );

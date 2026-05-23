@@ -47,6 +47,9 @@ apiClient.interceptors.response.use(
       '/auth/login',
       '/auth/register',
       '/auth/verify-otp',
+      '/auth/forgot-password',
+      '/auth/verify-reset-otp',
+      '/auth/reset-password',
       '/auth/refresh',
     ].some((path) => requestUrl.includes(path))
 

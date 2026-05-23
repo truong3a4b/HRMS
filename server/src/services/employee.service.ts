@@ -97,6 +97,41 @@ const employeeInclude = {
   },
   department: true,
   position: true,
+  payrollProfile: {
+    include: {
+      insurancePolicy: true,
+      taxPolicy: {
+        include: {
+          brackets: {
+            orderBy: { fromAmount: "asc" as const },
+          },
+        },
+      },
+      attendanceBonusPolicy: true,
+    },
+  },
+  allowances: {
+    include: {
+      allowancePolicy: true,
+    },
+    orderBy: {
+      createdAt: "desc" as const,
+    },
+  },
+  autoPenaltyPolicies: {
+    include: {
+      autoPenaltyPolicy: {
+        include: {
+          tiers: {
+            orderBy: { fromOccurrence: "asc" as const },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc" as const,
+    },
+  },
 };
 
 const toNullableJson = (

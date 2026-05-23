@@ -1,3 +1,5 @@
+import type { WorkShift } from "../../work-shifts/types/workShift.types";
+
 export type RequestStatus =
   | "PENDING"
   | "PROCESSING"
@@ -8,6 +10,7 @@ export type RequestStatus =
 
 export type RequestType =
   | "LEAVE"
+  | "LATE_EARLY"
   | "ATTENDANCE_CORRECTION"
   | "OVERTIME"
   | "SCHEDULE_APPROVAL"
@@ -16,6 +19,18 @@ export type RequestType =
 export type ApprovalMode = "PARALLEL" | "SEQUENTIAL";
 
 export type RequestApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type LeaveType =
+  | "ANNUAL_LEAVE"
+  | "SICK_LEAVE"
+  | "UNPAID_LEAVE"
+  | "MATERNITY_LEAVE"
+  | "BEREAVEMENT_LEAVE"
+  | "MARRIAGE_LEAVE"
+  | "COMPENSATORY_LEAVE"
+  | "OTHER"
+  | "LATE_ARRIVAL"
+  | "EARLY_LEAVE";
 
 export type RequestUser = {
   id: string;
@@ -46,7 +61,9 @@ export type LeaveRequestDetail = {
   requestId: string;
   startDate: string;
   endDate: string;
-  leaveType: string;
+  leaveType: LeaveType;
+  workShiftId?: string | null;
+  workShift?: WorkShift | null;
   reason?: string | null;
 };
 
@@ -58,6 +75,20 @@ export type AttendanceCorrectionRequestDetail = {
   workShiftId: string;
   addedWorkUnits?: string | number | null;
   reason?: string | null;
+};
+
+export type LateEarlyRequestDetail = {
+  id: string;
+  requestId: string;
+  employeeId: string;
+  date: string;
+  requestType: "LATE_ARRIVAL" | "EARLY_LEAVE";
+  workShiftId: string;
+  workShift?: WorkShift | null;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  appliedAt?: string | null;
 };
 
 export type WorkScheduleRequestDetail = {
@@ -81,6 +112,7 @@ export type RequestItem = {
   approvals: RequestApproval[];
   watchers: RequestWatcher[];
   leaveRequest?: LeaveRequestDetail | null;
+  lateEarlyRequest?: LateEarlyRequestDetail | null;
   attendanceCorrectionRequest?: AttendanceCorrectionRequestDetail | null;
   workScheduleRequest?: WorkScheduleRequestDetail | null;
   currentStep?: number | null;
@@ -114,9 +146,10 @@ export type RequestListFilters = {
 export type CreateLeaveRequestPayload = {
   startDate: string;
   endDate: string;
-  leaveType: string;
-  reason?: string;
-  title?: string;
+  leaveType: LeaveType;
+  workShiftId?: string;
+  reason: string;
+  title: string;
   description?: string;
   approvalMode?: ApprovalMode;
   approverIds: string[];
@@ -126,10 +159,22 @@ export type CreateLeaveRequestPayload = {
 export type CreateLateEarlyRequestPayload = {
   date: string;
   type: "LATE_ARRIVAL" | "EARLY_LEAVE";
+  workShiftId: string;
   startTime: string;
   endTime: string;
   reason: string;
-  title?: string;
+  title: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+export type CreateAttendanceCorrectionRequestPayload = {
+  attendanceDate: string;
+  workShiftId: string;
+  reason: string;
+  title: string;
   description?: string;
   approvalMode?: ApprovalMode;
   approverIds: string[];

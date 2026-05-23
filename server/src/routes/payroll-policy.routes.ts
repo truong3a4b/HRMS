@@ -130,8 +130,9 @@ const updateAutoPenaltyPolicySchema = createAutoPenaltyPolicySchema.partial();
 const idArraySchema = z.array(z.string().uuid()).min(1).optional();
 
 const assignPayrollPoliciesSchema = z.object({
-  departmentIds: z.array(z.string().uuid()).min(1),
-  positionIds: z.array(z.string().uuid()).min(1),
+  employeeIds: idArraySchema,
+  departmentIds: idArraySchema,
+  positionIds: idArraySchema,
   insurancePolicyId: z.preprocess(
     nullableEmptyToNull,
     z.string().uuid().nullable().optional(),
@@ -153,19 +154,33 @@ const assignPayrollPoliciesSchema = z.object({
     nullableEmptyToNull,
     z.string().trim().min(1).nullable().optional(),
   ),
-});
+}).refine(
+  (data) =>
+    Boolean(data.employeeIds?.length || data.departmentIds?.length || data.positionIds?.length),
+  { message: "At least one assignment target is required" },
+);
 
 const assignAllowancePolicySchema = z.object({
   allowancePolicyId: z.string().uuid(),
-  departmentIds: z.array(z.string().uuid()).min(1),
-  positionIds: z.array(z.string().uuid()).min(1),
-});
+  employeeIds: idArraySchema,
+  departmentIds: idArraySchema,
+  positionIds: idArraySchema,
+}).refine(
+  (data) =>
+    Boolean(data.employeeIds?.length || data.departmentIds?.length || data.positionIds?.length),
+  { message: "At least one assignment target is required" },
+);
 
 const assignAutoPenaltyPolicySchema = z.object({
   autoPenaltyPolicyId: z.string().min(1),
-  departmentIds: z.array(z.string().uuid()).min(1),
-  positionIds: z.array(z.string().uuid()).min(1),
-});
+  employeeIds: idArraySchema,
+  departmentIds: idArraySchema,
+  positionIds: idArraySchema,
+}).refine(
+  (data) =>
+    Boolean(data.employeeIds?.length || data.departmentIds?.length || data.positionIds?.length),
+  { message: "At least one assignment target is required" },
+);
 
 const createPayrollBonusPenaltySchema = z.object({
   employeeId: z.string().uuid(),

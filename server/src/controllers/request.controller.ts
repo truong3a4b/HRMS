@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import {
   ApprovalMode,
+  LeaveType,
   RequestApprovalStatus,
   RequestStatus,
   RequestType,
@@ -78,9 +79,10 @@ type CreateRequestBody = {
 type CreateLeaveRequestBody = {
   startDate: string;
   endDate: string;
-  leaveType: string;
-  reason?: string;
-  title?: string;
+  leaveType: LeaveType;
+  workShiftId?: string;
+  reason: string;
+  title: string;
   description?: string;
   approvalMode?: ApprovalMode;
   approverIds: string[];
@@ -90,10 +92,22 @@ type CreateLeaveRequestBody = {
 type CreateLateEarlyRequestBody = {
   date: string;
   type: "LATE_ARRIVAL" | "EARLY_LEAVE";
+  workShiftId: string;
   startTime: string;
   endTime: string;
   reason: string;
-  title?: string;
+  title: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+type CreateAttendanceCorrectionRequestBody = {
+  attendanceDate: string;
+  workShiftId: string;
+  reason: string;
+  title: string;
   description?: string;
   approvalMode?: ApprovalMode;
   approverIds: string[];
@@ -210,6 +224,58 @@ export const requestController = {
     }
   },
 
+  async getMyLeaveShiftsByDate(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const user = requireUser(req);
+      const dateParam = req.query.date;
+      const date = Array.isArray(dateParam) ? dateParam[0] : dateParam;
+
+      if (!date || typeof date !== "string") {
+        throw new ApiError(400, "date query parameter required (YYYY-MM-DD)");
+      }
+
+      const result = await requestService.getMyLeaveShiftsByDate(user.id, date);
+
+      return sendResponse(res, 200, "Leave shifts fetched successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMyScheduleShiftsByDate(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const user = requireUser(req);
+      const dateParam = req.query.date;
+      const date = Array.isArray(dateParam) ? dateParam[0] : dateParam;
+
+      if (!date || typeof date !== "string") {
+        throw new ApiError(400, "date query parameter required (YYYY-MM-DD)");
+      }
+
+      const result = await requestService.getMyScheduleShiftsByDate(
+        user.id,
+        date,
+      );
+
+      return sendResponse(
+        res,
+        200,
+        "Schedule shifts fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async createRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
@@ -257,6 +323,30 @@ export const requestController = {
         res,
         201,
         "Late arrival/early leave request created successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createAttendanceCorrectionRequest(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const user = requireUser(req);
+      const body = req.body as CreateAttendanceCorrectionRequestBody;
+      const result = await requestService.createAttendanceCorrectionRequest(
+        user.id,
+        body,
+      );
+
+      return sendResponse(
+        res,
+        201,
+        "Attendance correction request created successfully",
         result,
       );
     } catch (error) {

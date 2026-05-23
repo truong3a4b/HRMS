@@ -135,9 +135,13 @@ export function LoginPage() {
               Đăng nhập
             </AppButton>
 
-            <button className="login-form__link" type="button">
+            <Link
+              className="login-form__link"
+              state={{ email: email.trim() }}
+              to={paths.forgotPassword}
+            >
               Quên mật khẩu
-            </button>
+            </Link>
 
             <div className="login-form__divider">
               <span />

@@ -15,6 +15,8 @@ export const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
   CLOUDINARY_CV_FOLDER: process.env.CLOUDINARY_CV_FOLDER || "hrms/cvs",
+  CLOUDINARY_PROFILE_IMAGE_FOLDER:
+    process.env.CLOUDINARY_PROFILE_IMAGE_FOLDER || "hrms/profile-images",
   MQTT_URL: process.env.MQTT_URL || "",
   MQTT_CLIENT_ID: process.env.MQTT_CLIENT_ID || "hrms-server",
   MQTT_USERNAME: process.env.MQTT_USERNAME || "",

@@ -1,6 +1,7 @@
 import { apiClient } from "../../../services/http/apiClient";
 import type { ApiResponse } from "../../auth/types/auth.types";
 import type {
+  CreateAttendanceCorrectionRequestPayload,
   CreateLateEarlyRequestPayload,
   CreateLeaveRequestPayload,
   RequestDecisionPayload,
@@ -8,6 +9,7 @@ import type {
   RequestListFilters,
   RequestListResponse,
 } from "../types/request.types";
+import type { WorkShift } from "../../work-shifts/types/workShift.types";
 
 const removeEmptyParams = (params: Record<string, unknown>) =>
   Object.fromEntries(
@@ -59,6 +61,24 @@ export const requestService = {
     return response.data.data;
   },
 
+  async getMyLeaveShiftsByDate(date: string) {
+    const response = await apiClient.get<ApiResponse<WorkShift[]>>(
+      "/requests/leave/shifts",
+      { params: { date } },
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async getMyScheduleShiftsByDate(date: string) {
+    const response = await apiClient.get<ApiResponse<WorkShift[]>>(
+      "/requests/schedule-shifts",
+      { params: { date } },
+    );
+
+    return response.data.data ?? [];
+  },
+
   async createLeaveRequest(payload: CreateLeaveRequestPayload) {
     const response = await apiClient.post<ApiResponse<RequestItem>>(
       "/requests/leave",
@@ -71,6 +91,17 @@ export const requestService = {
   async createLateEarlyRequest(payload: CreateLateEarlyRequestPayload) {
     const response = await apiClient.post<ApiResponse<RequestItem>>(
       "/requests/late-early",
+      payload,
+    );
+
+    return response.data.data;
+  },
+
+  async createAttendanceCorrectionRequest(
+    payload: CreateAttendanceCorrectionRequestPayload,
+  ) {
+    const response = await apiClient.post<ApiResponse<RequestItem>>(
+      "/requests/attendance-correction",
       payload,
     );
 

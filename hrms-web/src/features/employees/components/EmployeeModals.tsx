@@ -115,6 +115,60 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function AvatarFileField({
+  currentUrl,
+  employeeName,
+  file,
+  onChange,
+}: {
+  currentUrl?: string | null;
+  employeeName: string;
+  file: File | null;
+  onChange: (file: File | null) => void;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(file);
+    setPreviewUrl(nextPreviewUrl);
+
+    return () => URL.revokeObjectURL(nextPreviewUrl);
+  }, [file]);
+
+  return (
+    <div>
+      <span className={labelClass}>Anh ca nhan</span>
+      <div className="flex items-center gap-3 rounded-lg border border-[#d0d5dd] bg-white p-3">
+        <Avatar
+          src={previewUrl ?? currentUrl}
+          alt={employeeName || "Avatar"}
+          sizeClass="h-12 w-12"
+        />
+        <div className="min-w-0 flex-1">
+          <input
+            className={fieldClass}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+          />
+          <div className="mt-1 truncate text-xs text-[#667085]">
+            {file
+              ? file.name
+              : currentUrl
+                ? "Dang dung anh hien tai"
+                : "Chua co anh"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FormActions({
   submitText,
   isSubmitting,
@@ -455,6 +509,7 @@ export function EditEmployeeModal({
   onSubmit,
 }: EmployeeEditModalProps) {
   const [form, setForm] = useState(emptyForm);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -476,6 +531,7 @@ export function EditEmployeeModal({
         status: employee.status,
         effectiveFrom: todayInput(),
       });
+      setAvatarFile(null);
       setError(null);
     }
   }, [employee, open]);
@@ -511,6 +567,7 @@ export function EditEmployeeModal({
         {
           name: form.name.trim(),
           phone: toNullableString(form.phone),
+          avatarFile,
           dateOfBirth: toNullableDate(form.dateOfBirth),
           gender: toNullableGender(form.gender),
           address: toNullableString(form.address),
@@ -576,6 +633,12 @@ export function EditEmployeeModal({
               disabled
             />
           </Field>
+          <AvatarFileField
+            currentUrl={employee?.avatar}
+            employeeName={form.name}
+            file={avatarFile}
+            onChange={setAvatarFile}
+          />
           <Field label="Họ và tên">
             <input
               className={fieldClass}

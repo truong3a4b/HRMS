@@ -74,9 +74,19 @@ export function getDrawerItems(
 
   const requestChildren = [
     {
+      key: "requests-create",
+      label: "Tạo yêu cầu",
+      path: paths.requestsCreate,
+    },
+    {
       key: "requests-mine",
       label: "Yêu cầu của tôi",
       path: paths.requestsMine,
+    },
+    {
+      key: "requests-watching",
+      label: "Yêu cầu tôi theo dõi",
+      path: paths.requestsWatching,
     },
     {
       key: "requests-pending",

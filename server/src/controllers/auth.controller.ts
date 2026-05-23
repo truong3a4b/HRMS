@@ -129,6 +129,76 @@ export const authController = {
     }
   },
 
+  async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email } = req.body;
+
+      const result = await authService.forgotPassword(email);
+
+      return sendResponse(res, 200, "Password reset OTP has been sent", result);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { resetToken, newPassword } = req.body;
+
+      await authService.resetPassword(resetToken, newPassword);
+
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: "lax",
+      });
+
+      return sendResponse(res, 200, "Password reset successfully");
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async verifyPasswordResetOtp(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const { email, otp } = req.body;
+
+      const result = await authService.verifyPasswordResetOtp(email, otp);
+
+      return sendResponse(res, 200, "OTP verified successfully", result);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return sendResponse(res, 401, "Unauthorized");
+      }
+
+      const { currentPassword, newPassword } = req.body;
+
+      await authService.changePassword(userId, currentPassword, newPassword);
+
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: "lax",
+      });
+
+      return sendResponse(res, 200, "Password changed successfully");
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
       const refreshToken = getRefreshTokenFromRequest(req);

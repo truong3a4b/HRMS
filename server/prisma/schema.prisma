@@ -34,6 +34,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   refreshTokens         RefreshToken[]
+  passwordResetOtps     PasswordResetOtp[]
   candidate             Candidate?
   employee              Employee?
   payrollPeriods        PayrollPeriod[]
@@ -52,6 +53,23 @@ model PendingUser {
   otp       String
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model PasswordResetOtp {
+  id        String    @id @default(cuid())
+  userId    String
+  email     String
+  otpHash   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_otps")
 }
 
 model RefreshToken {
@@ -281,6 +299,7 @@ model Employee {
   attendanceLogs               AttendanceLog[]
   attendanceRecords            AttendanceRecord[]
   attendanceCorrectionRequests AttendanceCorrectionRequest[]
+  lateEarlyRequests            LateEarlyRequest[]
   leaveBalances                EmployeeLeaveBalance[]
   standardWorkDayConfigs       EmployeeStandardWorkDay[]
   allowances                   EmployeeAllowance[]
@@ -480,6 +499,7 @@ model NotificationRecipient {
 
 enum RequestType {
   LEAVE
+  LATE_EARLY
   ATTENDANCE_CORRECTION
   OVERTIME
   SCHEDULE_APPROVAL
@@ -499,6 +519,24 @@ enum RequestApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum LeaveType {
+  ANNUAL_LEAVE
+  SICK_LEAVE
+  UNPAID_LEAVE
+  MATERNITY_LEAVE
+  BEREAVEMENT_LEAVE
+  MARRIAGE_LEAVE
+  COMPENSATORY_LEAVE
+  OTHER
+  LATE_ARRIVAL
+  EARLY_LEAVE
+}
+
+enum LateEarlyType {
+  LATE_ARRIVAL
+  EARLY_LEAVE
 }
 
 enum ApprovalMode {
@@ -526,6 +564,7 @@ model Request {
   approvals                   RequestApproval[]
   watchers                    RequestWatcher[]
   leaveRequest                LeaveRequest?
+  lateEarlyRequest            LateEarlyRequest?
   attendanceCorrectionRequest AttendanceCorrectionRequest?
   workScheduleRequest         WorkScheduleRequest?
 
@@ -571,18 +610,44 @@ model RequestWatcher {
 }
 
 model LeaveRequest {
-  id        String   @id @default(uuid())
-  requestId String   @unique
-  startDate DateTime
-  endDate   DateTime
-  leaveType String
-  reason    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(uuid())
+  requestId   String    @unique
+  startDate   DateTime
+  endDate     DateTime
+  leaveType   LeaveType
+  workShiftId String?
+  reason      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  request   Request    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  workShift WorkShift? @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
 
+  @@index([workShiftId])
   @@map("leave_requests")
+}
+
+model LateEarlyRequest {
+  id          String        @id @default(uuid())
+  requestId   String        @unique
+  employeeId  String
+  date        DateTime
+  requestType LateEarlyType
+  workShiftId String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  appliedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  request   Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workShift WorkShift @relation(fields: [workShiftId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, date])
+  @@index([workShiftId])
+  @@map("late_early_requests")
 }
 
 model EmployeeLeaveBalance {
@@ -647,6 +712,8 @@ model WorkShift {
   workScheduleLinks            WorkScheduleShift[]
   attendanceRecordDetails      AttendanceRecordDetail[]
   attendanceCorrectionRequests AttendanceCorrectionRequest[]
+  leaveRequests                LeaveRequest[]
+  lateEarlyRequests            LateEarlyRequest[]
   payrollOvertimeLines         PayrollOvertimeLine[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt

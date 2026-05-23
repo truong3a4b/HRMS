@@ -71,30 +71,29 @@ export function EmployeeTable({
     <div className="min-h-0 min-w-0 flex-1 overflow-auto">
       <table className="w-full min-w-230">
         <thead className="sticky top-0 z-1">
-          <tr className="border-b border-[#ebedf2] bg-[#f9fafb]">
-            <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+          <tr className="border-b border-[#d0d5dd] bg-[#f9fafb]/90 backdrop-blur-md">
+            <th className="px-4 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               #
             </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+            <th className="px-4 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               Mã
             </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+            <th className="px-4 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               Nhân viên
             </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+            <th className="px-4 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               Số điện thoại
             </th>
-
-            <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+            <th className="px-4 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               Bộ phận
             </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+            <th className="px-4 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               Chức vụ
             </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+            <th className="px-4 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               Trạng thái
             </th>
-            <th className="px-4 py-3 text-center text-sm font-semibold text-[#344054]">
+            <th className="px-4 py-3.5 text-center text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
               Thao tác
             </th>
           </tr>
@@ -103,7 +102,7 @@ export function EmployeeTable({
           {employees.map((employee, index) => (
             <tr
               key={employee.id}
-              className="border-b border-[#ebedf2] transition-colors hover:bg-[#f9fafb]"
+              className="border-b border-[#d0d5dd] transition-colors hover:bg-[#f8faff] group"
             >
               <td className="px-4 py-3 text-sm text-[#344054]">
                 {rowOffset + index + 1}
@@ -143,14 +142,14 @@ export function EmployeeTable({
                 <div className="flex items-center justify-center gap-2">
                   <button
                     onClick={() => onView?.(employee)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#006fd5] text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a]"
+                    className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#006fd5] transition-all hover:bg-[#006fd5] hover:text-white hover:shadow-md hover:shadow-blue-500/20 active:scale-95"
                     title="Xem chi tiết"
                   >
                     <Eye className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => onEdit?.(employee)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#006fd5] text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a]"
+                    className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white hover:shadow-md hover:shadow-emerald-500/20 active:scale-95"
                     title="Sửa"
                   >
                     <Edit2 className="h-4 w-4" />
@@ -158,7 +157,7 @@ export function EmployeeTable({
 
                   <div className="group relative">
                     <button
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#667085] transition-colors hover:bg-[#f0f0f0] active:bg-[#e0e0e0]"
+                      className="grid h-8 w-8 place-items-center rounded-lg border border-[#d0d5dd] bg-slate-50 text-[#667085] transition-all hover:bg-white hover:text-[#344054] hover:shadow-sm active:scale-95"
                       title="Thêm thao tác"
                     >
                       <MoreHorizontal className="h-4 w-4" />

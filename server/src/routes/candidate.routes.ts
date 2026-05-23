@@ -8,8 +8,8 @@ import {
   permissionMiddleware,
 } from "../middlewares/auth.middleware";
 import {
-  attachUploadedCvUrl,
-  uploadCv,
+  attachUploadedProfileFileUrls,
+  uploadProfileFiles,
 } from "../middlewares/upload.middleware";
 import { validate } from "../middlewares/validate.middleware";
 
@@ -134,8 +134,8 @@ router.get(
 router.patch(
   "/profile",
   authMiddleware(UserRole.CANDIDATE),
-  uploadCv,
-  attachUploadedCvUrl,
+  uploadProfileFiles,
+  attachUploadedProfileFileUrls,
   validate(candidateProfileSchema),
   candidateController.updateMyProfile,
 );

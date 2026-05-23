@@ -148,8 +148,9 @@ export type EmployeeAllowance = {
 };
 
 export type AssignmentPayload = {
-  departmentIds: string[];
-  positionIds: string[];
+  employeeIds?: string[];
+  departmentIds?: string[];
+  positionIds?: string[];
 };
 
 export type PayrollPolicyAssignmentPayload = AssignmentPayload & {

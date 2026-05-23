@@ -113,6 +113,12 @@ export function AccountPopover({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    if (action.key === "security") {
+      navigate(paths.changePassword);
+      onClose();
+      return;
+    }
+
     action.onClick?.();
   };
 
@@ -143,11 +149,11 @@ export function AccountPopover({ onClose }: { onClose: () => void }) {
           }}
         >
           <Avatar alt={user?.email ?? "Tài khoản"} sizeClass="h-12.5 w-12.5" />
-          <span>
-            <strong className="block text-base text-[#172033]">
+          <span className="min-w-0">
+            <strong className="block truncate text-base text-[#172033]">
               {user?.email ?? "Người dùng"}
             </strong>
-            <small className="text-xs text-[#8a94a6]">
+            <small className="block truncate text-xs text-[#8a94a6]">
               Chỉnh sửa thông tin cá nhân
             </small>
           </span>

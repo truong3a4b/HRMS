@@ -165,6 +165,11 @@ router.get(
 );
 router.get("/me", authMiddleware(), employeeController.getMe);
 router.get(
+  "/me/job-history",
+  authMiddleware(),
+  employeeController.getMyJobHistory,
+);
+router.get(
   "/:id",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(PERMISSIONS.EMPLOYEE_VIEW_DETAIL),

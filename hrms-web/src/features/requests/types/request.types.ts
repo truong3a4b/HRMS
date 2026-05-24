@@ -14,6 +14,7 @@ export type RequestType =
   | "ATTENDANCE_CORRECTION"
   | "OVERTIME"
   | "SCHEDULE_APPROVAL"
+  | "PAYROLL_APPROVAL"
   | "TERMINATION";
 
 export type ApprovalMode = "PARALLEL" | "SEQUENTIAL";
@@ -36,6 +37,11 @@ export type RequestUser = {
   id: string;
   email: string;
   role: string;
+  employee?: {
+    id: string;
+    employeeId: string;
+    name: string;
+  } | null;
 };
 
 export type RequestApproval = {
@@ -73,6 +79,7 @@ export type AttendanceCorrectionRequestDetail = {
   employeeId: string;
   attendanceDate: string;
   workShiftId: string;
+  workShift?: WorkShift | null;
   addedWorkUnits?: string | number | null;
   reason?: string | null;
 };
@@ -100,6 +107,22 @@ export type WorkScheduleRequestDetail = {
   note?: string | null;
 };
 
+export type PayrollApprovalRequestDetail = {
+  id: string;
+  requestId: string;
+  periodId: string;
+  month: number;
+  year: number;
+  note?: string | null;
+  period?: {
+    id: string;
+    name?: string | null;
+    month: number;
+    year: number;
+    status: string;
+  } | null;
+};
+
 export type RequestItem = {
   id: string;
   type: RequestType;
@@ -115,6 +138,7 @@ export type RequestItem = {
   lateEarlyRequest?: LateEarlyRequestDetail | null;
   attendanceCorrectionRequest?: AttendanceCorrectionRequestDetail | null;
   workScheduleRequest?: WorkScheduleRequestDetail | null;
+  payrollApprovalRequest?: PayrollApprovalRequestDetail | null;
   currentStep?: number | null;
   processingAt?: string | null;
   approvedAt?: string | null;

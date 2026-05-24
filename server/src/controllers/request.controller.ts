@@ -62,6 +62,7 @@ const parseListFilters = (req: Request) => {
       "mine",
       "watching",
       "pending",
+      "reviewed",
       "assigned",
     ] as const),
   };

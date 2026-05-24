@@ -140,20 +140,24 @@ export function EmployeeTable({
               <td className="px-4 py-3">{getStatusBadge(employee.status)}</td>
               <td className="px-4 py-3">
                 <div className="flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => onView?.(employee)}
-                    className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#006fd5] transition-all hover:bg-[#006fd5] hover:text-white hover:shadow-md hover:shadow-blue-500/20 active:scale-95"
-                    title="Xem chi tiết"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => onEdit?.(employee)}
-                    className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white hover:shadow-md hover:shadow-emerald-500/20 active:scale-95"
-                    title="Sửa"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
+                  {onView ? (
+                    <button
+                      onClick={() => onView(employee)}
+                      className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#006fd5] transition-all hover:bg-[#006fd5] hover:text-white hover:shadow-md hover:shadow-blue-500/20 active:scale-95"
+                      title="Xem chi tiết"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                  {onEdit ? (
+                    <button
+                      onClick={() => onEdit(employee)}
+                      className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white hover:shadow-md hover:shadow-emerald-500/20 active:scale-95"
+                      title="Sửa"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                  ) : null}
 
                   <div className="group relative">
                     <button

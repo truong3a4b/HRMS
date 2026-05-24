@@ -218,7 +218,6 @@ export function PayrollPeriodListPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-[#243247]">Kỳ lương</h1>
-              <p className="text-sm text-[#667085]">Quản lý các kỳ lương và quy trình duyệt.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 rounded-lg border border-[#e2e8f0] bg-white p-1 shadow-sm">

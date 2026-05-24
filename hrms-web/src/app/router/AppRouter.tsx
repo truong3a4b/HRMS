@@ -12,6 +12,7 @@ import { EmployeeDetailPage } from "../../features/employees/pages/EmployeeDetai
 import { EmployeeListPage } from "../../features/employees/pages/EmployeeListPage";
 import { HomePage } from "../../features/home/pages/HomePage";
 import { PayrollEmployeeDetailPage } from "../../features/payroll/pages/PayrollEmployeeDetailPage";
+import { PayrollBonusPenaltyPage } from "../../features/payroll/pages/PayrollBonusPenaltyPage";
 import { PayrollPage } from "../../features/payroll/pages/PayrollPage";
 import { PayrollPeriodListPage } from "../../features/payroll/pages/PayrollPeriodListPage";
 import { PayrollPeriodOverviewPage } from "../../features/payroll/pages/PayrollPeriodOverviewPage";
@@ -21,9 +22,8 @@ import { ProfilePage } from "../../features/profile/pages/ProfilePage";
 import { RecruitmentApplicationListPage } from "../../features/recruitment/pages/RecruitmentApplicationListPage";
 import { RecruitmentJobListPage } from "../../features/recruitment/pages/RecruitmentJobListPage";
 import { RequestCreatePage } from "../../features/requests/pages/RequestCreatePage";
+import { RequestEmployeePage } from "../../features/requests/pages/RequestEmployeePage";
 import { RequestMinePage } from "../../features/requests/pages/RequestMinePage";
-import { RequestWatchingPage } from "../../features/requests/pages/RequestWatchingPage";
-import { RequestPendingPage } from "../../features/requests/pages/RequestPendingPage";
 import { RequestAllPage } from "../../features/requests/pages/RequestAllPage";
 import { ScheduleAssignPage } from "../../features/schedules/pages/ScheduleAssignPage";
 import { ScheduleRegisterPage } from "../../features/schedules/pages/ScheduleRegisterPage";
@@ -170,20 +170,20 @@ export function AppRouter() {
         }
       />
       <Route
-        path={paths.requestsWatching}
+        path={paths.requestsEmployee}
         element={
           <ProtectedRoute>
-            <RequestWatchingPage />
+            <RequestEmployeePage />
           </ProtectedRoute>
         }
       />
       <Route
+        path={paths.requestsWatching}
+        element={<Navigate to={paths.requestsEmployee} replace />}
+      />
+      <Route
         path={paths.requestsPending}
-        element={
-          <ProtectedRoute>
-            <RequestPendingPage />
-          </ProtectedRoute>
-        }
+        element={<Navigate to={paths.requestsEmployee} replace />}
       />
       <Route
         path={paths.requestsAll}
@@ -287,6 +287,26 @@ export function AppRouter() {
             <PayrollPage mode="mine" />
           </ProtectedRoute>
         }
+      />
+      <Route
+        path={paths.payrollBonusPenaltiesMine}
+        element={
+          <ProtectedRoute>
+            <PayrollBonusPenaltyPage scope="mine" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollBonusPenalties}
+        element={
+          <ProtectedRoute>
+            <PayrollBonusPenaltyPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollBonusPenaltiesLegacy}
+        element={<Navigate to={paths.payrollBonusPenalties} replace />}
       />
       <Route
         path={paths.payrollPolicies}

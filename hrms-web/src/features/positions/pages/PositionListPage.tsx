@@ -21,6 +21,7 @@ import type {
   PermissionKey,
   Position,
 } from "../types/position.types";
+import { useAuth } from "../../auth/services/useAuth";
 
 const fieldClass =
   "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
@@ -425,6 +426,9 @@ function PositionFormModal({
 }
 
 export function PositionListPage() {
+  const { user } = useAuth();
+  const canSetup = user?.role === "ADMIN" || user?.permissions?.includes("POSITION_SETUP");
+
   const [positions, setPositions] = useState<Position[]>([]);
   const [permissions, setPermissions] =
     useState<PermissionCatalogItem[]>(fallbackPermissions);
@@ -536,33 +540,32 @@ export function PositionListPage() {
               <h1 className="text-2xl font-bold text-[#243247]">
                 Danh sách chức vụ
               </h1>
-              <p className="text-sm text-[#667085]">
-                Quản lý chức vụ và phân quyền theo vai trò công việc
-              </p>
             </div>
-            <button
-              className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
-              type="button"
-              onClick={openAdd}
-            >
-              <Plus className="h-5 w-5" />
-              Thêm chức vụ
-            </button>
+            {canSetup ? (
+              <button
+                className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
+                type="button"
+                onClick={openAdd}
+              >
+                <Plus className="h-5 w-5" />
+                Thêm chức vụ
+              </button>
+            ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-3 rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#667085]" />
+          <div className="flex gap-3 overflow-x-auto rounded-2xl bg-white p-4 shadow-[0_4px_24px_rgba(16,24,40,0.06)] border border-[#d0d5dd] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+            <div className="relative min-w-[240px] flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
               <input
+                className="w-full rounded-xl border border-[#d0d5dd] bg-white py-2.5 pl-10 pr-4 text-sm text-[#344054] shadow-sm transition-all placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-4 focus:ring-[#006fd5]/10 hover:border-[#98a2b3]"
                 type="text"
                 placeholder="Tìm kiếm chức vụ..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-10 pr-4 text-sm text-[#344054] placeholder-[#98a2b3] transition-colors focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
               />
             </div>
             <button
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#d0d5dd] text-[#344054] transition-colors hover:bg-[#f9fafb] active:bg-[#eef2f6]"
+              className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl border border-[#d0d5dd] bg-white text-[#667085] shadow-sm transition-all hover:bg-[#f9fafb] hover:text-[#344054] active:scale-95"
               type="button"
               onClick={() => void loadPositions()}
               title="Tải lại"
@@ -577,38 +580,46 @@ export function PositionListPage() {
             </div>
           ) : null}
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#ebedf2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
             {isLoading ? (
-              <div className="flex h-full items-center justify-center py-12 text-[#667085]">
-                Đang tải dữ liệu...
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#006fd5] border-r-transparent"></div>
+                  <p className="text-sm font-medium">Đang tải dữ liệu...</p>
+                </div>
               </div>
             ) : filteredPositions.length === 0 ? (
-              <div className="flex h-full items-center justify-center py-12 text-[#667085]">
-                Chưa có chức vụ nào
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3 opacity-60">
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-100">
+                    <Search className="h-6 w-6 text-[#98a2b3]" />
+                  </div>
+                  <p className="text-sm font-medium text-[#667085]">Chưa có chức vụ nào</p>
+                </div>
               </div>
             ) : (
               <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-                <table className="w-full min-w-200">
-                  <thead className="sticky top-0 z-1">
-                    <tr className="border-b border-[#ebedf2] bg-[#f9fafb]">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                <table className="w-full min-w-[900px] border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-[#d0d5dd] bg-[#f9fafb]/90 backdrop-blur-md">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         #
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Mã
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Chức vụ
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Quyền
                       </th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Thao tác
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[#d0d5dd]">
                     {filteredPositions.map((position, index) => {
                       const permissionKeys = extractPermissionKeys(position);
                       const permissionNames = permissionKeys
@@ -626,23 +637,23 @@ export function PositionListPage() {
                       return (
                         <tr
                           key={position.id}
-                          className="border-b border-[#ebedf2] transition-colors hover:bg-[#f9fafb]"
+                          className="group transition-colors hover:bg-[#f8faff]"
                         >
-                          <td className="px-4 py-3 text-sm text-[#344054]">
+                          <td className="px-5 py-4 text-sm text-[#667085]">
                             {index + 1}
                           </td>
-                          <td className="px-4 py-3 text-sm font-medium text-[#344054]">
+                          <td className="px-5 py-4 text-sm font-medium text-[#344054]">
                             {position.code ?? "-"}
                           </td>
-                          <td className="px-4 py-3">
-                            <strong className="block text-sm text-[#344054]">
+                          <td className="px-5 py-4">
+                            <strong className="block text-sm font-semibold text-[#243247] group-hover:text-[#006fd5] transition-colors">
                               {position.name}
                             </strong>
-                            <span className="line-clamp-2 text-xs text-[#667085]">
+                            <span className="line-clamp-2 text-xs text-[#667085] mt-0.5">
                               {position.description || "Không có mô tả"}
                             </span>
                           </td>
-                          <td className="max-w-[260px] px-4 py-3">
+                          <td className="max-w-[260px] px-5 py-4">
                             <div className="flex flex-wrap gap-1">
                               {visibleNames.map((name) => (
                                 <span
@@ -664,24 +675,28 @@ export function PositionListPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-5 py-4">
                             <div className="flex items-center justify-center gap-2">
-                              <button
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#006fd5] text-white! transition-colors hover:bg-[#0055a8]"
-                                type="button"
-                                title="Sửa"
-                                onClick={() => void openEdit(position)}
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </button>
-                              <button
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#fef3f2] text-[#b42318] transition-colors hover:bg-[#fee4e2]"
-                                type="button"
-                                title="Xóa"
-                                onClick={() => handleDelete(position)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              {canSetup ? (
+                                <>
+                                  <button
+                                    className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white hover:shadow-md hover:shadow-emerald-500/20 active:scale-95"
+                                    type="button"
+                                    title="Sửa"
+                                    onClick={() => void openEdit(position)}
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    className="grid h-8 w-8 place-items-center rounded-lg bg-[#fef3f2] text-[#b42318] transition-all hover:bg-[#b42318] hover:text-white hover:shadow-md hover:shadow-rose-500/20 active:scale-95"
+                                    type="button"
+                                    title="Xóa"
+                                    onClick={() => handleDelete(position)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -691,8 +706,10 @@ export function PositionListPage() {
                 </table>
               </div>
             )}
-            <div className="shrink-0 border-t border-[#ebedf2] px-4 py-3 text-sm text-[#667085]">
-              Hiển thị {filteredPositions.length} / {positions.length} chức vụ
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#d0d5dd] bg-[#fcfcfd] px-5 py-3.5 max-[720px]:flex-col max-[720px]:items-stretch">
+              <span className="text-sm font-medium text-[#667085]">
+                Hiển thị {filteredPositions.length} / {positions.length} chức vụ
+              </span>
             </div>
           </section>
         </div>

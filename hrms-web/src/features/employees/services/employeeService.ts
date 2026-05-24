@@ -4,6 +4,7 @@ import type {
   CreateEmployeePayload,
   EmployeeFilters,
   Employee,
+  EmployeeJobHistory,
   EmployeeListData,
   EmployeeOption,
   UpdateEmployeeAdditionalPayload,
@@ -97,6 +98,22 @@ export const employeeService = {
     const response = await apiClient.get<ApiResponse<Employee>>("/employees/me");
 
     return response.data.data;
+  },
+
+  async getJobHistory(id: string) {
+    const response = await apiClient.get<ApiResponse<EmployeeJobHistory[]>>(
+      `/employees/${id}/job-history`,
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async getMyJobHistory() {
+    const response = await apiClient.get<ApiResponse<EmployeeJobHistory[]>>(
+      "/employees/me/job-history",
+    );
+
+    return response.data.data ?? [];
   },
 
   async createEmployee(payload: CreateEmployeePayload) {

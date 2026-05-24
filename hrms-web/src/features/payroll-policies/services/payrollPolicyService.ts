@@ -14,6 +14,8 @@ import type {
   InsurancePolicy,
   InsurancePolicyPayload,
   PayrollPolicyAssignmentPayload,
+  PayrollBonusPenalty,
+  PayrollBonusPenaltyPayload,
   PayrollProfile,
   PolicyStatusFilter,
   TaxPolicy,
@@ -267,5 +269,82 @@ export const payrollPolicyService = {
     >("/payroll-policies/auto-penalties/assign", payload);
 
     return response.data.data ?? [];
+  },
+
+  async getPayrollBonusPenalties(params?: {
+    employeeId?: string;
+    departmentId?: string;
+    positionId?: string;
+    month?: string;
+    status?: "ACTIVE" | "CANCELLED";
+  }) {
+    const response = await apiClient.get<ApiResponse<PayrollBonusPenalty[]>>(
+      "/payroll-policies/bonus-penalties",
+      { params },
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async getMyPayrollBonusPenalties(params?: {
+    month?: string;
+    status?: "ACTIVE" | "CANCELLED";
+  }) {
+    const response = await apiClient.get<ApiResponse<PayrollBonusPenalty[]>>(
+      "/payroll-policies/bonus-penalties/mine",
+      { params },
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async createPayrollBonusPenalty(payload: PayrollBonusPenaltyPayload) {
+    const response = await apiClient.post<ApiResponse<PayrollBonusPenalty>>(
+      "/payroll-policies/bonus-penalties",
+      cleanPayload(payload),
+    );
+
+    return response.data.data;
+  },
+
+  async updatePayrollBonusPenalty(
+    id: string,
+    payload: PayrollBonusPenaltyPayload,
+  ) {
+    const response = await apiClient.put<ApiResponse<PayrollBonusPenalty>>(
+      `/payroll-policies/bonus-penalties/${id}`,
+      cleanPayload(payload),
+    );
+
+    return response.data.data;
+  },
+
+  async cancelPayrollBonusPenalty(id: string) {
+    const response = await apiClient.delete<ApiResponse<PayrollBonusPenalty>>(
+      `/payroll-policies/bonus-penalties/${id}`,
+    );
+
+    return response.data.data;
+  },
+
+  async generateAutoPayrollBonusPenalties(payload: {
+    month: number;
+    year: number;
+    employeeId?: string;
+    departmentId?: string;
+    positionId?: string;
+  }) {
+    const response = await apiClient.post<
+      ApiResponse<{
+        month: number;
+        year: number;
+        createdCount: number;
+        updatedCount: number;
+        skippedCount: number;
+        cancelledCount: number;
+      }>
+    >("/payroll-policies/bonus-penalties/generate-auto", payload);
+
+    return response.data.data;
   },
 };

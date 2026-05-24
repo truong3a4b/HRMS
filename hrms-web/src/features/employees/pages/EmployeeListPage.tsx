@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Pagination } from "antd";
 import { Plus, RefreshCcw, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/services/useAuth";
 import { AppLayout } from "../../../app/layouts";
 import {
   AddEmployeeModal,
@@ -54,6 +55,17 @@ function getErrorMessage(error: unknown) {
 
 export function EmployeeListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  const isAdmin = user?.role === "ADMIN";
+  const permissions = user?.permissions ?? [];
+  const canCreate = isAdmin || permissions.includes("EMPLOYEE_CREATE");
+  const canEdit =
+    isAdmin ||
+    permissions.includes("EMPLOYEE_UPDATE_BASIC") ||
+    permissions.includes("EMPLOYEE_UPDATE_JOB");
+  const canViewDetail = isAdmin || permissions.includes("EMPLOYEE_VIEW_DETAIL");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [positionId, setPositionId] = useState("");
@@ -227,18 +239,17 @@ export function EmployeeListPage() {
               <h1 className="text-2xl font-bold text-[#243247]">
                 Danh sách nhân viên
               </h1>
-              <p className="text-sm text-[#667085]">
-                Quản lý thông tin nhân viên
-              </p>
             </div>
-            <button
-              className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
-              type="button"
-              onClick={() => setAddOpen(true)}
-            >
-              <Plus className="h-5 w-5" />
-              Thêm nhân viên
-            </button>
+            {canCreate ? (
+              <button
+                className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
+                type="button"
+                onClick={() => setAddOpen(true)}
+              >
+                <Plus className="h-5 w-5" />
+                Thêm nhân viên
+              </button>
+            ) : null}
           </div>
 
           <div className="flex gap-3 overflow-x-auto rounded-2xl border border-[#d0d5dd] bg-white p-4 shadow-[0_4px_24px_rgba(16,24,40,0.06)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
@@ -315,8 +326,8 @@ export function EmployeeListPage() {
               employees={employees}
               isLoading={isLoading}
               rowOffset={rowOffset}
-              onEdit={handleEdit}
-              onView={handleView}
+              onEdit={canEdit ? handleEdit : undefined}
+              onView={canViewDetail ? handleView : undefined}
             />
             <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#d0d5dd] px-4 py-3 max-[720px]:flex-col max-[720px]:items-stretch">
               <span className="text-sm text-[#667085]">

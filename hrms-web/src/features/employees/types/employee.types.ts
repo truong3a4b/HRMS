@@ -136,6 +136,21 @@ export type EmployeeAutoPenaltyPolicy = {
   autoPenaltyPolicy?: AutoPenaltyPolicy | null;
 };
 
+export type EmployeeJobHistory = {
+  id: string;
+  employeeId: string;
+  departmentId?: string | null;
+  positionId?: string | null;
+  hireDate?: string | null;
+  salary?: string | number | null;
+  status: EmployeeStatus;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  createdAt?: string;
+  department?: EmployeeOption | null;
+  position?: EmployeeOption | null;
+};
+
 export type Employee = {
   id: string;
   employeeId: string;

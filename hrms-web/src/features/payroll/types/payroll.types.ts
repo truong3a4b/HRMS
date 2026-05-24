@@ -1,4 +1,5 @@
 import type { EmployeeOption } from "../../employees/types/employee.types";
+import type { ApprovalMode } from "../../requests/types/request.types";
 
 export type PayrollStatus =
   | "DRAFT"
@@ -119,6 +120,14 @@ export type PayrollPeriodOverview = {
     remainingAmount: MoneyValue;
   };
   payrolls: PayrollSummary[];
+};
+
+export type RequestPayrollApprovalPayload = {
+  title?: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
 };
 
 export type PayrollOvertimeLine = {

@@ -278,6 +278,7 @@ export const payrollController = {
           month: getMonthParam(req.params.month),
           year: getYearParam(req.params.year),
         },
+        req.body,
       );
       return sendResponse(
         res,
@@ -299,6 +300,7 @@ export const payrollController = {
       const result = await payrollService.requestPeriodApproval(
         getCurrentUser(req),
         { periodId: getParamValue(req.params.periodId) },
+        req.body,
       );
       return sendResponse(
         res,
@@ -407,6 +409,7 @@ export const payrollController = {
       const result = await payrollService.requestApproval(
         getCurrentUser(req),
         id,
+        req.body,
       );
       return sendResponse(
         res,

@@ -674,9 +674,6 @@ export function RecruitmentJobListPage() {
               <h1 className="text-2xl font-bold text-[#243247]">
                 Vị trí tuyển dụng
               </h1>
-              <p className="text-sm text-[#667085]">
-                Quản lý tin tuyển dụng và cho phép ứng viên ứng tuyển
-              </p>
             </div>
             {manageJobs ? (
               <button
@@ -693,11 +690,11 @@ export function RecruitmentJobListPage() {
             ) : null}
           </div>
 
-          <div className="flex gap-3 overflow-x-auto rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
-            <div className="relative min-w-[200px] flex-1">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#667085]" />
+          <div className="flex gap-3 overflow-x-auto rounded-2xl bg-white p-4 shadow-[0_4px_24px_rgba(16,24,40,0.06)] border border-[#d0d5dd] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+            <div className="relative min-w-[240px] flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
               <input
-                className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-10 pr-4 text-sm text-[#344054] placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
+                className="w-full rounded-xl border border-[#d0d5dd] bg-white py-2.5 pl-10 pr-4 text-sm text-[#344054] shadow-sm transition-all placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-4 focus:ring-[#006fd5]/10 hover:border-[#98a2b3]"
                 value={searchTerm}
                 placeholder="Tìm kiếm vị trí tuyển dụng..."
                 onChange={(event) => {
@@ -707,7 +704,7 @@ export function RecruitmentJobListPage() {
               />
             </div>
             <SearchableSelect
-              className="min-w-[160px] flex-1"
+              className="min-w-[170px] flex-1 [&_.ant-select-selector]:!rounded-xl [&_.ant-select-selector]:!py-1.5 [&_.ant-select-selector]:!shadow-sm [&_.ant-select-selector]:!border-[#d0d5dd] hover:[&_.ant-select-selector]:!border-[#98a2b3]"
               value={departmentId}
               onChange={(value) => {
                 setDepartmentId(value);
@@ -719,7 +716,7 @@ export function RecruitmentJobListPage() {
               ]}
             />
             <SearchableSelect
-              className="min-w-[160px] flex-1"
+              className="min-w-[170px] flex-1 [&_.ant-select-selector]:!rounded-xl [&_.ant-select-selector]:!py-1.5 [&_.ant-select-selector]:!shadow-sm [&_.ant-select-selector]:!border-[#d0d5dd] hover:[&_.ant-select-selector]:!border-[#98a2b3]"
               value={positionId}
               onChange={(value) => {
                 setPositionId(value);
@@ -731,7 +728,7 @@ export function RecruitmentJobListPage() {
               ]}
             />
             <button
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#d0d5dd] text-[#344054] hover:bg-[#f9fafb]"
+              className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl border border-[#d0d5dd] bg-white text-[#667085] shadow-sm transition-all hover:bg-[#f9fafb] hover:text-[#344054] active:scale-95"
               type="button"
               title="Tải lại"
               onClick={() => void loadJobs()}
@@ -746,84 +743,89 @@ export function RecruitmentJobListPage() {
             </div>
           ) : null}
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#ebedf2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
             {isLoading ? (
-              <div className="flex h-full items-center justify-center py-12 text-[#667085]">
-                Đang tải dữ liệu...
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#006fd5] border-r-transparent"></div>
+                  <p className="text-sm font-medium">Đang tải dữ liệu...</p>
+                </div>
               </div>
             ) : jobs.length === 0 ? (
-              <div className="flex h-full items-center justify-center py-12 text-[#667085]">
-                Chưa có vị trí tuyển dụng
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3 opacity-60">
+                  <BriefcaseBusiness className="h-12 w-12 text-[#98a2b3]" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-[#667085]">Chưa có vị trí tuyển dụng</p>
+                </div>
               </div>
             ) : (
               <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-                <table className="w-full min-w-230">
-                  <thead className="sticky top-0 z-1">
-                    <tr className="border-b border-[#ebedf2] bg-[#f9fafb]">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                <table className="w-full min-w-[900px] border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-[#d0d5dd] bg-[#f9fafb]/90 backdrop-blur-md">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         #
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Vị trí
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Bộ phận
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
-                        Lương
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
+                        Số lượng & Lương
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Hạn nộp
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Trạng thái
                       </th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Thao tác
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[#d0d5dd]">
                     {jobs.map((job, index) => (
                       <tr
-                        className="border-b border-[#ebedf2] hover:bg-[#f9fafb]"
+                        className="group transition-colors hover:bg-[#f8faff]"
                         key={job.id}
                       >
-                        <td className="px-4 py-3 text-sm text-[#344054]">
+                        <td className="px-5 py-4 text-sm text-[#667085]">
                           {rowOffset + index + 1}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="grid h-9 w-9 place-items-center rounded-lg bg-[#f0f7ff] text-[#006fd5]">
-                              <BriefcaseBusiness className="h-4.5 w-4.5" />
-                            </div>
-                            <div className="min-w-0">
-                              <strong className="block max-w-80 truncate text-sm text-[#344054]">
-                                {job.title}
-                              </strong>
-                              <span className="block truncate text-xs text-[#667085]">
-                                {job.position?.name ?? "-"} | Số lượng:{" "}
-                                {job.quantity}
-                              </span>
-                            </div>
-                          </div>
+                        <td className="px-5 py-4">
+                          <strong className="block max-w-[280px] truncate text-sm font-semibold text-[#243247] group-hover:text-[#006fd5] transition-colors">
+                            {job.title}
+                          </strong>
+                          <span className="line-clamp-1 text-xs text-[#667085] mt-0.5">
+                            {job.position?.name ?? "-"}
+                          </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-[#344054]">
+                        <td className="px-5 py-4 text-sm text-[#344054]">
                           {job.department?.name ?? "-"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-[#344054]">
-                          {salaryText(job)}
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-1">
+                            <span className="inline-flex w-fit rounded-md bg-[#f2f4f7] px-2 py-1 text-xs font-medium text-[#344054]">
+                              SL: {job.quantity}
+                            </span>
+                            <span className="text-sm text-[#344054]">
+                              {salaryText(job)}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-[#344054]">
+                        <td className="px-5 py-4 text-sm text-[#344054]">
                           {formatDate(job.deadline)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-4">
                           <JobStatusBadge status={job.status} />
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-center gap-2">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-center gap-2">
                             <button
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#006fd5] text-white! hover:bg-[#0055a8]"
+                              className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#006fd5] transition-all hover:bg-[#006fd5] hover:text-white hover:shadow-md hover:shadow-blue-500/20 active:scale-95"
                               type="button"
                               title="Xem chi tiết"
                               onClick={() => void openDetail(job)}
@@ -832,7 +834,7 @@ export function RecruitmentJobListPage() {
                             </button>
                             {manageJobs && job.status === "OPEN" ? (
                               <button
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#006fd5] text-white! hover:bg-[#0055a8]"
+                                className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white hover:shadow-md hover:shadow-emerald-500/20 active:scale-95"
                                 type="button"
                                 title="Sửa"
                                 onClick={() => {
@@ -851,7 +853,7 @@ export function RecruitmentJobListPage() {
                 </table>
               </div>
             )}
-            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#ebedf2] px-4 py-3 max-[720px]:flex-col max-[720px]:items-stretch">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#d0d5dd] bg-[#fcfcfd] px-5 py-3.5 max-[720px]:flex-col max-[720px]:items-stretch">
               <span className="text-sm text-[#667085]">
                 Hiển thị {jobs.length === 0 ? 0 : rowOffset + 1}-
                 {Math.min(rowOffset + jobs.length, meta.total)} / {meta.total} tin

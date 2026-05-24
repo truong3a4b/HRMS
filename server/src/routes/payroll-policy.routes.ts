@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { AutoPenaltyType, UserRole } from "../../generated/prisma/client";
+import {
+  AutoPenaltyType,
+  PayrollBonusPenaltyStatus,
+  UserRole,
+} from "../../generated/prisma/client";
 import { PERMISSIONS } from "../constants/permissions";
 import { payrollPolicyController } from "../controllers/payroll-policy.controller";
 import {
@@ -194,7 +198,22 @@ const createPayrollBonusPenaltySchema = z.object({
 });
 
 const updatePayrollBonusPenaltySchema =
-  createPayrollBonusPenaltySchema.partial();
+  createPayrollBonusPenaltySchema.partial().extend({
+    status: z
+      .enum([
+        PayrollBonusPenaltyStatus.ACTIVE,
+        PayrollBonusPenaltyStatus.CANCELLED,
+      ])
+      .optional(),
+  });
+
+const generateAutoPayrollBonusPenaltySchema = z.object({
+  employeeId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
+  positionId: z.string().uuid().optional(),
+  month: z.number().int().min(1).max(12),
+  year: z.number().int().min(1900).max(9999),
+});
 
 const standardWorkDaysSchema = z.object({
   month: z.number().int().min(1).max(12),
@@ -232,6 +251,25 @@ const canViewPayrollPolicies = [
 const canSetupPayrollPolicies = [
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(PERMISSIONS.PAYROLL_POLICY_SETUP),
+];
+
+const canViewPayrollBonusPenalties = [
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(
+    PERMISSIONS.PAYROLL_VIEW,
+    PERMISSIONS.PAYROLL_MANAGE,
+    PERMISSIONS.PAYROLL_APPROVE,
+    PERMISSIONS.PAYROLL_PAY,
+  ),
+];
+
+const canManagePayrollBonusPenalties = [
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.PAYROLL_MANAGE),
+];
+
+const canViewOwnPayrollBonusPenalties = [
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
 ];
 
 router.get(
@@ -399,29 +437,40 @@ router.post(
 
 router.get(
   "/bonus-penalties",
-  ...canViewPayrollPolicies,
+  ...canViewPayrollBonusPenalties,
   payrollPolicyController.getPayrollBonusPenalties,
 );
 router.get(
+  "/bonus-penalties/mine",
+  ...canViewOwnPayrollBonusPenalties,
+  payrollPolicyController.getMyPayrollBonusPenalties,
+);
+router.get(
   "/bonus-penalties/:id",
-  ...canViewPayrollPolicies,
+  ...canViewPayrollBonusPenalties,
   payrollPolicyController.getPayrollBonusPenaltyById,
 );
 router.post(
   "/bonus-penalties",
-  ...canSetupPayrollPolicies,
+  ...canManagePayrollBonusPenalties,
   validate(createPayrollBonusPenaltySchema),
   payrollPolicyController.createPayrollBonusPenalty,
 );
+router.post(
+  "/bonus-penalties/generate-auto",
+  ...canManagePayrollBonusPenalties,
+  validate(generateAutoPayrollBonusPenaltySchema),
+  payrollPolicyController.generateAutoPayrollBonusPenalties,
+);
 router.put(
   "/bonus-penalties/:id",
-  ...canSetupPayrollPolicies,
+  ...canManagePayrollBonusPenalties,
   validate(updatePayrollBonusPenaltySchema),
   payrollPolicyController.updatePayrollBonusPenalty,
 );
 router.delete(
   "/bonus-penalties/:id",
-  ...canSetupPayrollPolicies,
+  ...canManagePayrollBonusPenalties,
   payrollPolicyController.deletePayrollBonusPenalty,
 );
 

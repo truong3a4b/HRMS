@@ -8,13 +8,33 @@ import { RequestHeader } from "../components/RequestHeader";
 import { RequestFilters } from "../components/RequestFilters";
 import { RequestTable } from "../components/RequestTable";
 import { RequestDetailModal } from "../components/RequestDetailModal";
-import type { RequestItem, RequestApprovalStatus, RequestStatus } from "../types/request.types";
+import type { RequestApprovalStatus, RequestItem, RequestStatus } from "../types/request.types";
 
 const finalStatuses = new Set<RequestStatus>(["APPROVED", "REJECTED", "CANCELLED", "FAILED"]);
+type EmployeeRequestTab = "watching" | "pending" | "reviewed";
 
-export function RequestMinePage() {
+const tabs: Array<{ key: EmployeeRequestTab; label: string; description: string }> = [
+  {
+    key: "watching",
+    label: "Theo dõi",
+    description: "Các yêu cầu bạn được thêm vào danh sách theo dõi",
+  },
+  {
+    key: "pending",
+    label: "Chờ tôi duyệt",
+    description: "Các yêu cầu đang chờ bạn xử lý",
+  },
+  {
+    key: "reviewed",
+    label: "Tôi đã duyệt",
+    description: "Các yêu cầu bạn đã duyệt hoặc từ chối",
+  },
+];
+
+export function RequestEmployeePage() {
   const { user } = useAuth();
   const isAdmin = user?.role?.toUpperCase() === "ADMIN";
+  const [activeTab, setActiveTab] = useState<EmployeeRequestTab>("pending");
   const {
     requests,
     meta,
@@ -31,7 +51,7 @@ export function RequestMinePage() {
     handleStatusChange,
     handleTypeChange,
     reload,
-  } = useRequests("mine", isAdmin);
+  } = useRequests(activeTab, isAdmin);
 
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -100,14 +120,21 @@ export function RequestMinePage() {
       (approval) => approval.approverId === user?.id && approval.status === "PENDING",
     ) && !finalStatuses.has(request.status);
 
+  const activeDescription =
+    tabs.find((tab) => tab.key === activeTab)?.description ??
+    "Quản lý các yêu cầu liên quan đến bạn";
+
   return (
     <AppLayout>
       <main className="h-full min-w-0 overflow-hidden bg-[#f4f7fa]">
         <div className="flex h-full min-w-0 flex-col gap-5 px-5 py-5 max-[640px]:gap-4 max-[640px]:px-4">
-          <RequestHeader 
-            title="Yêu cầu của tôi" 
-            description="Quản lý và theo dõi các yêu cầu bạn đã gửi" 
-          />
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <RequestHeader
+              title="Yêu cầu của nhân viên"
+              description={activeDescription}
+              hideCreateButton={true}
+            />
+          </div>
 
           <RequestFilters
             searchTerm={searchTerm}
@@ -117,7 +144,24 @@ export function RequestMinePage() {
             onStatusChange={handleStatusChange}
             onTypeChange={handleTypeChange}
             onRefresh={reload}
-          />
+          >
+            <div className="flex shrink-0 items-center gap-1 rounded-xl bg-[#f4f7fa] p-1 border border-[#e2e8f0]">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`rounded-lg px-4 py-2 text-sm transition-all duration-300 ease-out ${
+                    activeTab === tab.key
+                      ? "bg-white text-[#006fd5] shadow-[0_2px_8px_rgba(0,111,213,0.15)] ring-1 ring-[#006fd5]/20 scale-[1.02] font-semibold"
+                      : "text-[#64748b] font-medium hover:bg-white/60 hover:text-[#006fd5] hover:scale-[1.01]"
+                  }`}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </RequestFilters>
 
           {errorMessage ? (
             <div className="rounded-xl border border-[#fecdca] bg-[#fffbfa] px-4 py-3.5 text-sm font-medium text-[#b42318] shadow-sm">

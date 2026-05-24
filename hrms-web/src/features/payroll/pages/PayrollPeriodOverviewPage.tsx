@@ -1,5 +1,5 @@
 import { Modal, Pagination } from "antd";
-import { ArrowLeft, BadgeCheck, Banknote, Calculator, CheckCircle2, Coins, Eye, FilePlus2, RefreshCcw, Search, Send, Trash2, WalletCards, XCircle } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Banknote, Calculator, Coins, Eye, FilePlus2, RefreshCcw, Search, Send, Trash2, WalletCards, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { paths } from "../../../app/router/paths";
@@ -7,6 +7,7 @@ import { AppLayout } from "../../../app/layouts";
 import { useAuth } from "../../auth/services/useAuth";
 import { employeeService } from "../../employees/services/employeeService";
 import type { Employee, EmployeeOption } from "../../employees/types/employee.types";
+import type { ApprovalMode } from "../../requests/types/request.types";
 import { payrollService } from "../services/payrollService";
 import type { PayrollPeriodOverview } from "../types/payroll.types";
 
@@ -27,6 +28,10 @@ const statusClass: Record<string, string> = {
   PAID: "bg-emerald-50 text-emerald-700",
   CANCELLED: "bg-rose-50 text-rose-700",
 };
+
+const fieldClass =
+  "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
+const labelClass = "mb-1.5 block text-sm font-medium text-[#344054]";
 
 function toNumber(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -71,6 +76,156 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function PayrollApprovalRequestModal({
+  open,
+  overview,
+  employees,
+  currentUserId,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  overview: PayrollPeriodOverview | null;
+  employees: Employee[];
+  currentUserId?: string;
+  onClose: () => void;
+  onSubmit: (payload: {
+    title?: string;
+    description?: string;
+    approvalMode: ApprovalMode;
+    approverIds: string[];
+    watcherIds: string[];
+  }) => Promise<void>;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [approvalMode, setApprovalMode] = useState<ApprovalMode>("PARALLEL");
+  const [approverIds, setApproverIds] = useState<string[]>([]);
+  const [watcherIds, setWatcherIds] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const userOptions = useMemo(
+    () =>
+      employees
+        .map((employee) => ({
+          id: employee.user?.id,
+          label: `${employee.name} - ${employee.email}`,
+        }))
+        .filter((option): option is { id: string; label: string } =>
+          Boolean(option.id && option.id !== currentUserId),
+        ),
+    [employees, currentUserId],
+  );
+
+  useEffect(() => {
+    if (!open || !overview) return;
+    setTitle(
+      overview.period.name ||
+        `Duyệt kỳ lương tháng ${overview.month}/${overview.year}`,
+    );
+    setDescription(overview.period.note ?? "");
+    setApprovalMode("PARALLEL");
+    setApproverIds([]);
+    setWatcherIds([]);
+    setErrorMessage(null);
+  }, [open, overview]);
+
+  const readSelectedOptions = (select: HTMLSelectElement) =>
+    Array.from(select.selectedOptions).map((option) => option.value);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (approverIds.length === 0) {
+      setErrorMessage("Vui lòng chọn ít nhất một người duyệt.");
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        approvalMode,
+        approverIds,
+        watcherIds,
+      });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Không thể gửi yêu cầu duyệt kỳ lương."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={720}
+      centered
+      destroyOnClose
+      title={
+        <h2 className="text-xl font-bold tracking-tight text-[#243247]">
+          Gửi yêu cầu duyệt kỳ lương
+        </h2>
+      }
+    >
+      <form onSubmit={submit} className="mt-4 flex flex-col h-[70vh]">
+        {errorMessage ? (
+          <div className="shrink-0 mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <div className="flex-1 overflow-y-auto pr-3 flex flex-col gap-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd] hover:[&::-webkit-scrollbar-thumb]:bg-[#98a2b3]">
+          <label>
+            <span className={labelClass}>Tiêu đề <span className="text-[#f04438]">*</span></span>
+            <input className={fieldClass} value={title} onChange={(event) => setTitle(event.target.value)} />
+          </label>
+          <label>
+            <span className={labelClass}>Mô tả</span>
+            <textarea className={fieldClass} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
+          </label>
+          <label>
+            <span className={labelClass}>Cách duyệt</span>
+            <select className={fieldClass} value={approvalMode} onChange={(event) => setApprovalMode(event.target.value as ApprovalMode)}>
+              <option value="PARALLEL">Duyệt song song</option>
+              <option value="SEQUENTIAL">Duyệt tuần tự</option>
+            </select>
+          </label>
+          <label>
+            <span className={labelClass}>Người duyệt <span className="text-[#f04438]">*</span></span>
+            <select className={`${fieldClass} min-h-28`} multiple value={approverIds} onChange={(event) => setApproverIds(readSelectedOptions(event.currentTarget))}>
+              {userOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className={labelClass}>Người theo dõi</span>
+            <select className={`${fieldClass} min-h-24`} multiple value={watcherIds} onChange={(event) => setWatcherIds(readSelectedOptions(event.currentTarget))}>
+              {userOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="mt-4 flex shrink-0 items-center justify-end gap-3 border-t border-[#e2e8f0] pt-4">
+          <button className="rounded-xl border border-[#d0d5dd] bg-white px-5 py-2.5 text-sm font-semibold text-[#344054] shadow-sm transition-all hover:bg-[#f9fafb] hover:text-[#101828]" type="button" onClick={onClose} disabled={submitting}>
+            Đóng
+          </button>
+          <button className="inline-flex items-center gap-2 rounded-xl bg-[#006fd5] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0055a8] active:scale-95 disabled:opacity-60" type="submit" disabled={submitting || !title.trim()}>
+            <Send className="h-4.5 w-4.5" />
+            {submitting ? "Đang gửi..." : "Gửi yêu cầu"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 function AddPayrollsModal({
@@ -266,6 +421,7 @@ export function PayrollPeriodOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [recalculateOpen, setRecalculateOpen] = useState(false);
   const [singleAddOpen, setSingleAddOpen] = useState(false);
+  const [approvalRequestOpen, setApprovalRequestOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -344,17 +500,28 @@ export function PayrollPeriodOverviewPage() {
     [overview?.payrolls],
   );
 
-  const runPeriodAction = async (action: "request" | "approve") => {
+  const requestPeriodApproval = async (payload: {
+    title?: string;
+    description?: string;
+    approvalMode: ApprovalMode;
+    approverIds: string[];
+    watcherIds: string[];
+  }) => {
     if (!overview) return;
     try {
-      const next =
-        action === "request"
-          ? await payrollService.requestPeriodApproval(overview.period.id)
-          : await payrollService.approvePeriod(overview.period.id);
+      const next = await payrollService.requestPeriodApproval(
+        overview.period.id,
+        payload,
+      );
       setOverview(next);
+      setApprovalRequestOpen(false);
+      Modal.success({
+        title: "Đã gửi yêu cầu duyệt kỳ lương",
+        content: "Người duyệt sẽ xử lý trong mục yêu cầu chờ duyệt.",
+      });
     } catch (error) {
       Modal.error({
-        title: "Không thể cập nhật kỳ lương",
+        title: "Không thể gửi yêu cầu duyệt",
         content: getErrorMessage(error, "Thao tác thất bại."),
       });
     }
@@ -496,18 +663,12 @@ export function PayrollPeriodOverviewPage() {
                     Tính lại
                   </button>
                   {overview?.period.status === "DRAFT" ? (
-                    <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-4 text-sm font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:from-amber-600 hover:to-amber-700 hover:shadow-lg active:scale-95" type="button" onClick={() => void runPeriodAction("request")}>
+                    <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-4 text-sm font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:from-amber-600 hover:to-amber-700 hover:shadow-lg active:scale-95" type="button" onClick={() => setApprovalRequestOpen(true)}>
                       <Send className="h-4 w-4" />
                       Gửi duyệt
                     </button>
                   ) : null}
                 </>
-              ) : null}
-              {overview?.period.status === "WAITING_APPROVAL" && canApprove ? (
-                <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-[#006fd5] to-[#005bb5] px-4 text-sm font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:from-[#005bb5] hover:to-[#004a99] hover:shadow-lg active:scale-95" type="button" onClick={() => void runPeriodAction("approve")}>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Duyệt kỳ lương
-                </button>
               ) : null}
               {overview?.period.status === "APPROVED" && canApprove ? (
                 <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-md active:scale-95" type="button" onClick={cancelPeriod}>
@@ -538,7 +699,7 @@ export function PayrollPeriodOverviewPage() {
 
                   return (
                     <div className="group relative overflow-hidden rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5" key={item.label}>
-                      <div className="flex items-center justify-between gap-3 relative z-10">
+                      <div className="flex items-center justify-between gap-3 relative">
                         <div>
                           <div className="text-xs font-bold uppercase tracking-wider text-[#64748b]">{item.label}</div>
                           <div className="mt-1.5 flex items-baseline text-2xl font-extrabold tracking-tight text-[#1e293b]">
@@ -669,6 +830,14 @@ export function PayrollPeriodOverviewPage() {
         existingEmployeeIds={existingPayrollEmployeeIds}
         onClose={() => setSingleAddOpen(false)}
         onSubmit={addSingleEmployeeToPeriod}
+      />
+      <PayrollApprovalRequestModal
+        open={approvalRequestOpen}
+        overview={overview}
+        employees={employees}
+        currentUserId={user?.id}
+        onClose={() => setApprovalRequestOpen(false)}
+        onSubmit={requestPeriodApproval}
       />
       <AddPayrollsModal
         open={payrollModalMode !== null}

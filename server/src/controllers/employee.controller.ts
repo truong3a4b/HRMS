@@ -125,6 +125,37 @@ export const employeeController = {
     }
   },
 
+  async getMyJobHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized");
+      }
+
+      const employee = req.user?.employeeId
+        ? await employeeService.getById(req.user.employeeId)
+        : await employeeService.getByUserId(userId);
+
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee account not found",
+        });
+      }
+
+      const result = await employeeService.getJobHistory(employee.id);
+
+      return sendResponse(
+        res,
+        200,
+        "Your employee job history fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async updateBasic(req: Request, res: Response, next: NextFunction) {
     try {
       const id = Array.isArray(req.params.id)

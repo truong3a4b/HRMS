@@ -16,6 +16,7 @@ const typeLabels: Record<RequestType, string> = {
   ATTENDANCE_CORRECTION: "Bổ sung chấm công",
   OVERTIME: "Tăng ca",
   SCHEDULE_APPROVAL: "Duyệt lịch",
+  PAYROLL_APPROVAL: "Duyệt kỳ lương",
   TERMINATION: "Nghỉ việc",
 };
 
@@ -27,6 +28,7 @@ type RequestFiltersProps = {
   onStatusChange: (value: RequestStatus | "") => void;
   onTypeChange: (value: RequestType | "") => void;
   onRefresh: () => void;
+  children?: React.ReactNode;
 };
 
 const filterFieldClass =
@@ -40,9 +42,11 @@ export function RequestFilters({
   onStatusChange,
   onTypeChange,
   onRefresh,
+  children,
 }: RequestFiltersProps) {
   return (
     <div className="flex gap-3 overflow-x-auto rounded-2xl bg-white p-4 shadow-[0_4px_24px_rgba(16,24,40,0.06)] border border-[#d0d5dd] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+      {children}
       <div className="relative min-w-[240px] flex-1">
         <Search className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
         <input

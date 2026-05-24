@@ -374,10 +374,6 @@ export function ScheduleAssignPage() {
               <h1 className="text-2xl font-bold text-[#243247]">
                 Áp lịch làm việc
               </h1>
-              <p className="text-sm text-[#667085]">
-                Dành cho admin/hr: chọn ngày, chọn ca và áp cho phòng ban hoặc
-                chức vụ
-              </p>
             </div>
             <div className="flex gap-2">
               <button

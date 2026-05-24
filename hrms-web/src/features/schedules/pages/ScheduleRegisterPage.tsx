@@ -372,9 +372,6 @@ export function ScheduleRegisterPage() {
               <h1 className="text-2xl font-bold text-[#243247]">
                 Đăng ký lịch làm việc
               </h1>
-              <p className="text-sm text-[#667085]">
-                Nhân viên tự chọn ngày, chọn ca và gửi yêu cầu phê duyệt
-              </p>
             </div>
             <div className="flex gap-2">
               <button

@@ -9,6 +9,7 @@ const typeLabels: Record<RequestType, string> = {
   ATTENDANCE_CORRECTION: "Bổ sung chấm công",
   OVERTIME: "Tăng ca",
   SCHEDULE_APPROVAL: "Duyệt lịch",
+  PAYROLL_APPROVAL: "Duyệt kỳ lương",
   TERMINATION: "Nghỉ việc",
 };
 

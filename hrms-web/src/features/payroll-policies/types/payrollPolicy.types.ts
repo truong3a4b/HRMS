@@ -182,6 +182,36 @@ export type EmployeeAutoPenaltyPolicy = {
   createdAt?: string;
 };
 
+export type PayrollBonusPenaltyStatus = "ACTIVE" | "CANCELLED";
+export type PayrollBonusPenaltySource = "MANUAL" | "AUTO";
+
+export type PayrollBonusPenalty = {
+  id: string;
+  employeeId: string;
+  month: string;
+  autoPenaltyPolicyId?: string | null;
+  amount: string | number;
+  isBonus: boolean;
+  reason?: string | null;
+  source: PayrollBonusPenaltySource;
+  status: PayrollBonusPenaltyStatus;
+  violationCount?: number | null;
+  cancelledAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  employee?: Employee | null;
+  autoPenaltyPolicy?: AutoPenaltyPolicy | null;
+};
+
+export type PayrollBonusPenaltyPayload = {
+  employeeId: string;
+  month: string;
+  amount: string | number;
+  isBonus?: boolean;
+  reason?: string | null;
+  status?: PayrollBonusPenaltyStatus;
+};
+
 export type PayrollPolicyOptions = {
   departments: Department[];
   positions: Position[] | EmployeeOption[];

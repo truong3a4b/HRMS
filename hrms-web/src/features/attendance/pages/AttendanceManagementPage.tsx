@@ -412,7 +412,6 @@ export function AttendanceManagementPage({
               <h1 className="text-2xl font-bold text-[#243247]">
                 {pageTitle.title}
               </h1>
-              <p className="text-sm text-[#667085]">{pageTitle.subtitle}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {activeTab === "devices" ? (

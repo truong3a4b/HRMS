@@ -44,6 +44,15 @@ export const requestService = {
     return response.data.data;
   },
 
+  async getMyReviewedApprovals(filters: RequestListFilters = {}) {
+    const response = await apiClient.get<ApiResponse<RequestListResponse>>(
+      "/requests",
+      { params: removeEmptyParams({ ...filters, scope: "reviewed" }) },
+    );
+
+    return response.data.data;
+  },
+
   async getAllRequests(filters: RequestListFilters = {}) {
     const response = await apiClient.get<ApiResponse<RequestListResponse>>(
       "/requests",

@@ -503,6 +503,7 @@ enum RequestType {
   ATTENDANCE_CORRECTION
   OVERTIME
   SCHEDULE_APPROVAL
+  PAYROLL_APPROVAL
   TERMINATION
 }
 
@@ -567,6 +568,7 @@ model Request {
   lateEarlyRequest            LateEarlyRequest?
   attendanceCorrectionRequest AttendanceCorrectionRequest?
   workScheduleRequest         WorkScheduleRequest?
+  payrollApprovalRequest      PayrollApprovalRequest?
 
   @@index([requesterId, status])
   @@index([status, createdAt])
@@ -607,6 +609,24 @@ model RequestWatcher {
   @@index([userId])
   @@index([requestId])
   @@map("request_watchers")
+}
+
+model PayrollApprovalRequest {
+  id        String   @id @default(uuid())
+  requestId String   @unique
+  periodId  String
+  month     Int
+  year      Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  period  PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([periodId])
+  @@index([year, month])
+  @@map("payroll_approval_requests")
 }
 
 model LeaveRequest {
@@ -1081,6 +1101,7 @@ model AutoPenaltyPolicy {
   tiers               AutoPenaltyTier[]
   employeeAssignments EmployeeAutoPenaltyPolicy[]
   payrollLines        PayrollBonusPenaltyLine[]
+  payrollBonusPenalties PayrollBonusPenalty[]
 
   @@index([type])
   @@index([isActive])
@@ -1149,20 +1170,41 @@ model EmployeePayrollProfile {
   @@map("employee_payroll_profiles")
 }
 
+enum PayrollBonusPenaltyStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum PayrollBonusPenaltySource {
+  MANUAL
+  AUTO
+}
+
 model PayrollBonusPenalty {
   id         String   @id @default(uuid())
   employeeId String
   month      DateTime //tháng áp dụng, chỉ lưu phần năm và tháng
+  autoPenaltyPolicyId String?
   amount     Decimal  @db.Decimal(15, 2)
   isBonus    Boolean  @default(true) //true là thưởng, false là phạt
   reason     String?
+  source     PayrollBonusPenaltySource @default(MANUAL)
+  status     PayrollBonusPenaltyStatus @default(ACTIVE)
+  violationCount Int?
+  occurrenceKey String?
+  occurredAt DateTime?
+  cancelledAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   employee     Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  autoPenaltyPolicy AutoPenaltyPolicy? @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: SetNull)
   payrollLines PayrollBonusPenaltyLine[]
 
   @@index([employeeId, month])
+  @@index([autoPenaltyPolicyId])
+  @@index([status])
+  @@unique([employeeId, autoPenaltyPolicyId, occurrenceKey])
   @@map("payroll_bonus_penalties")
 }
 
@@ -1244,6 +1286,7 @@ model PayrollPeriod {
   createdBy      User?                 @relation(fields: [createdById], references: [id], onDelete: SetNull)
   payrolls       Payroll[]
   paymentBatches PayrollPaymentBatch[]
+  approvalRequests PayrollApprovalRequest[]
 
   @@unique([month, year])
   @@index([year, month])

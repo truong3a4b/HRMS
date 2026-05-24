@@ -103,7 +103,7 @@ export function RequestPendingPage() {
   return (
     <AppLayout>
       <main className="h-full min-w-0 overflow-hidden bg-[#f4f7fa]">
-        <div className="flex h-full min-w-0 flex-col gap-6 px-6 py-6 max-[640px]:px-4 max-[640px]:gap-4">
+        <div className="flex h-full min-w-0 flex-col gap-5 px-5 py-5 max-[640px]:px-4 max-[640px]:gap-4">
           <RequestHeader 
             title="Chờ tôi duyệt" 
             description="Quản lý và phê duyệt các yêu cầu được giao cho bạn" 

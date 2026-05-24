@@ -1,17 +1,17 @@
 import {
-  AppWindow,
   BriefcaseBusiness,
   CalendarDays,
   CheckSquare,
   ClipboardList,
-  FileText,
   Grid3X3,
+  LayoutDashboard,
   Lock,
   LogOut,
   Mail,
-  Settings,
   User,
   Users,
+  WalletCards,
+  Calculator,
 } from "lucide-react";
 import { paths } from "../../../app/router/paths";
 import type {
@@ -84,14 +84,9 @@ export function getDrawerItems(
       path: paths.requestsMine,
     },
     {
-      key: "requests-watching",
-      label: "Yêu cầu tôi theo dõi",
-      path: paths.requestsWatching,
-    },
-    {
-      key: "requests-pending",
-      label: "Chờ tôi duyệt",
-      path: paths.requestsPending,
+      key: "requests-employee",
+      label: "Yêu cầu của nhân viên",
+      path: paths.requestsEmployee,
     },
     ...(isAdmin
       ? [
@@ -104,11 +99,154 @@ export function getDrawerItems(
       : []),
   ];
 
+  const recruitmentChildren = [
+    {
+      key: "recruitment-jobs",
+      label: "Vị trí tuyển dụng",
+      path: paths.recruitmentJobs,
+    },
+    ...(hasPermission("RECRUITMENT_VIEW_APPLICATION")
+      ? [
+          {
+            key: "recruitment-applications",
+            label: "Danh sách ứng tuyển",
+            path: paths.recruitmentApplications,
+          },
+        ]
+      : []),
+    ...(isCandidate
+      ? [
+          {
+            key: "candidate-applications",
+            label: "Đơn ứng tuyển của tôi",
+            path: paths.candidateApplications,
+          },
+        ]
+      : []),
+  ];
+
+  const attendanceChildren = [
+    ...(hasPermission("ATTENDANCE_DEVICE_VIEW")
+      ? [
+          {
+            key: "attendance-devices",
+            label: "Thiết bị & vân tay",
+            path: paths.attendanceDevices,
+          },
+        ]
+      : []),
+    ...(!isCandidate
+      ? [
+          {
+            key: "attendance-history",
+            label: "Lịch sử chấm công",
+            path: paths.attendanceHistory,
+          },
+          {
+            key: "attendance-timesheet",
+            label: "Bảng công của tôi",
+            path: paths.attendanceTimesheet,
+          },
+        ]
+      : []),
+    ...(hasPermission("ATTENDANCE_HISTORY_VIEW")
+      ? [
+          {
+            key: "attendance-employee-history",
+            label: "Lịch sử nhân viên",
+            path: paths.attendanceEmployeeHistory,
+          },
+        ]
+      : []),
+    ...(hasPermission("ATTENDANCE_TIMESHEET_VIEW")
+      ? [
+          {
+            key: "attendance-employee-timesheet",
+            label: "Bảng công nhân viên",
+            path: paths.attendanceEmployeeTimesheet,
+          },
+        ]
+      : []),
+    ...(hasPermission("PAYROLL_POLICY_SETUP") || hasPermission("WORK_SCHEDULE_MANAGE")
+      ? [
+          {
+            key: "attendance-standard-work-days",
+            label: "Công chuẩn",
+            path: paths.attendanceStandardWorkDays,
+          },
+        ]
+      : []),
+  ];
+
+  const payrollChildren = [
+    ...(!isCandidate
+      ? [
+          {
+            key: "payroll-mine",
+            label: "Bảng lương của tôi",
+            path: paths.payrollMine,
+          },
+          {
+            key: "payroll-bonus-penalties-mine",
+            label: "Phiếu thưởng/phạt của tôi",
+            path: paths.payrollBonusPenaltiesMine,
+          },
+        ]
+      : []),
+    ...(hasPermission("PAYROLL_VIEW") ||
+    hasPermission("PAYROLL_MANAGE") ||
+    hasPermission("PAYROLL_APPROVE") ||
+    hasPermission("PAYROLL_PAY")
+      ? [
+          {
+            key: "payroll-management",
+            label: "Bảng lương",
+            path: paths.payrollManagement,
+          },
+          {
+            key: "payroll-bonus-penalties",
+            label: "Phiếu thưởng/phạt",
+            path: paths.payrollBonusPenalties,
+          },
+        ]
+      : []),
+  ];
+
+  const categoryChildren = [
+    ...(hasPermission("DEPARTMENT_VIEW")
+      ? [
+          {
+            key: "departments",
+            label: "Bộ phận",
+            path: paths.departments,
+          },
+        ]
+      : []),
+    ...(hasPermission("POSITION_VIEW")
+      ? [
+          {
+            key: "positions",
+            label: "Chức vụ",
+            path: paths.positions,
+          },
+        ]
+      : []),
+    ...(hasPermission("WORK_SCHEDULE_MANAGE") || isAdmin
+      ? [
+          {
+            key: "work-shifts",
+            label: "Ca làm việc",
+            path: paths.workShifts,
+          },
+        ]
+      : []),
+  ];
+
   return [
     {
       key: "overview",
       label: "Tổng quan",
-      icon: <CalendarDays className={drawerIconClass} />,
+      icon: <LayoutDashboard className={drawerIconClass} />,
       path: paths.home,
     },
     ...(!isCandidate
@@ -122,40 +260,28 @@ export function getDrawerItems(
           },
         ]
       : []),
-    {
-      key: "recruitment",
-      label: "Tuyển dụng",
-      icon: <BriefcaseBusiness className={drawerIconClass} />,
-      expandable: true,
-      children: [
-        {
-          key: "recruitment-jobs",
-          label: "Vị trí tuyển dụng",
-          path: paths.recruitmentJobs,
-        },
-        {
-          key: "recruitment-applications",
-          label: "Danh sách ứng tuyển",
-          path: paths.recruitmentApplications,
-        },
-        ...(isCandidate
-          ? [
-              {
-                key: "candidate-applications",
-                label: "Đơn ứng tuyển của tôi",
-                path: paths.candidateApplications,
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      key: "employees",
-      label: "Nhân viên",
-      icon: <Users className={drawerIconClass} />,
-      path: paths.employees,
-    },
-    ...(scheduleChildren.length
+    ...(recruitmentChildren.length > 0
+      ? [
+          {
+            key: "recruitment",
+            label: "Tuyển dụng",
+            icon: <BriefcaseBusiness className={drawerIconClass} />,
+            expandable: true,
+            children: recruitmentChildren,
+          },
+        ]
+      : []),
+    ...(hasPermission("EMPLOYEE_VIEW_LIST") || isAdmin
+      ? [
+          {
+            key: "employees",
+            label: "Nhân viên",
+            icon: <Users className={drawerIconClass} />,
+            path: paths.employees,
+          },
+        ]
+      : []),
+    ...(scheduleChildren.length > 0
       ? [
           {
             key: "schedules",
@@ -166,134 +292,56 @@ export function getDrawerItems(
           },
         ]
       : []),
-    {
-      key: "attendance",
-      label: "Chấm công",
-      icon: <CheckSquare className={drawerIconClass} />,
-      expandable: true,
-      children: [
-        ...(hasPermission("ATTENDANCE_DEVICE_VIEW")
-          ? [
-              {
-                key: "attendance-devices",
-                label: "Thiết bị & vân tay",
-                path: paths.attendanceDevices,
-              },
-            ]
-          : []),
-        {
-          key: "attendance-history",
-          label: "Lịch sử chấm công",
-          path: paths.attendanceHistory,
-        },
-        {
-          key: "attendance-timesheet",
-          label: "Bảng công của tôi",
-          path: paths.attendanceTimesheet,
-        },
-        ...(hasPermission("ATTENDANCE_HISTORY_VIEW")
-          ? [
-              {
-                key: "attendance-employee-history",
-                label: "Lịch sử nhân viên",
-                path: paths.attendanceEmployeeHistory,
-              },
-            ]
-          : []),
-        ...(hasPermission("ATTENDANCE_TIMESHEET_VIEW")
-          ? [
-              {
-                key: "attendance-employee-timesheet",
-                label: "Bảng công nhân viên",
-                path: paths.attendanceEmployeeTimesheet,
-              },
-            ]
-          : []),
-        ...(hasPermission("PAYROLL_POLICY_SETUP")
-          ? [
-              {
-                key: "attendance-standard-work-days",
-                label: "Công chuẩn",
-                path: paths.attendanceStandardWorkDays,
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      key: "salary",
-      label: "Lương",
-      icon: <FileText className={drawerIconClass} />,
-      expandable: true,
-      children: [
-        ...(!isCandidate
-          ? [
-              {
-                key: "payroll-mine",
-                label: "Bảng lương của tôi",
-                path: paths.payrollMine,
-              },
-            ]
-          : []),
-        ...(hasPermission("PAYROLL_VIEW") ||
-        hasPermission("PAYROLL_MANAGE") ||
-        hasPermission("PAYROLL_APPROVE") ||
-        hasPermission("PAYROLL_PAY")
-          ? [
-              {
-                key: "payroll-management",
-                label: "Bảng lương",
-                path: paths.payrollManagement,
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      key: "payroll-config",
-      label: "Cấu hình tính lương",
-      icon: <AppWindow className={drawerIconClass} />,
-      expandable: true,
-      children: [
-        ...(hasPermission("PAYROLL_POLICY_VIEW")
-          ? [
+    ...(attendanceChildren.length > 0
+      ? [
+          {
+            key: "attendance",
+            label: "Chấm công",
+            icon: <CheckSquare className={drawerIconClass} />,
+            expandable: true,
+            children: attendanceChildren,
+          },
+        ]
+      : []),
+    ...(payrollChildren.length > 0
+      ? [
+          {
+            key: "salary",
+            label: "Lương",
+            icon: <WalletCards className={drawerIconClass} />,
+            expandable: true,
+            children: payrollChildren,
+          },
+        ]
+      : []),
+    ...(hasPermission("PAYROLL_POLICY_VIEW")
+      ? [
+          {
+            key: "payroll-config",
+            label: "Cấu hình tính lương",
+            icon: <Calculator className={drawerIconClass} />,
+            expandable: true,
+            children: [
               {
                 key: "payroll-policies",
                 label: "Chính sách lương",
                 path: paths.payrollPolicies,
               },
-            ]
-          : []),
-      ],
-    },
-    {
-      key: "categories",
-      label: "Danh mục",
-      icon: <Grid3X3 className={drawerIconClass} />,
-      expandable: true,
-      children: [
-        {
-          key: "departments",
-          label: "Bộ phận",
-          path: paths.departments,
-        },
-        {
-          key: "positions",
-          label: "Chức vụ",
-          path: paths.positions,
-        },
-        {
-          key: "work-shifts",
-          label: "Ca làm việc",
-          path: paths.workShifts,
-        },
-      ],
-    },
-    {
-      key: "settings",
-      label: "Cài đặt",
-      icon: <Settings className={drawerIconClass} />,
-    },
+            ],
+          },
+        ]
+      : []),
+    ...(categoryChildren.length > 0
+      ? [
+          {
+            key: "categories",
+            label: "Danh mục",
+            icon: <Grid3X3 className={drawerIconClass} />,
+            expandable: true,
+            children: categoryChildren,
+          },
+        ]
+      : []),
   ];
 }
 

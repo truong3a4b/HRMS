@@ -73,9 +73,6 @@ export function RequestCreatePage() {
             <h1 className="text-3xl font-extrabold tracking-tight text-[#243247]">
               Bạn muốn tạo yêu cầu gì?
             </h1>
-            <p className="mt-3 text-base text-[#667085] max-w-xl mx-auto">
-              Vui lòng chọn một trong các loại đơn bên dưới để bắt đầu điền thông tin và gửi yêu cầu phê duyệt đến quản lý của bạn.
-            </p>
           </div>
 
           <div className="flex flex-col md:flex-row gap-6 mt-4 w-full max-w-6xl mx-auto">

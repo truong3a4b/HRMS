@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { PayrollBonusPenaltyStatus } from "../../generated/prisma/client";
 import { payrollPolicyService } from "../services/payroll-policy.service";
 import { sendResponse } from "../utils/response";
 
@@ -609,11 +610,47 @@ export const payrollPolicyController = {
           typeof req.query.month === "string"
             ? new Date(req.query.month)
             : undefined,
+        status:
+          req.query.status === PayrollBonusPenaltyStatus.ACTIVE ||
+          req.query.status === PayrollBonusPenaltyStatus.CANCELLED
+            ? req.query.status
+            : undefined,
       });
       return sendResponse(
         res,
         200,
         "Payroll bonus penalties fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMyPayrollBonusPenalties(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.payrollBonusPenalties.getMine(
+        req.user!,
+        {
+          month:
+            typeof req.query.month === "string"
+              ? new Date(req.query.month)
+              : undefined,
+          status:
+            req.query.status === PayrollBonusPenaltyStatus.ACTIVE ||
+            req.query.status === PayrollBonusPenaltyStatus.CANCELLED
+              ? req.query.status
+              : undefined,
+        },
+      );
+      return sendResponse(
+        res,
+        200,
+        "My payroll bonus penalties fetched successfully",
         result,
       );
     } catch (error) {
@@ -696,6 +733,25 @@ export const payrollPolicyController = {
         res,
         200,
         "Payroll bonus penalty deleted successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async generateAutoPayrollBonusPenalties(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.payrollBonusPenalties.generateAuto(req.body);
+      return sendResponse(
+        res,
+        200,
+        "Auto payroll penalties generated successfully",
         result,
       );
     } catch (error) {

@@ -10,6 +10,15 @@ import type { MoneyValue, PayrollDetail } from "../types/payroll.types";
 
 type DetailDialog = "overtime" | "allowance" | "bonus" | "penalty" | null;
 
+const payrollStatusLabel: Record<string, string> = {
+  DRAFT: "Nháp",
+  WAITING_APPROVAL: "Chờ duyệt",
+  APPROVED: "Đã duyệt",
+  PARTIALLY_PAID: "Trả một phần",
+  PAID: "Đã thanh toán",
+  CANCELLED: "Đã hủy",
+};
+
 function toNumber(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -208,10 +217,10 @@ function DetailModal({
           </div>
         </div>
 
-        <div className="overflow-auto rounded-xl border border-[#e2e8f0] shadow-sm">
+        <div className="overflow-auto max-h-[50vh] rounded-xl border border-[#e2e8f0] shadow-sm">
           {dialog === "overtime" ? (
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-[#64748b]">
+            <table className="w-full min-w-[760px] text-sm relative">
+              <thead className="sticky top-0 z-10 bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-[#64748b] after:absolute after:bottom-0 after:left-0 after:right-0 after:border-b after:border-[#e2e8f0]">
                 <tr>
                   <th className="px-5 py-3 text-left">Loại ca OT</th>
                   <th className="px-5 py-3 text-right">Công OT</th>
@@ -238,8 +247,8 @@ function DetailModal({
               </tbody>
             </table>
           ) : (
-            <table className="w-full min-w-[620px] text-sm">
-              <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-[#64748b]">
+            <table className="w-full min-w-[620px] text-sm relative">
+              <thead className="sticky top-0 z-10 bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-[#64748b] after:absolute after:bottom-0 after:left-0 after:right-0 after:border-b after:border-[#e2e8f0]">
                 <tr>
                   <th className="px-5 py-3 text-left">Nội dung</th>
                   <th className="px-5 py-3 text-right">Thành tiền</th>
@@ -345,7 +354,7 @@ export function PayrollEmployeeDetailPage() {
                     </div>
                   </div>
                   <span className="rounded-full border border-blue-400/30 bg-blue-500/20 px-4 py-1.5 text-sm font-bold text-blue-200 backdrop-blur-md">
-                    {payroll.status}
+                    {payrollStatusLabel[payroll.status] ?? payroll.status}
                   </span>
                 </div>
                 <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-blue-500 opacity-20 blur-3xl" />

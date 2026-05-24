@@ -7,7 +7,7 @@ import type {
   RequestListResponse,
 } from "../types/request.types";
 
-type RequestTab = "mine" | "pending" | "watching" | "all";
+type RequestTab = "mine" | "pending" | "watching" | "reviewed" | "all";
 
 export function useRequests(tab: RequestTab, isAdmin: boolean) {
   const initialMeta = { page: 1, limit: 10, total: 0, totalPages: 1 };
@@ -38,6 +38,8 @@ export function useRequests(tab: RequestTab, isAdmin: boolean) {
         result = await requestService.getMyPendingApprovals(filters);
       } else if (tab === "watching") {
         result = await requestService.getMyWatchingRequests(filters);
+      } else if (tab === "reviewed") {
+        result = await requestService.getMyReviewedApprovals(filters);
       } else if (tab === "all" && isAdmin) {
         result = await requestService.getAllRequests(filters);
       } else {

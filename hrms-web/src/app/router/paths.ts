@@ -45,6 +45,7 @@ export const paths = {
   // Requests
   requestsCreate: '/requests/create',
   requestsMine: '/requests/mine',
+  requestsEmployee: '/requests/employee',
   requestsWatching: '/requests/watching',
   requestsPending: '/requests/pending',
   requestsAll: '/requests/all',
@@ -63,6 +64,9 @@ export const paths = {
   payrollPeriodOverviewRoute: '/salary/payrolls/:periodId',
   payrollEmployeeDetailRoute: '/salary/payrolls/:periodId/employees/:employeeId',
   payrollMine: '/salary/mine',
+  payrollBonusPenaltiesMine: '/salary/bonus-penalties/mine',
+  payrollBonusPenalties: '/salary/bonus-penalties',
+  payrollBonusPenaltiesLegacy: '/salary/addition',
   payrollPolicies: '/salary/policies',
 
   // Profile

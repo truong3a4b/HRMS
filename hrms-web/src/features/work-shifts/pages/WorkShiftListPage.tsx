@@ -12,6 +12,7 @@ import {
 import { AppLayout } from "../../../app/layouts";
 import { workShiftService } from "../services/workShiftService";
 import type { WorkShift, WorkShiftFormPayload } from "../types/workShift.types";
+import { useAuth } from "../../auth/services/useAuth";
 
 const fieldClass =
   "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
@@ -649,6 +650,9 @@ function WorkShiftFormModal({
 }
 
 export function WorkShiftListPage() {
+  const { user } = useAuth();
+  const canSetup = user?.role === "ADMIN" || user?.permissions?.includes("WORK_SCHEDULE_MANAGE");
+
   const [workShifts, setWorkShifts] = useState<WorkShift[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -768,18 +772,17 @@ export function WorkShiftListPage() {
               <h1 className="text-2xl font-bold text-[#243247]">
                 Danh sách ca làm việc
               </h1>
-              <p className="text-sm text-[#667085]">
-                Quản lý giờ làm, đơn vị công và cấu hình chấm công theo ca
-              </p>
             </div>
-            <button
-              className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
-              type="button"
-              onClick={openAdd}
-            >
-              <Plus className="h-5 w-5" />
-              Thêm ca
-            </button>
+            {canSetup ? (
+              <button
+                className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
+                type="button"
+                onClick={openAdd}
+              >
+                <Plus className="h-5 w-5" />
+                Thêm ca
+              </button>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-3 rounded-xl border border-[#ebedf2] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
@@ -852,7 +855,7 @@ export function WorkShiftListPage() {
                       : 'Nhấn "Thêm ca" để tạo ca làm việc đầu tiên'}
                   </p>
                 </div>
-                {!searchTerm && (
+                {!searchTerm && canSetup && (
                   <button
                     className="mt-1 flex items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8] [&_*]:!text-white"
                     type="button"
@@ -931,21 +934,25 @@ export function WorkShiftListPage() {
                       </div>
 
                       <div className="mt-5 flex gap-2 border-t border-slate-200 pt-3 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
-                          type="button"
-                          onClick={() => void openEdit(workShift)}
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                          Sửa
-                        </button>
-                        <button
-                          className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
-                          type="button"
-                          onClick={() => handleDelete(workShift)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {canSetup ? (
+                          <>
+                            <button
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
+                              type="button"
+                              onClick={() => void openEdit(workShift)}
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                              Sửa
+                            </button>
+                            <button
+                              className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+                              type="button"
+                              onClick={() => handleDelete(workShift)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   ))}

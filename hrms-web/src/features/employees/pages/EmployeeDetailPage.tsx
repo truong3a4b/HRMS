@@ -30,6 +30,7 @@ import {
   provinceOptions,
 } from "../../../shared/data/addressOptions";
 import { employeeService } from "../services/employeeService";
+import { EmployeeJobHistoryList } from "../components/EmployeeJobHistoryList";
 import { useAuth } from "../../auth/services/useAuth";
 import { payrollPolicyService } from "../../payroll-policies/services/payrollPolicyService";
 import type {
@@ -41,6 +42,7 @@ import type {
 } from "../../payroll-policies/types/payrollPolicy.types";
 import type {
   Employee,
+  EmployeeJobHistory,
   EmployeeOption,
   EmployeeStatus,
   UpdateEmployeeAdditionalPayload,
@@ -147,6 +149,15 @@ function countWorkDays(hireDate?: string | null) {
 
 function display(value?: string | number | null) {
   return value == null || value === "" ? "-" : String(value);
+}
+
+function displayImage(url?: string | null, alt = "Image") {
+  if (!url) return "-";
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mt-1 block w-fit overflow-hidden rounded-lg border border-[#eaecf0] transition-opacity hover:opacity-80 bg-slate-50">
+      <img src={url} alt={alt} className="h-20 w-auto object-cover" />
+    </a>
+  );
 }
 
 function lookupName(value?: EmployeeOption | Record<string, unknown> | null) {
@@ -996,6 +1007,7 @@ export function EmployeeDetailPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"personal" | "work" | "payroll">("personal");
   const [employee, setEmployee] = useState<Employee | null>(null);
+  const [jobHistories, setJobHistories] = useState<EmployeeJobHistory[]>([]);
   const [departments, setDepartments] = useState<EmployeeOption[]>([]);
   const [positions, setPositions] = useState<EmployeeOption[]>([]);
   const [insurancePolicies, setInsurancePolicies] = useState<InsurancePolicy[]>([]);
@@ -1010,7 +1022,6 @@ export function EmployeeDetailPage() {
   const [additionalOpen, setAdditionalOpen] = useState(false);
   const [payrollEditType, setPayrollEditType] = useState<PayrollEditType | null>(null);
 
-  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
   const permissions = user?.permissions ?? [];
   const canEditBasic = hasPermission(user?.role, permissions, "EMPLOYEE_UPDATE_BASIC");
   const canEditJob = hasPermission(user?.role, permissions, "EMPLOYEE_UPDATE_JOB");
@@ -1027,9 +1038,15 @@ export function EmployeeDetailPage() {
     setErrorMessage(null);
 
     try {
-      setEmployee(await employeeService.getEmployeeById(id));
+      const [employeeResult, jobHistoryResult] = await Promise.all([
+        employeeService.getEmployeeById(id),
+        employeeService.getJobHistory(id),
+      ]);
+      setEmployee(employeeResult);
+      setJobHistories(jobHistoryResult);
     } catch (error) {
       setEmployee(null);
+      setJobHistories([]);
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsLoading(false);
@@ -1147,11 +1164,11 @@ export function EmployeeDetailPage() {
             },
             {
               label: "Ảnh CCCD mặt trước",
-              value: employee.frontIdentityCardImage ? "Đã cập nhật" : "-",
+              value: displayImage(employee.frontIdentityCardImage, "Mặt trước CCCD"),
             },
             {
               label: "Ảnh CCCD mặt sau",
-              value: employee.backIdentityCardImage ? "Đã cập nhật" : "-",
+              value: displayImage(employee.backIdentityCardImage, "Mặt sau CCCD"),
             },
           ]
         : [],
@@ -1368,6 +1385,12 @@ export function EmployeeDetailPage() {
                       onEdit={() => setWorkOpen(true)}
                     >
                       <DetailGrid rows={workRows} />
+                    </Card>
+                    <Card
+                      title="Lịch sử thay đổi công việc"
+                      icon={<CalendarDays className="h-5 w-5" />}
+                    >
+                      <EmployeeJobHistoryList histories={jobHistories} />
                     </Card>
                   </div>
                 ) : activeTab === "payroll" ? (

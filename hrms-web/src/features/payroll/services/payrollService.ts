@@ -8,6 +8,7 @@ import type {
   PayrollPeriod,
   PayrollPeriodOverview,
   PayrollQuery,
+  RequestPayrollApprovalPayload,
   PayrollSummary,
 } from "../types/payroll.types";
 
@@ -42,9 +43,13 @@ export const payrollService = {
     return response.data.data;
   },
 
-  async requestPeriodApproval(periodId: string) {
+  async requestPeriodApproval(
+    periodId: string,
+    payload: RequestPayrollApprovalPayload,
+  ) {
     const response = await apiClient.post<ApiResponse<PayrollPeriodOverview>>(
       `/payrolls/periods/${periodId}/request-approval`,
+      payload,
     );
 
     return response.data.data;

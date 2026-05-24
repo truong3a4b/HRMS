@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Modal } from "antd";
-import { AlertCircle, Award, Gavel,
+import { AlertCircle, Award, Ban, Gavel,
   BadgePercent,
   Edit2,
   HandCoins,
@@ -26,6 +26,7 @@ import type {
   AutoPenaltyType,
   InsurancePolicy,
   InsurancePolicyPayload,
+  PayrollBonusPenalty,
   PayrollPolicyAssignmentPayload,
   PolicyStatusFilter,
   TaxBracket,
@@ -35,7 +36,7 @@ import type {
 import type { Department } from "../../departments/types/department.types";
 import type { EmployeeOption } from "../../employees/types/employee.types";
 
-type TabKey = "insurance" | "tax" | "attendanceBonus" | "allowances" | "autoPenalties";
+type TabKey = "insurance" | "tax" | "attendanceBonus" | "allowances" | "autoPenalties" | "bonusPenalties";
 type EditablePolicy =
   | InsurancePolicy
   | TaxPolicy
@@ -1251,6 +1252,97 @@ function AssignmentModal({
   );
 }
 
+function BonusPenaltyModal({
+  open,
+  employees,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  employees: EmployeeOption[];
+  onClose: () => void;
+  onSubmit: (payload: {
+    employeeId: string;
+    month: string;
+    amount: string;
+    isBonus: boolean;
+    reason?: string | null;
+  }) => Promise<void>;
+}) {
+  const [employeeId, setEmployeeId] = useState("");
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [amount, setAmount] = useState("");
+  const [isBonus, setIsBonus] = useState(true);
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setEmployeeId("");
+    setMonth(new Date().toISOString().slice(0, 7));
+    setAmount("");
+    setIsBonus(true);
+    setReason("");
+  }, [open]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        employeeId,
+        month: `${month}-01`,
+        amount,
+        isBonus,
+        reason: reason.trim() || null,
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal title="Tạo phiếu thưởng/phạt" open={open} onCancel={onClose} footer={null} width={560}>
+      <form className="grid gap-4" onSubmit={submit}>
+        <label>
+          <span className={labelClass}>Nhân viên <span className="text-[#f04438]">*</span></span>
+          <SearchableSelect
+            placeholder="Chọn nhân viên..."
+            value={employeeId || undefined}
+            onChange={(value: string) => setEmployeeId(value)}
+            options={employees.map((employee) => ({ value: employee.id, label: employee.name }))}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1">
+          <label>
+            <span className={labelClass}>Tháng áp dụng</span>
+            <input className={fieldClass} type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+          </label>
+          <label>
+            <span className={labelClass}>Loại phiếu</span>
+            <select className={fieldClass} value={isBonus ? "bonus" : "penalty"} onChange={(event) => setIsBonus(event.target.value === "bonus")}>
+              <option value="bonus">Thưởng</option>
+              <option value="penalty">Phạt</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span className={labelClass}>Số tiền <span className="text-[#f04438]">*</span></span>
+          <MoneyInput value={amount} onChange={setAmount} placeholder="Nhập số tiền" />
+        </label>
+        <label>
+          <span className={labelClass}>Lý do</span>
+          <textarea className={fieldClass} rows={3} value={reason} onChange={(event) => setReason(event.target.value)} />
+        </label>
+        <div className="flex justify-end gap-2">
+          <button className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-semibold text-[#344054]" type="button" onClick={onClose}>Đóng</button>
+          <button className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" type="submit" disabled={submitting || !employeeId || !amount}>Lưu phiếu</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function PayrollPolicyPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("insurance");
   const [status, setStatus] = useState<PolicyStatusFilter>("all");
@@ -1260,6 +1352,8 @@ export function PayrollPolicyPage() {
   const [attendanceBonusPolicies, setAttendanceBonusPolicies] = useState<AttendanceBonusPolicy[]>([]);
   const [allowancePolicies, setAllowancePolicies] = useState<AllowancePolicy[]>([]);
   const [autoPenaltyPolicies, setAutoPenaltyPolicies] = useState<AutoPenaltyPolicy[]>([]);
+  const [bonusPenalties, setBonusPenalties] = useState<PayrollBonusPenalty[]>([]);
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<EmployeeOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1269,6 +1363,7 @@ export function PayrollPolicyPage() {
   const [attendanceBonusOpen, setAttendanceBonusOpen] = useState(false);
   const [allowanceOpen, setAllowanceOpen] = useState(false);
   const [autoPenaltyOpen, setAutoPenaltyOpen] = useState(false);
+  const [bonusPenaltyOpen, setBonusPenaltyOpen] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [selectedInsurance, setSelectedInsurance] = useState<InsurancePolicy | null>(null);
   const [selectedTax, setSelectedTax] = useState<TaxPolicy | null>(null);
@@ -1317,6 +1412,8 @@ export function PayrollPolicyPage() {
         attendanceBonus,
         allowances,
         autoPenalties,
+        vouchers,
+        employeePage,
         departmentOptions,
         positionOptions,
       ] =
@@ -1326,6 +1423,14 @@ export function PayrollPolicyPage() {
           payrollPolicyService.getAttendanceBonusPolicies(status),
           payrollPolicyService.getAllowancePolicies(status),
           payrollPolicyService.getAutoPenaltyPolicies(status),
+          payrollPolicyService.getPayrollBonusPenalties(),
+          employeeService.getEmployees({
+            page: 1,
+            limit: -1,
+            search: "",
+            departmentId: "",
+            positionId: "",
+          }),
           employeeService.getDepartments(),
           employeeService.getPositions(),
         ]);
@@ -1334,6 +1439,13 @@ export function PayrollPolicyPage() {
       setAttendanceBonusPolicies(attendanceBonus);
       setAllowancePolicies(allowances);
       setAutoPenaltyPolicies(autoPenalties);
+      setBonusPenalties(vouchers);
+      setEmployees(
+        (employeePage?.items ?? []).map((employee) => ({
+          id: employee.id,
+          name: employee.name,
+        })),
+      );
       setDepartments(departmentOptions as Department[]);
       setPositions(positionOptions);
     } catch (error) {
@@ -1358,6 +1470,7 @@ export function PayrollPolicyPage() {
     if (activeTab === "attendanceBonus") setAttendanceBonusOpen(true);
     if (activeTab === "allowances") setAllowanceOpen(true);
     if (activeTab === "autoPenalties") setAutoPenaltyOpen(true);
+    if (activeTab === "bonusPenalties") setBonusPenaltyOpen(true);
   };
 
   const deletePolicy = (policy: EditablePolicy) => {
@@ -1402,7 +1515,89 @@ export function PayrollPolicyPage() {
     setAssignmentOpen(false);
   };
 
+  const visibleBonusPenalties = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+    if (!keyword) return bonusPenalties;
+
+    return bonusPenalties.filter((item) =>
+      [
+        item.employee?.name,
+        item.employee?.employeeId,
+        item.reason,
+        item.autoPenaltyPolicy?.name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword)),
+    );
+  }, [bonusPenalties, searchTerm]);
+
+  const cancelVoucher = (item: PayrollBonusPenalty) => {
+    Modal.confirm({
+      title: "Hủy phiếu thưởng/phạt",
+      content: `Bạn có chắc chắn muốn hủy phiếu "${item.reason || item.id}"?`,
+      okText: "Hủy phiếu",
+      cancelText: "Đóng",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await payrollPolicyService.cancelPayrollBonusPenalty(item.id);
+        await loadData();
+      },
+    });
+  };
+
+  const renderBonusPenaltyRows = () => {
+    if (loading) return <EmptyState text="Đang tải dữ liệu..." />;
+    if (visibleBonusPenalties.length === 0) return <EmptyState text="Chưa có phiếu thưởng/phạt phù hợp" />;
+
+    return (
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+        <table className="w-full min-w-[900px]">
+          <thead className="sticky top-0 z-1">
+            <tr className="border-b border-[#ebedf2] bg-[#f9fafb]">
+              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Nhân viên</th>
+              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Loại phiếu</th>
+              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Tháng áp dụng</th>
+              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Lý do</th>
+              <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-[#667085]">Số tiền</th>
+              <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">Trạng thái</th>
+              <th className="px-5 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-[#667085]">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#ebedf2]">
+            {visibleBonusPenalties.map((item) => (
+              <tr key={item.id} className="transition-colors hover:bg-[#f9fafb]">
+                <td className="px-5 py-4">
+                  <strong className="block text-sm font-semibold text-[#243247]">{item.employee?.name ?? "-"}</strong>
+                  <span className="text-xs text-[#667085]">{item.employee?.employeeId ?? ""}</span>
+                </td>
+                <td className="px-5 py-4">
+                  <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${item.isBonus ? "bg-[#ecfdf3] text-[#027a48]" : "bg-[#fff4ed] text-[#b54708]"}`}>
+                    {item.isBonus ? "Thưởng" : "Phạt"} · {item.source === "AUTO" ? "Tự động" : "Thủ công"}
+                  </span>
+                </td>
+                <td className="px-5 py-4 text-sm text-[#344054]">{formatDate(item.month)}</td>
+                <td className="px-5 py-4 text-sm text-[#344054]">{item.reason || item.autoPenaltyPolicy?.name || "-"}</td>
+                <td className="px-5 py-4 text-right text-sm font-semibold text-[#243247]">{formatMoney(item.amount)}</td>
+                <td className="px-5 py-4">
+                  <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${item.status === "ACTIVE" ? "bg-[#ecfdf3] text-[#027a48]" : "bg-[#f2f4f7] text-[#667085]"}`}>
+                    {item.status === "ACTIVE" ? "Hiệu lực" : "Đã hủy"}
+                  </span>
+                </td>
+                <td className="px-5 py-4 text-center">
+                  <button className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#fef3f2] text-[#b42318] transition-colors hover:bg-[#fee4e2] disabled:cursor-not-allowed disabled:opacity-40" type="button" title="Hủy phiếu" disabled={item.status === "CANCELLED"} onClick={() => cancelVoucher(item)}>
+                    <Ban className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const renderRows = () => {
+    if (activeTab === "bonusPenalties") return renderBonusPenaltyRows();
     if (loading) return <EmptyState text="Đang tải dữ liệu..." />;
     if (activePolicies.length === 0) return <EmptyState text="Chưa có chính sách phù hợp" />;
 
@@ -1569,7 +1764,6 @@ export function PayrollPolicyPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-[#243247]">Chính sách lương</h1>
-              <p className="text-sm text-[#667085]">Quản lý bảo hiểm, thuế thu nhập cá nhân và phụ cấp</p>
             </div>
           </div>
 
@@ -1612,7 +1806,7 @@ export function PayrollPolicyPage() {
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-semibold text-[#344054] shadow-xs transition-all hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5] active:bg-[#e6f0fa]" type="button" onClick={() => setAssignmentOpen(true)}>
+              <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-semibold text-[#344054] shadow-xs transition-all hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5] active:bg-[#e6f0fa] disabled:cursor-not-allowed disabled:opacity-40" type="button" disabled={activeTab === "bonusPenalties"} onClick={() => setAssignmentOpen(true)}>
                 <Users className="h-4 w-4" />
                 Áp dụng chính sách
               </button>
@@ -1699,6 +1893,16 @@ export function PayrollPolicyPage() {
             await payrollPolicyService.createAutoPenaltyPolicy(payload);
           }
           setAutoPenaltyOpen(false);
+          await loadData();
+        }}
+      />
+      <BonusPenaltyModal
+        open={bonusPenaltyOpen}
+        employees={employees}
+        onClose={() => setBonusPenaltyOpen(false)}
+        onSubmit={async (payload) => {
+          await payrollPolicyService.createPayrollBonusPenalty(payload);
+          setBonusPenaltyOpen(false);
           await loadData();
         }}
       />

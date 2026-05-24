@@ -1,8 +1,18 @@
-import { AutoPenaltyType, Prisma } from "../../generated/prisma/client";
+import {
+  AutoPenaltyType,
+  AttendanceStatus,
+  PayrollBonusPenaltySource,
+  PayrollBonusPenaltyStatus,
+  Prisma,
+} from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { ApiError } from "../utils/apiError";
 
 type DecimalInput = string | number | Prisma.Decimal;
+
+type AuthUser = {
+  employeeId?: string;
+};
 
 type PolicyQuery = {
   isActive?: boolean;
@@ -146,7 +156,9 @@ type CreatePayrollBonusPenaltyInput = {
   reason?: string | null;
 };
 
-type UpdatePayrollBonusPenaltyInput = Partial<CreatePayrollBonusPenaltyInput>;
+type UpdatePayrollBonusPenaltyInput = Partial<CreatePayrollBonusPenaltyInput> & {
+  status?: PayrollBonusPenaltyStatus;
+};
 
 type PayrollProfileQuery = {
   employeeId?: string;
@@ -164,6 +176,12 @@ type EmployeeAutoPenaltyPolicyQuery = PayrollProfileQuery & {
 
 type PayrollBonusPenaltyQuery = PayrollProfileQuery & {
   month?: Date;
+  status?: PayrollBonusPenaltyStatus;
+};
+
+type GenerateAutoPayrollBonusPenaltyInput = PayrollProfileQuery & {
+  month: number;
+  year: number;
 };
 
 const policyInclude = {
@@ -477,6 +495,13 @@ const payrollBonusPenaltyInclude = {
       },
     },
   },
+  autoPenaltyPolicy: {
+    select: {
+      id: true,
+      type: true,
+      name: true,
+    },
+  },
 };
 
 const standardWorkDayInclude = {
@@ -536,6 +561,89 @@ const ensurePositiveStandardWorkDays = (standardWorkDays: DecimalInput) => {
     );
   }
 };
+
+const attendedStatuses = new Set<AttendanceStatus>([
+  AttendanceStatus.PRESENT,
+  AttendanceStatus.LATE,
+  AttendanceStatus.EARLY_LEAVE,
+  AttendanceStatus.LATE_AND_EARLY_LEAVE,
+]);
+
+const leaveStatuses = new Set<AttendanceStatus>([
+  AttendanceStatus.ON_LEAVE,
+  AttendanceStatus.PAID_LEAVE,
+  AttendanceStatus.UNPAID_LEAVE,
+]);
+
+const toNumber = (value: unknown) => Number(value ?? 0);
+
+const progressiveCountMultiplier = (count: number) => (count * (count + 1)) / 2;
+
+const calculateTieredPenalty = (
+  count: number,
+  tiers: Array<{
+    fromOccurrence: number;
+    toOccurrence: number | null;
+    amount: unknown;
+  }>,
+) => {
+  if (count <= 0 || tiers.length === 0) {
+    return 0;
+  }
+
+  return tiers.reduce((total, tier) => {
+    const from = tier.fromOccurrence;
+    const to = tier.toOccurrence ?? Number.POSITIVE_INFINITY;
+    const matchedCount = Math.max(0, Math.min(count, to) - from + 1);
+
+    return total + matchedCount * toNumber(tier.amount);
+  }, 0);
+};
+
+const calculatePenaltyOccurrenceAmount = (
+  occurrence: number,
+  policy: {
+    amount: unknown;
+    tiers: Array<{
+      fromOccurrence: number;
+      toOccurrence: number | null;
+      amount: unknown;
+    }>;
+    type: AutoPenaltyType;
+  },
+) => {
+  const isProgressive =
+    policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE ||
+    policy.type === AutoPenaltyType.UNAUTHORIZED_ABSENCE_PROGRESSIVE;
+
+  if (!isProgressive) {
+    return toNumber(policy.amount);
+  }
+
+  const tier = policy.tiers.find(
+    (item) =>
+      occurrence >= item.fromOccurrence &&
+      (item.toOccurrence === null ||
+        item.toOccurrence === undefined ||
+        occurrence <= item.toOccurrence),
+  );
+
+  return tier ? toNumber(tier.amount) : toNumber(policy.amount) * occurrence;
+};
+
+const roundMoney = (value: number) => Math.round(value);
+
+const getMonthRange = (month: number, year: number) => ({
+  start: new Date(Date.UTC(year, month - 1, 1)),
+  end: new Date(Date.UTC(year, month, 1)),
+});
+
+const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
+
+const isDetailOvertime = (detail: {
+  shiftIsOvertime: boolean;
+  workShift: { isOvertime: boolean };
+}) => detail.shiftIsOvertime || detail.workShift.isOvertime;
 
 export const payrollPolicyService = {
   insurancePolicies: {
@@ -1130,6 +1238,7 @@ export const payrollPolicyService = {
         where: {
           ...(query.employeeId ? { employeeId: query.employeeId } : {}),
           ...(query.month ? { month: query.month } : {}),
+          ...(query.status ? { status: query.status } : {}),
           employee: {
             ...(query.departmentId ? { departmentId: query.departmentId } : {}),
             ...(query.positionId ? { positionId: query.positionId } : {}),
@@ -1157,11 +1266,32 @@ export const payrollPolicyService = {
       return item;
     },
 
+    getMine(user: AuthUser, query: Pick<PayrollBonusPenaltyQuery, "month" | "status">) {
+      if (!user.employeeId) {
+        return [];
+      }
+
+      return prisma.payrollBonusPenalty.findMany({
+        where: {
+          employeeId: user.employeeId,
+          ...(query.month ? { month: query.month } : {}),
+          ...(query.status ? { status: query.status } : {}),
+        },
+        include: payrollBonusPenaltyInclude,
+        orderBy: [{ month: "desc" }, { createdAt: "desc" }],
+      });
+    },
+
     async create(data: CreatePayrollBonusPenaltyInput) {
       await ensureEmployeeExists(data.employeeId);
 
       return prisma.payrollBonusPenalty.create({
-        data,
+        data: {
+          ...data,
+          source: PayrollBonusPenaltySource.MANUAL,
+          status: PayrollBonusPenaltyStatus.ACTIVE,
+          cancelledAt: null,
+        },
         include: payrollBonusPenaltyInclude,
       });
     },
@@ -1183,6 +1313,15 @@ export const payrollPolicyService = {
           ...(data.amount !== undefined ? { amount: data.amount } : {}),
           ...(data.isBonus !== undefined ? { isBonus: data.isBonus } : {}),
           ...(data.reason !== undefined ? { reason: data.reason } : {}),
+          ...(data.status !== undefined
+            ? {
+                status: data.status,
+                cancelledAt:
+                  data.status === PayrollBonusPenaltyStatus.CANCELLED
+                    ? new Date()
+                    : null,
+              }
+            : {}),
         },
         include: payrollBonusPenaltyInclude,
       });
@@ -1191,10 +1330,276 @@ export const payrollPolicyService = {
     async delete(id: string) {
       await this.getById(id);
 
-      return prisma.payrollBonusPenalty.delete({
+      return prisma.payrollBonusPenalty.update({
         where: { id },
+        data: {
+          status: PayrollBonusPenaltyStatus.CANCELLED,
+          cancelledAt: new Date(),
+        },
         include: payrollBonusPenaltyInclude,
       });
+    },
+
+    async generateAuto(data: GenerateAutoPayrollBonusPenaltyInput) {
+      ensureMonthYear(data.month, data.year);
+      const { start, end } = getMonthRange(data.month, data.year);
+
+      const employees = await prisma.employee.findMany({
+        where: {
+          ...(data.employeeId ? { id: data.employeeId } : {}),
+          ...(data.departmentId ? { departmentId: data.departmentId } : {}),
+          ...(data.positionId ? { positionId: data.positionId } : {}),
+          autoPenaltyPolicies: {
+            some: {
+              autoPenaltyPolicy: {
+                isActive: true,
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          workSchedules: {
+            where: {
+              date: {
+                gte: start,
+                lt: end,
+              },
+            },
+            include: {
+              shiftLinks: {
+                include: {
+                  workShift: true,
+                },
+              },
+            },
+          },
+          attendanceRecords: {
+            where: {
+              date: {
+                gte: start,
+                lt: end,
+              },
+            },
+            include: {
+              details: {
+                include: {
+                  workShift: true,
+                },
+              },
+            },
+          },
+          autoPenaltyPolicies: {
+            include: {
+              autoPenaltyPolicy: {
+                include: {
+                  tiers: {
+                    orderBy: { fromOccurrence: "asc" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      let createdCount = 0;
+      let updatedCount = 0;
+      let skippedCount = 0;
+      let cancelledCount = 0;
+
+      await Promise.all(
+        employees.flatMap((employee) => {
+          const attendedDetails = employee.attendanceRecords.flatMap((record) =>
+            record.details
+              .filter((detail) => attendedStatuses.has(detail.status))
+              .map((detail) => ({
+                ...detail,
+                recordDate: record.date,
+              })),
+          );
+          const attendedRegularDateKeys = new Set(
+            attendedDetails
+              .filter((detail) => !isDetailOvertime(detail))
+              .map((detail) => getDateKey(detail.recordDate)),
+          );
+          const attendanceDetailsByDate = new Map<
+            string,
+            Array<(typeof employee.attendanceRecords)[number]["details"][number]>
+          >();
+
+          employee.attendanceRecords.forEach((record) => {
+            attendanceDetailsByDate.set(getDateKey(record.date), record.details);
+          });
+
+          const unauthorizedAbsenceDays = employee.workSchedules.reduce(
+            (total, schedule) => {
+              const hasRegularWork = schedule.shiftLinks.some(
+                (shiftLink) => !shiftLink.workShift.isOvertime,
+              );
+
+              if (!hasRegularWork) {
+                return total;
+              }
+
+              const dateKey = getDateKey(schedule.date);
+              const details = attendanceDetailsByDate.get(dateKey) ?? [];
+              const hasAbsentRegularShift = details.some(
+                (detail) =>
+                  !isDetailOvertime(detail) &&
+                  detail.status === AttendanceStatus.ABSENT,
+              );
+              const hasApprovedLeave = details.some(
+                (detail) =>
+                  !isDetailOvertime(detail) && leaveStatuses.has(detail.status),
+              );
+
+              if (attendedRegularDateKeys.has(dateKey)) {
+                return total;
+              }
+
+              if (hasAbsentRegularShift) {
+                return total + 1;
+              }
+
+              return total + (hasApprovedLeave ? 0 : 1);
+            },
+            0,
+          );
+
+          const lateEarlyOccurrences = attendedDetails
+            .filter((detail) => !isDetailOvertime(detail))
+            .reduce((total, detail) => {
+              if (detail.status === AttendanceStatus.LATE_AND_EARLY_LEAVE) {
+                return total + 2;
+              }
+
+              if (
+                detail.status === AttendanceStatus.LATE ||
+                detail.status === AttendanceStatus.EARLY_LEAVE
+              ) {
+                return total + 1;
+              }
+
+              return total;
+            }, 0);
+
+          return employee.autoPenaltyPolicies.map(async (assignment) => {
+            const policy = assignment.autoPenaltyPolicy;
+            if (!policy.isActive) {
+              skippedCount += 1;
+              return;
+            }
+
+            const violationCount =
+              policy.type === AutoPenaltyType.LATE_EARLY ||
+              policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
+                ? lateEarlyOccurrences
+                : unauthorizedAbsenceDays;
+            const occurrenceKeys = new Set(
+              Array.from({ length: violationCount }, (_, index) =>
+                `auto:${policy.type}:${index + 1}`,
+              ),
+            );
+            const existingItems = await prisma.payrollBonusPenalty.findMany({
+              where: {
+                employeeId: employee.id,
+                autoPenaltyPolicyId: policy.id,
+                source: PayrollBonusPenaltySource.AUTO,
+                month: {
+                  gte: start,
+                  lt: end,
+                },
+              },
+            });
+            const staleItems = existingItems.filter(
+              (item) =>
+                item.status === PayrollBonusPenaltyStatus.ACTIVE &&
+                (!item.occurrenceKey || !occurrenceKeys.has(item.occurrenceKey)),
+            );
+
+            if (staleItems.length > 0) {
+              await Promise.all(
+                staleItems.map((item) =>
+                  prisma.payrollBonusPenalty.update({
+                    where: { id: item.id },
+                    data: {
+                      status: PayrollBonusPenaltyStatus.CANCELLED,
+                      cancelledAt: new Date(),
+                    },
+                  }),
+                ),
+              );
+              cancelledCount += staleItems.length;
+            }
+
+            if (violationCount <= 0) {
+              skippedCount += 1;
+              return;
+            }
+
+            await Promise.all(
+              Array.from({ length: violationCount }, async (_, index) => {
+                const occurrenceNumber = index + 1;
+                const occurrenceKey = `auto:${policy.type}:${occurrenceNumber}`;
+                const existing = existingItems.find(
+                  (item) => item.occurrenceKey === occurrenceKey,
+                );
+                const amount = calculatePenaltyOccurrenceAmount(
+                  occurrenceNumber,
+                  policy,
+                );
+
+                if (
+                  amount <= 0 ||
+                  existing?.status === PayrollBonusPenaltyStatus.CANCELLED
+                ) {
+                  skippedCount += 1;
+                  return;
+                }
+
+                const payload = {
+                  employeeId: employee.id,
+                  month: start,
+                  autoPenaltyPolicyId: policy.id,
+                  isBonus: false,
+                  source: PayrollBonusPenaltySource.AUTO,
+                  status: PayrollBonusPenaltyStatus.ACTIVE,
+                  violationCount: 1,
+                  occurrenceKey,
+                  occurredAt: start,
+                  reason: `${policy.name} - lần ${occurrenceNumber}`,
+                  amount: roundMoney(amount),
+                  cancelledAt: null,
+                };
+
+                if (existing) {
+                  await prisma.payrollBonusPenalty.update({
+                    where: { id: existing.id },
+                    data: payload,
+                  });
+                  updatedCount += 1;
+                  return;
+                }
+
+                await prisma.payrollBonusPenalty.create({
+                  data: payload,
+                });
+                createdCount += 1;
+              }),
+            );
+          });
+        }),
+      );
+
+      return {
+        month: data.month,
+        year: data.year,
+        createdCount,
+        updatedCount,
+        skippedCount,
+        cancelledCount,
+      };
     },
   },
 

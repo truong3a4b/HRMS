@@ -346,13 +346,7 @@ export function ScheduleWeeklyPage({
                   <RefreshCcw className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-1 text-sm text-slate-500">
-                {isSelfSchedule
-                  ? "Theo dõi ca làm việc theo từng ngày trong tháng"
-                  : "Xem và điều chỉnh lịch làm việc theo từng nhân viên"}
-              </p>
             </div>
-
             {!isSelfSchedule && (
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h3 className="mb-3 text-sm font-bold text-slate-800">

@@ -2,6 +2,8 @@ import {
   ApprovalMode,
   AttendanceStatus,
   LateEarlyType,
+  PayrollPeriodStatus,
+  PayrollStatus,
   LeaveType,
   Prisma,
   RequestApprovalStatus,
@@ -17,6 +19,13 @@ const userSummarySelect = {
   id: true,
   email: true,
   role: true,
+  employee: {
+    select: {
+      id: true,
+      employeeId: true,
+      name: true,
+    },
+  },
 } satisfies Prisma.UserSelect;
 
 const requestInclude = {
@@ -47,8 +56,17 @@ const requestInclude = {
       workShift: true,
     },
   },
-  attendanceCorrectionRequest: true,
+  attendanceCorrectionRequest: {
+    include: {
+      workShift: true,
+    },
+  },
   workScheduleRequest: true,
+  payrollApprovalRequest: {
+    include: {
+      period: true,
+    },
+  },
 } satisfies Prisma.RequestInclude;
 
 export type RequestWithDetails = Prisma.RequestGetPayload<{
@@ -60,6 +78,7 @@ export type RequestListScope =
   | "mine"
   | "watching"
   | "pending"
+  | "reviewed"
   | "assigned";
 
 export type RequestListFilters = {
@@ -569,6 +588,17 @@ const buildAccessCondition = (
     };
   }
 
+  if (scope === "reviewed") {
+    return {
+      approvals: {
+        some: {
+          approverId: userId,
+          status: { not: RequestApprovalStatus.PENDING },
+        },
+      },
+    };
+  }
+
   if (scope === "assigned") {
     return { approvals: { some: { approverId: userId } } };
   }
@@ -755,6 +785,8 @@ const executeRequestLogic = async (
   switch (request.type) {
     case RequestType.SCHEDULE_APPROVAL:
       return await executeScheduleApprovalLogic(tx, request, decidedAt);
+    case RequestType.PAYROLL_APPROVAL:
+      return await executePayrollApprovalLogic(tx, request, decidedAt);
     case RequestType.LEAVE:
       return await executeLeaveLogic(tx, request, decidedAt);
     case RequestType.LATE_EARLY:
@@ -769,6 +801,98 @@ const executeRequestLogic = async (
       const _exhaustiveCheck: never = request.type;
       return _exhaustiveCheck;
   }
+};
+
+const revertPayrollApprovalLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+) => {
+  if (request.type !== RequestType.PAYROLL_APPROVAL) {
+    return;
+  }
+
+  const approvalRequest = await tx.payrollApprovalRequest.findUnique({
+    where: { requestId: request.id },
+    select: { periodId: true },
+  });
+
+  if (!approvalRequest) {
+    return;
+  }
+
+  const period = await tx.payrollPeriod.findUnique({
+    where: { id: approvalRequest.periodId },
+    select: { status: true },
+  });
+
+  if (period?.status !== PayrollPeriodStatus.WAITING_APPROVAL) {
+    return;
+  }
+
+  await tx.payroll.updateMany({
+    where: {
+      periodId: approvalRequest.periodId,
+      status: PayrollStatus.WAITING_APPROVAL,
+    },
+    data: { status: PayrollStatus.DRAFT },
+  });
+  await tx.payrollPeriod.update({
+    where: { id: approvalRequest.periodId },
+    data: {
+      status: PayrollPeriodStatus.DRAFT,
+      requestedAt: null,
+    },
+  });
+};
+
+const executePayrollApprovalLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  const approvalRequest = await tx.payrollApprovalRequest.findUnique({
+    where: { requestId: request.id },
+    select: { periodId: true },
+  });
+
+  if (!approvalRequest) {
+    throw new ApiError(
+      400,
+      "Payroll approval request data is missing",
+      "PAYROLL_APPROVAL_REQUEST_NOT_FOUND",
+    );
+  }
+
+  const period = await tx.payrollPeriod.findUnique({
+    where: { id: approvalRequest.periodId },
+    select: { status: true },
+  });
+
+  if (period?.status !== PayrollPeriodStatus.WAITING_APPROVAL) {
+    throw new ApiError(
+      400,
+      "Only payroll periods waiting for approval can be approved",
+      "INVALID_PAYROLL_PERIOD_STATUS",
+    );
+  }
+
+  await tx.payroll.updateMany({
+    where: {
+      periodId: approvalRequest.periodId,
+      status: PayrollStatus.WAITING_APPROVAL,
+    },
+    data: {
+      status: PayrollStatus.APPROVED,
+      approvedAt: decidedAt,
+    },
+  });
+  await tx.payrollPeriod.update({
+    where: { id: approvalRequest.periodId },
+    data: {
+      status: PayrollPeriodStatus.APPROVED,
+      approvedAt: decidedAt,
+    },
+  });
 };
 
 /**
@@ -1514,6 +1638,7 @@ export const requestService = {
 
       // Nếu approver reject thì reject ngay đơn
       if (input.decision === RequestApprovalStatus.REJECTED) {
+        await revertPayrollApprovalLogic(tx, latestRequest);
         const updatedRequest = await tx.request.update({
           where: {
             id: requestId,
@@ -1609,9 +1734,18 @@ export const requestService = {
 
     const cancelledAt = new Date();
 
-    return updateRequestWithDetails(requestId, {
-      status: RequestStatus.CANCELLED,
-      cancelledAt,
+    return prisma.$transaction(async (tx) => {
+      await revertPayrollApprovalLogic(tx, request);
+      const updatedRequest = await tx.request.update({
+        where: { id: requestId },
+        data: {
+          status: RequestStatus.CANCELLED,
+          cancelledAt,
+        },
+        include: requestInclude,
+      });
+
+      return sortApprovals(updatedRequest);
     });
   },
 };

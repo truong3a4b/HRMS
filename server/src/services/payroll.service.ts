@@ -1,10 +1,15 @@
 import {
   AutoPenaltyType,
+  ApprovalMode,
   AttendanceStatus,
+  PayrollBonusPenaltySource,
+  PayrollBonusPenaltyStatus,
   PayrollPaymentMode,
   PayrollPeriodStatus,
   PayrollStatus,
   Prisma,
+  RequestStatus,
+  RequestType,
   UserRole,
 } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
@@ -317,6 +322,10 @@ const payrollDetailInclude = {
           isBonus: true,
           reason: true,
           amount: true,
+          source: true,
+          status: true,
+          violationCount: true,
+          autoPenaltyPolicyId: true,
         },
       },
     },
@@ -357,6 +366,14 @@ type PayrollPeriodInput = {
   periodId?: string;
 };
 
+type PayrollApprovalRequestInput = {
+  title?: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
 type PayrollPeriodEmployeeInput = PayrollPeriodInput & {
   employeeId: string;
 };
@@ -388,6 +405,9 @@ const requirePermission = (user: AuthUser, permissions: PermissionKey[]) => {
     throw new ApiError(403, "Forbidden", "FORBIDDEN");
   }
 };
+
+const normalizeIds = (values: string[] = []) =>
+  [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 
 const attendedStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.PRESENT,
@@ -473,6 +493,45 @@ const getShiftHours = (start: Date, end: Date) => {
 
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
+const isSameOrAfterDate = (date: Date, compare: Date) =>
+  getDateKey(date) >= getDateKey(compare);
+
+const isBeforeDate = (date: Date, compare: Date) =>
+  getDateKey(date) < getDateKey(compare);
+
+const isJobHistoryActiveOnDate = (
+  date: Date,
+  history: { effectiveFrom: Date; effectiveTo: Date | null },
+) =>
+  isSameOrAfterDate(date, history.effectiveFrom) &&
+  (!history.effectiveTo || isBeforeDate(date, history.effectiveTo));
+
+const getJobHistoryForDate = <T extends { effectiveFrom: Date; effectiveTo: Date | null }>(
+  histories: T[],
+  date: Date,
+) => {
+  for (let index = histories.length - 1; index >= 0; index -= 1) {
+    if (isJobHistoryActiveOnDate(date, histories[index])) {
+      return histories[index];
+    }
+  }
+
+  return null;
+};
+
+const getSalaryForDate = (
+  histories: Array<{
+    salary: Prisma.Decimal | null;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+  }>,
+  date: Date,
+  fallbackSalary: unknown,
+) => {
+  const history = getJobHistoryForDate(histories, date);
+  return toNumber(history?.salary ?? fallbackSalary);
+};
+
 const calculateProgressiveTax = (
   taxableIncome: number,
   brackets: Array<{
@@ -510,6 +569,37 @@ const ensureEmployeeExists = async (employeeId: string) => {
   if (!employee) {
     throw new ApiError(404, "Employee not found", "EMPLOYEE_NOT_FOUND");
   }
+};
+
+const calculatePenaltyOccurrenceAmount = (
+  occurrence: number,
+  policy: {
+    amount: unknown;
+    tiers: Array<{
+      fromOccurrence: number;
+      toOccurrence: number | null;
+      amount: unknown;
+    }>;
+    type: AutoPenaltyType;
+  },
+) => {
+  const isProgressive =
+    policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE ||
+    policy.type === AutoPenaltyType.UNAUTHORIZED_ABSENCE_PROGRESSIVE;
+
+  if (!isProgressive) {
+    return toNumber(policy.amount);
+  }
+
+  const tier = policy.tiers.find(
+    (item) =>
+      occurrence >= item.fromOccurrence &&
+      (item.toOccurrence === null ||
+        item.toOccurrence === undefined ||
+        occurrence <= item.toOccurrence),
+  );
+
+  return tier ? toNumber(tier.amount) : toNumber(policy.amount) * occurrence;
 };
 
 const assertValidPaymentInput = (data: CreatePayrollPaymentBatchInput) => {
@@ -790,6 +880,18 @@ const calculatePayrollForEmployee = async (
     select: {
       id: true,
       salary: true,
+      jobHistories: {
+        where: {
+          effectiveFrom: { lt: end },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: start } }],
+        },
+        select: {
+          salary: true,
+          effectiveFrom: true,
+          effectiveTo: true,
+        },
+        orderBy: { effectiveFrom: "asc" },
+      },
       payrollProfile: {
         include: {
           insurancePolicy: true,
@@ -865,6 +967,8 @@ const calculatePayrollForEmployee = async (
             gte: start,
             lt: end,
           },
+          status: PayrollBonusPenaltyStatus.ACTIVE,
+          source: PayrollBonusPenaltySource.MANUAL,
         },
       },
     },
@@ -894,6 +998,28 @@ const calculatePayrollForEmployee = async (
   const standardWorkDays = configuredStandardWorkDays
     ? toNumber(configuredStandardWorkDays.standardWorkDays)
     : scheduledStandardWorkDays;
+  const effectiveBaseSalary =
+    standardWorkDays > 0 && scheduledStandardWorkDays > 0
+      ? employee.workSchedules.reduce((total, schedule) => {
+          const regularWorkUnits = schedule.shiftLinks.reduce(
+            (dayTotal, shiftLink) => {
+              if (shiftLink.workShift.isOvertime) {
+                return dayTotal;
+              }
+
+              return dayTotal + toNumber(shiftLink.workShift.workUnits);
+            },
+            0,
+          );
+
+          return (
+            total +
+            (getSalaryForDate(employee.jobHistories, schedule.date, baseSalary) /
+              standardWorkDays) *
+              regularWorkUnits
+          );
+        }, 0)
+      : baseSalary;
 
   const attendedDetails = employee.attendanceRecords.flatMap((record) =>
     record.details
@@ -912,9 +1038,19 @@ const calculatePayrollForEmployee = async (
     return total + getDetailWorkUnits(detail);
   }, 0);
 
-  const dailyRate = standardWorkDays > 0 ? baseSalary / standardWorkDays : 0;
-  const hourlyRate = dailyRate / 8;
-  const actualSalary = dailyRate * actualWorkDays;
+  const getDailyRateForDate = (date: Date) =>
+    standardWorkDays > 0
+      ? getSalaryForDate(employee.jobHistories, date, baseSalary) /
+        standardWorkDays
+      : 0;
+  const getHourlyRateForDate = (date: Date) => getDailyRateForDate(date) / 8;
+  const actualSalary = attendedDetails.reduce((total, detail) => {
+    if (isDetailOvertime(detail)) {
+      return total;
+    }
+
+    return total + getDailyRateForDate(detail.recordDate) * getDetailWorkUnits(detail);
+  }, 0);
 
   const attendedRegularDateKeys = new Set(
     attendedDetails
@@ -1008,8 +1144,9 @@ const calculatePayrollForEmployee = async (
           : getShiftHours(detail.shiftStartTime, detail.shiftEndTime) ||
             workUnits * 8;
       const multiplier = getDetailOvertimeMultiplier(detail);
+      const hourlyRate = getHourlyRateForDate(detail.recordDate);
       const amount = hourlyRate * hours * multiplier;
-      const key = detail.workShiftId;
+      const key = `${detail.workShiftId}:${roundMoney(hourlyRate)}`;
       const existing = overtimeLineMap.get(key);
 
       overtimeLineMap.set(key, {
@@ -1070,10 +1207,11 @@ const calculatePayrollForEmployee = async (
       amount: roundMoney(Math.abs(toNumber(item.amount))),
     }));
 
-  employee.autoPenaltyPolicies
+  const autoPenaltyVouchers = await Promise.all(
+    employee.autoPenaltyPolicies
     .map((assignment) => assignment.autoPenaltyPolicy)
     .filter((policy) => policy.isActive)
-    .forEach((policy) => {
+    .map(async (policy) => {
       const baseAmount = toNumber(policy.amount);
       const isProgressive =
         policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE ||
@@ -1084,9 +1222,101 @@ const calculatePayrollForEmployee = async (
           ? lateEarlyOccurrences
           : unauthorizedAbsenceDays;
 
-      if (violationCount <= 0) {
-        return;
+      const existingItems = await prisma.payrollBonusPenalty.findMany({
+        where: {
+          employeeId,
+          autoPenaltyPolicyId: policy.id,
+          source: PayrollBonusPenaltySource.AUTO,
+          month: {
+            gte: start,
+            lt: end,
+          },
+        },
+      });
+      const occurrenceKeys = new Set(
+        Array.from({ length: violationCount }, (_, index) =>
+          `auto:${policy.type}:${index + 1}`,
+        ),
+      );
+      const staleItems = existingItems.filter(
+        (item) =>
+          item.status === PayrollBonusPenaltyStatus.ACTIVE &&
+          (!item.occurrenceKey || !occurrenceKeys.has(item.occurrenceKey)),
+      );
+
+      if (staleItems.length > 0) {
+        await Promise.all(
+          staleItems.map((item) =>
+            prisma.payrollBonusPenalty.update({
+              where: { id: item.id },
+              data: {
+                status: PayrollBonusPenaltyStatus.CANCELLED,
+                cancelledAt: new Date(),
+              },
+            }),
+          ),
+        );
       }
+      const existing = existingItems[0];
+
+      if (violationCount <= 0) {
+        if (existing?.status === PayrollBonusPenaltyStatus.ACTIVE) {
+          await prisma.payrollBonusPenalty.update({
+            where: { id: existing.id },
+            data: {
+              status: PayrollBonusPenaltyStatus.CANCELLED,
+              cancelledAt: new Date(),
+            },
+          });
+        }
+
+        return null;
+      }
+
+      return Promise.all(
+        Array.from({ length: violationCount }, async (_, index) => {
+          const occurrenceNumber = index + 1;
+          const occurrenceKey = `auto:${policy.type}:${occurrenceNumber}`;
+          const existingOccurrence = existingItems.find(
+            (item) => item.occurrenceKey === occurrenceKey,
+          );
+          const amount = calculatePenaltyOccurrenceAmount(
+            occurrenceNumber,
+            policy,
+          );
+
+          if (
+            amount <= 0 ||
+            existingOccurrence?.status === PayrollBonusPenaltyStatus.CANCELLED
+          ) {
+            return null;
+          }
+
+          const data = {
+            employeeId,
+            month: start,
+            autoPenaltyPolicyId: policy.id,
+            isBonus: false,
+            source: PayrollBonusPenaltySource.AUTO,
+            status: PayrollBonusPenaltyStatus.ACTIVE,
+            violationCount: 1,
+            occurrenceKey,
+            occurredAt: start,
+            reason: `${policy.name} - lần ${occurrenceNumber}`,
+            amount: roundMoney(amount),
+            cancelledAt: null,
+          };
+
+          return existingOccurrence
+            ? prisma.payrollBonusPenalty.update({
+                where: { id: existingOccurrence.id },
+                data,
+              })
+            : prisma.payrollBonusPenalty.create({
+                data,
+              });
+        }),
+      );
 
       const amount = isProgressive
         ? policy.tiers.length > 0
@@ -1095,14 +1325,46 @@ const calculatePayrollForEmployee = async (
         : baseAmount * violationCount;
 
       if (amount <= 0) {
-        return;
+        return null;
       }
 
-      bonusPenaltyLines.push({
+      if (existing?.status === PayrollBonusPenaltyStatus.CANCELLED) {
+        return null;
+      }
+
+      const data = {
+        employeeId,
+        month: start,
         autoPenaltyPolicyId: policy.id,
         isBonus: false,
+        source: PayrollBonusPenaltySource.AUTO,
+        status: PayrollBonusPenaltyStatus.ACTIVE,
+        violationCount,
         reason: `${policy.name} (${violationCount} lần)`,
         amount: roundMoney(amount),
+        cancelledAt: null,
+      };
+
+      return existing
+        ? prisma.payrollBonusPenalty.update({
+            where: { id: existing.id },
+            data,
+          })
+        : prisma.payrollBonusPenalty.create({
+            data,
+          });
+    }),
+  );
+
+  autoPenaltyVouchers
+    .flat()
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .forEach((item) => {
+      bonusPenaltyLines.push({
+        payrollBonusPenaltyId: item.id,
+        isBonus: false,
+        reason: item.reason,
+        amount: roundMoney(Math.abs(toNumber(item.amount))),
       });
     });
 
@@ -1143,7 +1405,8 @@ const calculatePayrollForEmployee = async (
 
   const insurancePolicy = payrollProfile?.insurancePolicy;
   const taxPolicy = payrollProfile?.taxPolicy;
-  const insuranceBase = toNumber(payrollProfile?.insuranceSalary) || baseSalary;
+  const insuranceBase =
+    toNumber(payrollProfile?.insuranceSalary) || effectiveBaseSalary;
 
   const socialInsurance =
     payrollProfile?.isInsuranceApplicable && insurancePolicy
@@ -1342,15 +1605,29 @@ export const payrollService = {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
     const period = await resolvePayrollPeriod(data, user.id);
     assertDraftOrCancelledPeriod(period);
+    const { start, end } = getMonthRange(period.month, period.year);
 
     const employees = await prisma.employee.findMany({
       where: {
-        departmentId: { in: data.departmentIds },
-        positionId: { in: data.positionIds },
+        OR: [
+          {
+            departmentId: { in: data.departmentIds },
+            positionId: { in: data.positionIds },
+          },
+          {
+            jobHistories: {
+              some: {
+                departmentId: { in: data.departmentIds },
+                positionId: { in: data.positionIds },
+                effectiveFrom: { lt: end },
+                OR: [{ effectiveTo: null }, { effectiveTo: { gt: start } }],
+              },
+            },
+          },
+        ],
       },
       select: {
         id: true,
-        salary: true,
       },
       orderBy: { name: "asc" },
     });
@@ -1713,10 +1990,27 @@ export const payrollService = {
     return this.getPeriodOverview(user, { ...data, periodId: period.id });
   },
 
-  async requestPeriodApproval(user: AuthUser, data: PayrollPeriodInput) {
+  async requestPeriodApproval(
+    user: AuthUser,
+    data: PayrollPeriodInput,
+    approvalInput: PayrollApprovalRequestInput,
+  ) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
     const period = await findPayrollPeriodByInput(data);
     assertDraftPeriod(period);
+    const approverIds = normalizeIds(approvalInput.approverIds);
+    const watcherIds = normalizeIds(approvalInput.watcherIds);
+
+    if (approverIds.length === 0) {
+      throw new ApiError(400, "At least one approver is required");
+    }
+
+    if (approverIds.includes(user.id) || watcherIds.includes(user.id)) {
+      throw new ApiError(
+        400,
+        "Requester cannot be an approver or watcher of the same request",
+      );
+    }
 
     const payrolls = await prisma.payroll.findMany({
       where: {
@@ -1745,18 +2039,83 @@ export const payrollService = {
       );
     }
 
-    await prisma.payroll.updateMany({
-      where: {
-        periodId: period.id,
-      },
-      data: { status: PayrollStatus.WAITING_APPROVAL },
+    const users = await prisma.user.findMany({
+      where: { id: { in: [...approverIds, ...watcherIds] } },
+      select: { id: true },
     });
-    await prisma.payrollPeriod.update({
-      where: { id: period.id },
-      data: {
-        status: PayrollPeriodStatus.WAITING_APPROVAL,
-        requestedAt: new Date(),
+
+    if (users.length !== new Set([...approverIds, ...watcherIds]).size) {
+      throw new ApiError(400, "One or more approvers/watchers do not exist");
+    }
+
+    const existingRequest = await prisma.request.findFirst({
+      where: {
+        status: { in: [RequestStatus.PENDING, RequestStatus.PROCESSING] },
+        payrollApprovalRequest: { periodId: period.id },
       },
+      select: { id: true },
+    });
+
+    if (existingRequest) {
+      throw new ApiError(
+        400,
+        "This payroll period already has a pending approval request",
+        "PAYROLL_APPROVAL_REQUEST_EXISTS",
+      );
+    }
+
+    const requestedAt = new Date();
+    const title =
+      approvalInput.title?.trim() ||
+      `Duyệt kỳ lương tháng ${period.month}/${period.year}`;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.request.create({
+        data: {
+          type: RequestType.PAYROLL_APPROVAL,
+          title,
+          description: approvalInput.description,
+          requesterId: user.id,
+          approvalMode: approvalInput.approvalMode ?? ApprovalMode.PARALLEL,
+          status: RequestStatus.PENDING,
+          currentStep: 1,
+          approvals: {
+            create: approverIds.map((approverId, index) => ({
+              approverId,
+              stepOrder: index + 1,
+            })),
+          },
+          watchers: {
+            create: watcherIds.map((watcherId) => ({
+              userId: watcherId,
+            })),
+          },
+          payrollApprovalRequest: {
+            create: {
+              periodId: period.id,
+              month: period.month,
+              year: period.year,
+              note: period.note,
+            },
+          },
+        },
+      });
+
+      await tx.payroll.updateMany({
+        where: {
+          periodId: period.id,
+        },
+        data: { status: PayrollStatus.WAITING_APPROVAL },
+      });
+      await tx.payrollPeriod.update({
+        where: { id: period.id },
+        data: {
+          status: PayrollPeriodStatus.WAITING_APPROVAL,
+          requestedAt,
+          approvedAt: null,
+          cancelledAt: null,
+        },
+      });
     });
 
     return this.getPeriodOverview(user, { ...data, periodId: period.id });
@@ -1906,10 +2265,18 @@ export const payrollService = {
     });
   },
 
-  async requestApproval(user: AuthUser, id: string) {
+  async requestApproval(
+    user: AuthUser,
+    id: string,
+    approvalInput: PayrollApprovalRequestInput,
+  ) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
     const payroll = await getPayrollOrThrow(id);
-    return this.requestPeriodApproval(user, { periodId: payroll.periodId });
+    return this.requestPeriodApproval(
+      user,
+      { periodId: payroll.periodId },
+      approvalInput,
+    );
   },
 
   async approve(user: AuthUser, id: string) {

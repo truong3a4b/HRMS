@@ -1036,11 +1036,6 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
               <h1 className="text-2xl font-bold text-[#243247]">
                 {isMine ? "Bảng lương của tôi" : "Bảng lương"}
               </h1>
-              <p className="text-sm text-[#667085]">
-                {isMine
-                  ? "Theo dõi các kỳ lương đã được duyệt hoặc đã thanh toán"
-                  : "Quản lý kỳ lương, tổng hợp lương nhân viên và luồng duyệt"}
-              </p>
             </div>
             {!isMine && canManage ? (
               <button

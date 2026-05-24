@@ -19,9 +19,11 @@ import {
 import { AppLayout } from "../../../app/layouts";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
 import { useAuth } from "../../auth/services/useAuth";
+import { EmployeeJobHistoryList } from "../../employees/components/EmployeeJobHistoryList";
 import { employeeService } from "../../employees/services/employeeService";
 import type {
   Employee,
+  EmployeeJobHistory,
   UpdateEmployeeAdditionalPayload,
   UpdateEmployeeBasicPayload,
 } from "../../employees/types/employee.types";
@@ -37,7 +39,7 @@ import type {
 
 type DetailRow = {
   label: string;
-  value: string;
+  value: React.ReactNode;
 };
 
 type ProfileKind = "employee" | "candidate" | "account";
@@ -67,6 +69,24 @@ const applicationStatusLabels: Record<string, string> = {
 
 function display(value?: string | number | null) {
   return value == null || value === "" ? "-" : String(value);
+}
+
+function displayImage(url?: string | null, alt = "Image") {
+  if (!url) return "-";
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mt-1 block w-fit overflow-hidden rounded-lg border border-[#eaecf0] transition-opacity hover:opacity-80 bg-slate-50">
+      <img src={url} alt={alt} className="h-20 w-auto object-cover" />
+    </a>
+  );
+}
+
+function displayLink(url?: string | null, label = "Tải xuống") {
+  if (!url) return "-";
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="text-[#006fd5] hover:underline font-medium">
+      {label}
+    </a>
+  );
 }
 
 function lookupName(value: unknown) {
@@ -104,15 +124,15 @@ function formatPercent(value?: string | number | null) {
 
 function formatPolicyPeriod(from?: string | null, to?: string | null) {
   if (!from && !to) return "-";
-  return `${formatDate(from)} - ${to ? formatDate(to) : "Hien tai"}`;
+  return `${formatDate(from)} - ${to ? formatDate(to) : "Hiện tại"}`;
 }
 
 function getAutoPenaltyTypeLabel(type?: string) {
   const labels: Record<string, string> = {
-    LATE_EARLY: "Di muon/ve som",
-    LATE_EARLY_PROGRESSIVE: "Di muon/ve som luy tien",
-    UNAUTHORIZED_ABSENCE: "Nghi khong phep",
-    UNAUTHORIZED_ABSENCE_PROGRESSIVE: "Nghi khong phep luy tien",
+    LATE_EARLY: "Đi muộn/về sớm",
+    LATE_EARLY_PROGRESSIVE: "Đi muộn/về sớm lũy tiến",
+    UNAUTHORIZED_ABSENCE: "Nghỉ không phép",
+    UNAUTHORIZED_ABSENCE_PROGRESSIVE: "Nghỉ không phép lũy tiến",
   };
 
   return type ? labels[type] ?? type : "-";
@@ -138,12 +158,14 @@ function DetailSection({
   title,
   icon,
   rows,
+  children,
   canEdit = false,
   onEdit,
 }: {
   title: string;
   icon: React.ReactNode;
-  rows: DetailRow[];
+  rows?: DetailRow[];
+  children?: React.ReactNode;
   canEdit?: boolean;
   onEdit?: () => void;
 }) {
@@ -167,17 +189,21 @@ function DetailSection({
           </button>
         ) : null}
       </div>
-      <div className="grid grid-cols-2 p-6 max-[760px]:grid-cols-1">
-        {rows.map((row) => (
-          <div
-            className="flex flex-col justify-center border-b border-[#eaecf0] px-4 py-3 last:border-0 [&:nth-last-child(2):nth-child(odd)]:border-0"
-            key={row.label}
-          >
-            <span className="text-xs font-medium text-[#667085]">{row.label}</span>
-            <span className="mt-1 break-words text-sm font-medium text-[#101828]">{row.value}</span>
-          </div>
-        ))}
-      </div>
+      {children ? (
+        <div className="p-6">{children}</div>
+      ) : (
+        <div className="grid grid-cols-2 p-6 max-[760px]:grid-cols-1">
+          {(rows ?? []).map((row) => (
+            <div
+              className="flex flex-col justify-center border-b border-[#eaecf0] px-4 py-3 last:border-0 [&:nth-last-child(2):nth-child(odd)]:border-0"
+              key={row.label}
+            >
+              <span className="text-xs font-medium text-[#667085]">{row.label}</span>
+              <span className="mt-1 break-words text-sm font-medium text-[#101828]">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -189,7 +215,7 @@ function PolicyStatus({
   enabled: boolean;
   active?: boolean;
 }) {
-  const label = !enabled ? "Khong ap dung" : active === false ? "Tam dung" : "Dang ap dung";
+  const label = !enabled ? "Không áp dụng" : active === false ? "Tạm dừng" : "Đang áp dụng";
   const className = !enabled
     ? "bg-[#f2f4f7] text-[#667085]"
     : active === false
@@ -222,7 +248,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
           <HandCoins className="h-5 w-5" />
         </span>
         <h2 className="text-lg font-bold text-[#1f2937]">
-          Chinh sach luong dang ap dung
+          Chính sách lương đang áp dụng
         </h2>
       </div>
 
@@ -231,7 +257,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-[#0e67a7]" />
-              <strong className="truncate text-sm text-[#243247]">Bao hiem</strong>
+              <strong className="truncate text-sm text-[#243247]">Bảo hiểm</strong>
             </div>
             <PolicyStatus
               enabled={Boolean(profile?.isInsuranceApplicable && insurance)}
@@ -240,14 +266,14 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
           </div>
           <div className="grid gap-2 text-sm text-[#475467]">
             <div className="font-semibold text-[#243247]">{insurance?.name ?? "-"}</div>
-            <div>Luong dong BH: {formatCurrency(profile?.insuranceSalary ?? employee.salary)}</div>
+            <div>Lương đóng BH: {formatCurrency(profile?.insuranceSalary ?? employee.salary)}</div>
             <div>
-              NLD: BHXH {formatPercent(insurance?.employeeSocialRate)} | BHYT{" "}
+              NLĐ: BHXH {formatPercent(insurance?.employeeSocialRate)} | BHYT{" "}
               {formatPercent(insurance?.employeeHealthRate)} | BHTN{" "}
               {formatPercent(insurance?.employeeUnemploymentRate)}
             </div>
             <div className="text-xs text-[#667085]">
-              Hieu luc: {formatPolicyPeriod(insurance?.effectiveFrom, insurance?.effectiveTo)}
+              Hiệu lực: {formatPolicyPeriod(insurance?.effectiveFrom, insurance?.effectiveTo)}
             </div>
           </div>
         </article>
@@ -256,7 +282,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <Percent className="h-4 w-4 shrink-0 text-[#7a5af8]" />
-              <strong className="truncate text-sm text-[#243247]">Thue TNCN</strong>
+              <strong className="truncate text-sm text-[#243247]">Thuế TNCN</strong>
             </div>
             <PolicyStatus
               enabled={Boolean(profile?.isTaxApplicable && tax)}
@@ -265,13 +291,13 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
           </div>
           <div className="grid gap-2 text-sm text-[#475467]">
             <div className="font-semibold text-[#243247]">{tax?.name ?? "-"}</div>
-            <div>Ma so thue: {profile?.taxCode || "-"}</div>
+            <div>Mã số thuế: {profile?.taxCode || "-"}</div>
             <div>
-              Giam tru ban than: {formatCurrency(tax?.personalDeduction)} | Phu thuoc:{" "}
-              {profile?.dependentCount ?? 0} nguoi
+              Giảm trừ bản thân: {formatCurrency(tax?.personalDeduction)} | Phụ thuộc:{" "}
+              {profile?.dependentCount ?? 0} người
             </div>
             <div className="text-xs text-[#667085]">
-              Bac thue: {tax?.brackets?.length ?? 0} | Hieu luc:{" "}
+              Bậc thuế: {tax?.brackets?.length ?? 0} | Hiệu lực:{" "}
               {formatPolicyPeriod(tax?.effectiveFrom, tax?.effectiveTo)}
             </div>
           </div>
@@ -281,7 +307,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <Gift className="h-4 w-4 shrink-0 text-[#f79009]" />
-              <strong className="truncate text-sm text-[#243247]">Thuong chuyen can</strong>
+              <strong className="truncate text-sm text-[#243247]">Thưởng chuyên cần</strong>
             </div>
             <PolicyStatus
               enabled={Boolean(profile?.isAttendanceBonusApplicable && attendanceBonus)}
@@ -292,13 +318,13 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
             <div className="font-semibold text-[#243247]">
               {attendanceBonus?.name ?? "-"}
             </div>
-            <div>So tien: {formatCurrency(attendanceBonus?.amount)}</div>
+            <div>Số tiền: {formatCurrency(attendanceBonus?.amount)}</div>
             <div>
-              Cong yeu cau: {attendanceBonus?.requiredWorkDays ?? "-"} | Vang toi da:{" "}
+              Công yêu cầu: {attendanceBonus?.requiredWorkDays ?? "-"} | Vắng tối đa:{" "}
               {attendanceBonus?.maxAbsentDays ?? "-"}
             </div>
             <div className="text-xs text-[#667085]">
-              Hieu luc:{" "}
+              Hiệu lực:{" "}
               {formatPolicyPeriod(attendanceBonus?.effectiveFrom, attendanceBonus?.effectiveTo)}
             </div>
           </div>
@@ -307,7 +333,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
         <article className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
           <div className="mb-3 flex items-center gap-2">
             <HandCoins className="h-4 w-4 shrink-0 text-[#067647]" />
-            <strong className="text-sm text-[#243247]">Phu cap</strong>
+            <strong className="text-sm text-[#243247]">Phụ cấp</strong>
           </div>
           {allowancePolicies.length ? (
             <div className="grid gap-2">
@@ -323,7 +349,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
               ))}
             </div>
           ) : (
-            <div className="text-sm text-[#667085]">Chua co phu cap duoc gan</div>
+            <div className="text-sm text-[#667085]">Chưa có phụ cấp được gắn</div>
           )}
         </article>
       </div>
@@ -331,7 +357,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
       <article className="mt-3 rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
         <div className="mb-3 flex items-center gap-2">
           <TriangleAlert className="h-4 w-4 shrink-0 text-[#d92d20]" />
-          <strong className="text-sm text-[#243247]">Phat tu dong</strong>
+          <strong className="text-sm text-[#243247]">Phạt tự động</strong>
         </div>
         {autoPenaltyPolicies.length ? (
           <div className="grid grid-cols-2 gap-2 max-[760px]:grid-cols-1">
@@ -342,14 +368,14 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
               >
                 <div className="font-semibold text-[#243247]">{policy!.name}</div>
                 <div className="mt-1 text-xs text-[#667085]">
-                  {getAutoPenaltyTypeLabel(policy!.type)} | Muc phat:{" "}
+                  {getAutoPenaltyTypeLabel(policy!.type)} | Mức phạt:{" "}
                   {formatCurrency(policy!.amount)}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-sm text-[#667085]">Chua co chinh sach phat tu dong</div>
+          <div className="text-sm text-[#667085]">Chưa có chính sách phạt tự động</div>
         )}
       </article>
     </section>
@@ -444,6 +470,7 @@ function ProfileHero({
 export function ProfilePage() {
   const { user } = useAuth();
   const [employee, setEmployee] = useState<Employee | null>(null);
+  const [jobHistories, setJobHistories] = useState<EmployeeJobHistory[]>([]);
   const [candidate, setCandidate] = useState<CandidateProfile | null>(null);
   const [kind, setKind] = useState<ProfileKind>("account");
   const [loading, setLoading] = useState(true);
@@ -460,6 +487,7 @@ export function ProfilePage() {
       setLoading(true);
       setError(null);
       setEmployee(null);
+      setJobHistories([]);
       setCandidate(null);
 
       try {
@@ -472,9 +500,13 @@ export function ProfilePage() {
           return;
         }
 
-        const result = await profileService.getEmployeeProfile();
+        const [result, jobHistoryResult] = await Promise.all([
+          profileService.getEmployeeProfile(),
+          employeeService.getMyJobHistory(),
+        ]);
         if (!ignore) {
           setEmployee(result);
+          setJobHistories(jobHistoryResult);
           setKind("employee");
         }
       } catch (loadError) {
@@ -535,6 +567,7 @@ export function ProfilePage() {
       await Promise.all(tasks);
       const updated = await profileService.getEmployeeProfile();
       setEmployee(updated);
+      setJobHistories(await employeeService.getMyJobHistory());
     }
 
     setEditSection(null);
@@ -561,7 +594,7 @@ export function ProfilePage() {
         setEmployee(updated);
       }
 
-      setNotice("Da cap nhat anh ca nhan");
+      setNotice("Đã cập nhật ảnh cá nhân");
     } catch (uploadError) {
       setError(getErrorMessage(uploadError));
     } finally {
@@ -632,11 +665,11 @@ export function ProfilePage() {
             },
             {
               label: "Ảnh mặt trước CCCD",
-              value: display(employee.frontIdentityCardImage),
+              value: displayImage(employee.frontIdentityCardImage, "Mặt trước CCCD"),
             },
             {
               label: "Ảnh mặt sau CCCD",
-              value: display(employee.backIdentityCardImage),
+              value: displayImage(employee.backIdentityCardImage, "Mặt sau CCCD"),
             },
           ]
         : [],
@@ -655,7 +688,7 @@ export function ProfilePage() {
               label: "Giới tính",
               value: candidate.gender ? genderLabels[candidate.gender] : "-",
             },
-            { label: "CV", value: display(candidate.cvUrl) },
+            { label: "CV", value: displayLink(candidate.cvUrl, "Xem CV") },
             { label: "Địa chỉ", value: display(candidate.address) },
             { label: "Tỉnh/Thành", value: lookupName(candidate.province) },
             { label: "Phường/Xã", value: lookupName(candidate.ward) },
@@ -680,11 +713,11 @@ export function ProfilePage() {
             },
             {
               label: "Ảnh mặt trước CCCD",
-              value: display(candidate.frontIdentityCardImage),
+              value: displayImage(candidate.frontIdentityCardImage, "Mặt trước CCCD"),
             },
             {
               label: "Ảnh mặt sau CCCD",
-              value: display(candidate.backIdentityCardImage),
+              value: displayImage(candidate.backIdentityCardImage, "Mặt sau CCCD"),
             },
           ]
         : [],
@@ -814,6 +847,12 @@ export function ProfilePage() {
                         icon={<BriefcaseBusiness className="h-5 w-5" />}
                         rows={employeeWorkRows}
                       />
+                      <DetailSection
+                        title="Lịch sử thay đổi công việc"
+                        icon={<CalendarDays className="h-5 w-5" />}
+                      >
+                        <EmployeeJobHistoryList histories={jobHistories} />
+                      </DetailSection>
                     </div>
                   ) : activeTab === "payroll" ? (
                     <div className="grid gap-5 animate-in fade-in slide-in-from-bottom-2 duration-300">

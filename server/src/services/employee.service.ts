@@ -87,6 +87,16 @@ type UpdateEmployeeJobInput = {
   effectiveFrom: Date;
 };
 
+const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
+
+const getUtcDateRange = (date: Date) => {
+  const start = new Date(`${getDateKey(date)}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { start, end };
+};
+
 const employeeInclude = {
   user: {
     select: {
@@ -512,70 +522,122 @@ export const employeeService = {
         throw new ApiError(404, "Employee not found");
       }
 
-      const latestJobHistory = await tx.employeeJobHistory.findFirst({
-        where: { employeeId: id },
-        orderBy: { effectiveFrom: "desc" },
-      });
-
+      const targetHireDate =
+        data.hireDate !== undefined ? data.hireDate : employee.hireDate;
       if (
-        latestJobHistory &&
-        data.effectiveFrom.getTime() <= latestJobHistory.effectiveFrom.getTime()
+        targetHireDate &&
+        getDateKey(data.effectiveFrom) < getDateKey(targetHireDate)
       ) {
         throw new ApiError(
           400,
-          "effectiveFrom must be greater than the latest applied date",
+          "effectiveFrom must be greater than or equal to hireDate",
         );
       }
 
-      const activeJobHistory = await tx.employeeJobHistory.findFirst({
+      const effectiveDateRange = getUtcDateRange(data.effectiveFrom);
+      const sameDateJobHistory = await tx.employeeJobHistory.findFirst({
         where: {
           employeeId: id,
-          effectiveTo: null,
+          effectiveFrom: {
+            gte: effectiveDateRange.start,
+            lt: effectiveDateRange.end,
+          },
         },
-        orderBy: { effectiveFrom: "desc" },
       });
 
-      if (activeJobHistory) {
+      const historyBase = sameDateJobHistory ?? employee;
+      const historyData = {
+        departmentId:
+          data.departmentId !== undefined
+            ? data.departmentId
+            : historyBase.departmentId,
+        positionId:
+          data.positionId !== undefined ? data.positionId : historyBase.positionId,
+        hireDate:
+          data.hireDate !== undefined ? data.hireDate : historyBase.hireDate,
+        salary: data.salary !== undefined ? data.salary : historyBase.salary,
+        status: data.status ?? historyBase.status,
+        effectiveFrom: data.effectiveFrom,
+      };
+
+      if (sameDateJobHistory) {
         await tx.employeeJobHistory.update({
-          where: { id: activeJobHistory.id },
+          where: { id: sameDateJobHistory.id },
+          data: historyData,
+        });
+      } else {
+        const previousJobHistory = await tx.employeeJobHistory.findFirst({
+          where: {
+            employeeId: id,
+            effectiveFrom: { lt: data.effectiveFrom },
+          },
+          orderBy: { effectiveFrom: "desc" },
+        });
+        const nextJobHistory = await tx.employeeJobHistory.findFirst({
+          where: {
+            employeeId: id,
+            effectiveFrom: { gt: data.effectiveFrom },
+          },
+          orderBy: { effectiveFrom: "asc" },
+        });
+
+        if (previousJobHistory) {
+          await tx.employeeJobHistory.update({
+            where: { id: previousJobHistory.id },
+            data: { effectiveTo: data.effectiveFrom },
+          });
+        }
+
+        await tx.employeeJobHistory.create({
           data: {
-            effectiveTo: data.effectiveFrom,
+            employeeId: id,
+            ...historyData,
+            effectiveTo: nextJobHistory?.effectiveFrom ?? null,
           },
         });
       }
 
-      await tx.employeeJobHistory.create({
-        data: {
-          employeeId: id,
-          departmentId:
-            data.departmentId !== undefined
-              ? data.departmentId
-              : employee.departmentId,
-          positionId:
-            data.positionId !== undefined
-              ? data.positionId
-              : employee.positionId,
-          hireDate:
-            data.hireDate !== undefined ? data.hireDate : employee.hireDate,
-          salary: data.salary !== undefined ? data.salary : employee.salary,
-          status: data.status ?? employee.status,
-          effectiveFrom: data.effectiveFrom,
-        },
+      const jobHistories = await tx.employeeJobHistory.findMany({
+        where: { employeeId: id },
+        orderBy: { effectiveFrom: "asc" },
       });
 
-      return tx.employee.update({
+      for (const [index, history] of jobHistories.entries()) {
+        const effectiveTo = jobHistories[index + 1]?.effectiveFrom ?? null;
+        if (history.effectiveTo?.getTime() === effectiveTo?.getTime()) {
+          continue;
+        }
+
+        await tx.employeeJobHistory.update({
+          where: { id: history.id },
+          data: { effectiveTo },
+        });
+      }
+
+      const now = new Date();
+      const currentJobHistory = jobHistories.find((history, index) => {
+        const nextEffectiveFrom = jobHistories[index + 1]?.effectiveFrom;
+        return (
+          history.effectiveFrom.getTime() <= now.getTime() &&
+          (!nextEffectiveFrom || nextEffectiveFrom.getTime() > now.getTime())
+        );
+      });
+
+      if (currentJobHistory) {
+        await tx.employee.update({
+          where: { id },
+          data: {
+            departmentId: currentJobHistory.departmentId,
+            positionId: currentJobHistory.positionId,
+            hireDate: currentJobHistory.hireDate,
+            salary: currentJobHistory.salary,
+            status: currentJobHistory.status,
+          },
+        });
+      }
+
+      return tx.employee.findUniqueOrThrow({
         where: { id },
-        data: {
-          ...(data.departmentId !== undefined
-            ? { departmentId: data.departmentId }
-            : {}),
-          ...(data.positionId !== undefined
-            ? { positionId: data.positionId }
-            : {}),
-          ...(data.hireDate !== undefined ? { hireDate: data.hireDate } : {}),
-          ...(data.salary !== undefined ? { salary: data.salary } : {}),
-          ...(data.status !== undefined ? { status: data.status } : {}),
-        },
         include: employeeInclude,
       });
     });

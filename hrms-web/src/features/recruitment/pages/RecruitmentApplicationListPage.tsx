@@ -4,6 +4,7 @@ import {
   CalendarPlus,
   FileCheck2,
   Gift,
+  Eye,
   RefreshCcw,
   Search,
   XCircle,
@@ -1177,19 +1178,14 @@ export function RecruitmentApplicationListPage({
             <h1 className="text-2xl font-bold text-[#243247]">
               {mine ? "Đơn ứng tuyển của tôi" : "Danh sách ứng tuyển"}
             </h1>
-            <p className="text-sm text-[#667085]">
-              {mine
-                ? "Theo dõi trạng thái các vị trí bạn đã ứng tuyển"
-                : "Quản lý hồ sơ ứng viên trong quy trình tuyển dụng"}
-            </p>
           </div>
 
           {!mine ? (
-            <div className="flex gap-3 overflow-x-auto rounded-lg bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
-              <div className="relative min-w-[200px] flex-1">
-                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#667085]" />
+            <div className="flex gap-3 overflow-x-auto rounded-2xl bg-white p-4 shadow-[0_4px_24px_rgba(16,24,40,0.06)] border border-[#d0d5dd] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd]">
+              <div className="relative min-w-[240px] flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
                 <input
-                  className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-10 pr-4 text-sm text-[#344054] placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
+                  className="w-full rounded-xl border border-[#d0d5dd] bg-white py-2.5 pl-10 pr-4 text-sm text-[#344054] shadow-sm transition-all placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-4 focus:ring-[#006fd5]/10 hover:border-[#98a2b3]"
                   value={searchTerm}
                   placeholder="Tìm kiếm ứng viên..."
                   onChange={(event) => {
@@ -1199,7 +1195,7 @@ export function RecruitmentApplicationListPage({
                 />
               </div>
               <select
-                className="min-w-[160px] flex-1 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm text-[#344054] focus:border-[#006fd5] focus:outline-none focus:ring-2 focus:ring-[#006fd5]/10"
+                className="min-w-[170px] flex-1 rounded-xl border border-[#d0d5dd] bg-white px-3.5 py-2.5 text-sm text-[#344054] shadow-sm transition-all focus:border-[#006fd5] focus:outline-none focus:ring-4 focus:ring-[#006fd5]/10 hover:border-[#98a2b3]"
                 value={status}
                 onChange={(event) => {
                   setStatus(event.target.value as JobApplicationStatus | "");
@@ -1214,7 +1210,7 @@ export function RecruitmentApplicationListPage({
                 ))}
               </select>
               <button
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#d0d5dd] text-[#344054] hover:bg-[#f9fafb]"
+                className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl border border-[#d0d5dd] bg-white text-[#667085] shadow-sm transition-all hover:bg-[#f9fafb] hover:text-[#344054] active:scale-95"
                 type="button"
                 title="Tải lại"
                 onClick={() => void loadApplications()}
@@ -1230,61 +1226,69 @@ export function RecruitmentApplicationListPage({
             </div>
           ) : null}
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#ebedf2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
             {isLoading ? (
-              <div className="flex h-full items-center justify-center py-12 text-[#667085]">
-                Đang tải dữ liệu...
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#006fd5] border-r-transparent"></div>
+                  <p className="text-sm font-medium">Đang tải dữ liệu...</p>
+                </div>
               </div>
             ) : applications.length === 0 ? (
-              <div className="flex h-full items-center justify-center py-12 text-[#667085]">
-                {mine
-                  ? "Bạn chưa ứng tuyển công việc nào"
-                  : "Không có đơn ứng tuyển"}
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3 opacity-60">
+                  <FileCheck2 className="h-12 w-12 text-[#98a2b3]" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-[#667085]">
+                    {mine
+                      ? "Bạn chưa ứng tuyển công việc nào"
+                      : "Không có đơn ứng tuyển"}
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-                <table className="w-full min-w-230">
-                  <thead className="sticky top-0 z-1">
-                    <tr className="border-b border-[#ebedf2] bg-[#f9fafb]">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                <table className="w-full min-w-[900px] border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-[#d0d5dd] bg-[#f9fafb]/90 backdrop-blur-md">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         #
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         {mine ? "Tin tuyển dụng" : "Ứng viên"}
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Vị trí
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Ngày ứng tuyển
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Trạng thái
                       </th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-[#344054]">
+                      <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-[#667085] uppercase tracking-wider">
                         Thao tác
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[#d0d5dd]">
                     {applications.map((application, index) => {
                       const candidate = applicationCandidate(application);
 
                       return (
                         <tr
-                          className="border-b border-[#ebedf2] hover:bg-[#f9fafb]"
+                          className="group transition-colors hover:bg-[#f8faff]"
                           key={application.id}
                         >
-                          <td className="px-4 py-3 text-sm text-[#344054]">
+                          <td className="px-5 py-4 text-sm text-[#667085]">
                             {rowOffset + index + 1}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-5 py-4">
                             {mine ? (
                               <div>
-                                <strong className="block max-w-80 truncate text-sm text-[#344054]">
+                                <strong className="block max-w-[280px] truncate text-sm font-semibold text-[#243247] group-hover:text-[#006fd5] transition-colors">
                                   {application.recruitmentJob?.title ?? "-"}
                                 </strong>
-                                <span className="block truncate text-xs text-[#667085]">
+                                <span className="line-clamp-1 text-xs text-[#667085] mt-0.5">
                                   {application.department?.name ?? "-"}
                                 </span>
                               </div>
@@ -1293,36 +1297,39 @@ export function RecruitmentApplicationListPage({
                                 <Avatar
                                   src={candidate.avatar}
                                   alt={candidate.name}
-                                  sizeClass="h-9 w-9"
+                                  sizeClass="h-9 w-9 shrink-0"
                                 />
                                 <div className="min-w-0">
-                                  <strong className="block max-w-64 truncate text-sm text-[#344054]">
+                                  <strong className="block max-w-[240px] truncate text-sm font-semibold text-[#243247] group-hover:text-[#006fd5] transition-colors">
                                     {candidate.name}
                                   </strong>
-                                  <span className="block truncate text-xs text-[#667085]">
+                                  <span className="line-clamp-1 text-xs text-[#667085] mt-0.5">
                                     {candidate.email}
                                   </span>
                                 </div>
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-sm text-[#344054]">
-                            {application.position?.name ?? "-"}
+                          <td className="px-5 py-4 text-sm text-[#344054]">
+                            <span className="inline-flex rounded-md bg-[#f2f4f7] px-2 py-1 text-xs font-medium text-[#344054]">
+                              {application.position?.name ?? "-"}
+                            </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-[#344054]">
+                          <td className="px-5 py-4 text-sm text-[#344054]">
                             {formatDate(application.appliedAt)}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-5 py-4">
                             <ApplicationStatusBadge status={application.status} />
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex justify-center">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-center">
                               <button
-                                className="rounded-lg bg-[#006fd5] px-3 py-1.5 text-sm font-semibold text-white! hover:bg-[#0055a8]"
+                                className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#006fd5] transition-all hover:bg-[#006fd5] hover:text-white hover:shadow-md hover:shadow-blue-500/20 active:scale-95"
                                 type="button"
+                                title="Xem chi tiết"
                                 onClick={() => void openDetail(application)}
                               >
-                                Chi tiết
+                                <Eye className="h-4 w-4" />
                               </button>
                             </div>
                           </td>
@@ -1333,7 +1340,7 @@ export function RecruitmentApplicationListPage({
                 </table>
               </div>
             )}
-            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#ebedf2] px-4 py-3 max-[720px]:flex-col max-[720px]:items-stretch">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#d0d5dd] bg-[#fcfcfd] px-5 py-3.5 max-[720px]:flex-col max-[720px]:items-stretch">
               <span className="text-sm text-[#667085]">
                 Hiển thị {applications.length === 0 ? 0 : rowOffset + 1}-
                 {Math.min(rowOffset + applications.length, meta.total)} /{" "}

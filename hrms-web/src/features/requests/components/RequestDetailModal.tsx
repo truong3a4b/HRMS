@@ -1,5 +1,5 @@
 import { Modal } from "antd";
-import { CheckCircle2, XCircle, Calendar, FileText, ListChecks, Clock, User, Users, FileQuestion, MessageSquare } from "lucide-react";
+import { CheckCircle2, XCircle, Calendar, FileText, ListChecks, Clock, User, Users, FileQuestion, MessageSquare, WalletCards } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useAuth } from "../../auth/services/useAuth";
 import type {
@@ -33,6 +33,7 @@ const typeLabel: Record<RequestType, string> = {
   ATTENDANCE_CORRECTION: "Bổ sung chấm công",
   OVERTIME: "Tăng ca",
   SCHEDULE_APPROVAL: "Duyệt lịch",
+  PAYROLL_APPROVAL: "Duyệt kỳ lương",
   TERMINATION: "Nghỉ việc",
 };
 
@@ -40,6 +41,36 @@ const approvalLabel: Record<RequestApprovalStatus, string> = {
   PENDING: "Chờ duyệt",
   APPROVED: "Đã duyệt",
   REJECTED: "Từ chối",
+};
+
+const approvalModeLabel = {
+  PARALLEL: "Song song",
+  SEQUENTIAL: "Tuần tự",
+} as const;
+
+const leaveTypeLabel = {
+  ANNUAL_LEAVE: "Nghỉ phép năm",
+  SICK_LEAVE: "Nghỉ ốm",
+  UNPAID_LEAVE: "Nghỉ không lương",
+  MATERNITY_LEAVE: "Nghỉ thai sản",
+  BEREAVEMENT_LEAVE: "Nghỉ tang chế",
+  MARRIAGE_LEAVE: "Nghỉ kết hôn",
+  COMPENSATORY_LEAVE: "Nghỉ bù",
+  OTHER: "Khác",
+  LATE_ARRIVAL: "Đi muộn",
+  EARLY_LEAVE: "Về sớm",
+} as const;
+
+const lateEarlyTypeLabel = {
+  LATE_ARRIVAL: "Đi muộn",
+  EARLY_LEAVE: "Về sớm",
+} as const;
+
+const payrollPeriodStatusLabel: Record<string, string> = {
+  DRAFT: "Nháp",
+  WAITING_APPROVAL: "Chờ duyệt",
+  APPROVED: "Đã duyệt",
+  CANCELLED: "Đã hủy",
 };
 
 const finalStatuses = new Set<RequestStatus>([
@@ -88,6 +119,19 @@ function InfoRow({ label, value, icon: Icon }: { label: string; value: string; i
       </div>
     </div>
   );
+}
+
+function userDisplayName(user?: { email?: string; id?: string; employee?: { name: string } | null } | null, fallback?: string) {
+  return user?.employee?.name ?? user?.email ?? fallback ?? "-";
+}
+
+function workShiftDisplayName(
+  shift?: { name?: string | null; startTime?: string | null; endTime?: string | null } | null,
+  fallback?: string | null,
+) {
+  if (!shift) return fallback ?? "-";
+  const timeRange = shift.startTime && shift.endTime ? ` (${shift.startTime}-${shift.endTime})` : "";
+  return `${shift.name ?? fallback ?? "Ca làm"}${timeRange}`;
 }
 
 export function RequestDetailModal({
@@ -172,8 +216,8 @@ export function RequestDetailModal({
             <div className="lg:col-span-2 grid content-start gap-8">
               
               <section className="grid grid-cols-2 gap-y-6 gap-x-6 rounded-2xl border border-[#d0d5dd] bg-slate-50 p-6 shadow-[0_4px_20px_rgba(16,24,40,0.05)] max-[640px]:grid-cols-1">
-                 <InfoRow label="Người gửi" value={request.requester?.email ?? request.requesterId} icon={User} />
-                 <InfoRow label="Chế độ duyệt" value={request.approvalMode === "SEQUENTIAL" ? "Tuần tự (lần lượt)" : "Song song (tất cả)"} icon={ListChecks} />
+                 <InfoRow label="Người gửi" value={userDisplayName(request.requester, request.requesterId)} icon={User} />
+                 <InfoRow label="Chế độ duyệt" value={approvalModeLabel[request.approvalMode]} icon={ListChecks} />
               </section>
 
               {request.description && (
@@ -203,12 +247,12 @@ export function RequestDetailModal({
                     <div className="grid grid-cols-2 gap-y-6 gap-x-6 max-[640px]:grid-cols-1">
                       <InfoRow label="Từ ngày" value={formatDate(request.leaveRequest.startDate)} />
                       <InfoRow label="Đến ngày" value={formatDate(request.leaveRequest.endDate)} />
-                      <InfoRow label="Loại nghỉ" value={request.leaveRequest.leaveType} />
+                      <InfoRow label="Loại nghỉ" value={leaveTypeLabel[request.leaveRequest.leaveType]} />
                       <InfoRow
                         label="Ca nghỉ"
                         value={
                           request.leaveRequest.workShift
-                            ? `${request.leaveRequest.workShift.name} (${request.leaveRequest.workShift.startTime}-${request.leaveRequest.workShift.endTime})`
+                            ? workShiftDisplayName(request.leaveRequest.workShift)
                             : "Nghỉ cả ngày"
                         }
                       />
@@ -242,26 +286,23 @@ export function RequestDetailModal({
                       />
                       <InfoRow
                         label="Loại đơn"
-                        value={
-                          request.lateEarlyRequest.requestType === "LATE_ARRIVAL"
-                            ? "Đi muộn"
-                            : "Về sớm"
-                        }
+                        value={lateEarlyTypeLabel[request.lateEarlyRequest.requestType]}
                       />
                       <InfoRow
-                        label="Từ giờ"
+                        label="Thời gian bắt đầu làm"
                         value={formatDateTime(request.lateEarlyRequest.startDate)}
                       />
                       <InfoRow
-                        label="Đến giờ"
+                        label="Thời gian về"
                         value={formatDateTime(request.lateEarlyRequest.endDate)}
                       />
                       <InfoRow
                         label="Ca làm"
                         value={
-                          request.lateEarlyRequest.workShift
-                            ? `${request.lateEarlyRequest.workShift.name} (${request.lateEarlyRequest.workShift.startTime}-${request.lateEarlyRequest.workShift.endTime})`
-                            : request.lateEarlyRequest.workShiftId
+                          workShiftDisplayName(
+                            request.lateEarlyRequest.workShift,
+                            request.lateEarlyRequest.workShiftId,
+                          )
                         }
                       />
                     </div>
@@ -302,7 +343,10 @@ export function RequestDetailModal({
                       />
                       <InfoRow
                         label="Ca làm"
-                        value={request.attendanceCorrectionRequest.workShiftId ?? "-"}
+                        value={workShiftDisplayName(
+                          request.attendanceCorrectionRequest.workShift,
+                          request.attendanceCorrectionRequest.workShiftId,
+                        )}
                       />
                     </div>
                     {request.attendanceCorrectionRequest.reason && (
@@ -314,6 +358,46 @@ export function RequestDetailModal({
                         </div>
                       </div>
                     )}
+                  </div>
+                </section>
+              ) : null}
+
+              {request.payrollApprovalRequest ? (
+                <section>
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <div className="rounded-lg bg-amber-50 p-1.5 text-amber-600">
+                      <WalletCards className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[#243247]">Chi tiết duyệt kỳ lương</h3>
+                  </div>
+                  <div className="rounded-2xl border border-[#d0d5dd] bg-slate-50 p-5 shadow-[0_4px_20px_rgba(16,24,40,0.05)]">
+                    <div className="grid grid-cols-2 gap-y-6 gap-x-6 max-[640px]:grid-cols-1">
+                      <InfoRow
+                        label="Kỳ lương"
+                        value={
+                          request.payrollApprovalRequest.period?.name ||
+                          `Tháng ${request.payrollApprovalRequest.month}/${request.payrollApprovalRequest.year}`
+                        }
+                      />
+                      <InfoRow
+                        label="Trạng thái kỳ"
+                        value={
+                          request.payrollApprovalRequest.period?.status
+                            ? payrollPeriodStatusLabel[request.payrollApprovalRequest.period.status] ??
+                              request.payrollApprovalRequest.period.status
+                            : "-"
+                        }
+                      />
+                    </div>
+                    {request.payrollApprovalRequest.note ? (
+                      <div className="mt-6 flex gap-3 rounded-xl bg-slate-50 border border-slate-100 p-4 text-[15px] text-[#344054]">
+                        <MessageSquare className="h-5 w-5 shrink-0 text-[#667085]" />
+                        <div>
+                          <span className="font-semibold text-[#243247] mr-2">Ghi chú:</span>
+                          {request.payrollApprovalRequest.note}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
               ) : null}
@@ -378,7 +462,7 @@ export function RequestDetailModal({
                      <div className="rounded-xl border border-[#d0d5dd] bg-slate-50 p-4 shadow-sm">
                        <div className="flex flex-col gap-1.5">
                          <div className="font-bold text-[#243247] break-words">
-                           {request.requester?.email ?? request.requesterId}
+                           {userDisplayName(request.requester, request.requesterId)}
                          </div>
                          <div className="flex flex-wrap items-center justify-between gap-2">
                            <div className="text-[13px] font-medium text-[#667085]">Người tạo đơn</div>
@@ -413,7 +497,7 @@ export function RequestDetailModal({
                        }`}>
                          <div className="flex flex-col gap-1.5">
                            <div className="font-bold text-[#243247] break-words">
-                             {approval.approver?.email ?? approval.approverId}
+                             {userDisplayName(approval.approver, approval.approverId)}
                            </div>
                            <div className="flex flex-wrap items-center justify-between gap-2">
                              <div className="text-[13px] font-medium text-[#667085]">
@@ -458,10 +542,10 @@ export function RequestDetailModal({
                      {request.watchers.map((watcher) => (
                        <div className="flex items-center gap-2 rounded-xl border border-[#d0d5dd] bg-white px-3 py-2 shadow-[0_1px_2px_rgba(16,24,40,0.03)]" key={watcher.id}>
                          <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#f0f7ff] text-[10px] font-bold text-[#006fd5]">
-                           {(watcher.user?.email ?? watcher.userId).charAt(0).toUpperCase()}
+                           {userDisplayName(watcher.user, watcher.userId).charAt(0).toUpperCase()}
                          </div>
                          <span className="text-[13px] font-medium text-[#344054]">
-                           {watcher.user?.email ?? watcher.userId}
+                           {userDisplayName(watcher.user, watcher.userId)}
                          </span>
                        </div>
                      ))}

@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { PayrollPaymentMode, UserRole } from "../../generated/prisma/client";
+import {
+  ApprovalMode,
+  PayrollPaymentMode,
+  UserRole,
+} from "../../generated/prisma/client";
 import { payrollController } from "../controllers/payroll.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate.middleware";
@@ -139,6 +143,15 @@ const idsSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
 });
 
+const requestPayrollApprovalSchema = z.object({
+  title: z.string().trim().min(2).optional(),
+  description: z
+    .preprocess(nullableEmptyToNull, z.string().trim().min(1).nullable().optional()),
+  approvalMode: z.nativeEnum(ApprovalMode).optional(),
+  approverIds: z.array(z.string().trim().min(1)).min(1),
+  watcherIds: z.array(z.string().trim().min(1)).optional(),
+});
+
 const createPayrollPaymentBatchSchema = z
   .object({
     month: z.number().int().min(1).max(12).optional(),
@@ -208,6 +221,7 @@ router.delete(
 );
 router.post(
   "/periods/:periodId/request-approval",
+  validate(requestPayrollApprovalSchema),
   payrollController.requestPeriodApprovalById,
 );
 router.post(
@@ -228,6 +242,7 @@ router.get(
 );
 router.post(
   "/periods/:year/:month/request-approval",
+  validate(requestPayrollApprovalSchema),
   payrollController.requestPeriodApproval,
 );
 router.post("/periods/:year/:month/approve", payrollController.approvePeriod);
@@ -243,7 +258,11 @@ router.post(
 router.get("/payments/:id", payrollController.getPaymentBatchById);
 router.get("/:id", payrollController.getById);
 router.put("/:id", validate(updatePayrollSchema), payrollController.update);
-router.post("/:id/request-approval", payrollController.requestApproval);
+router.post(
+  "/:id/request-approval",
+  validate(requestPayrollApprovalSchema),
+  payrollController.requestApproval,
+);
 router.post("/:id/approve", payrollController.approve);
 router.post("/:id/pay", payrollController.pay);
 

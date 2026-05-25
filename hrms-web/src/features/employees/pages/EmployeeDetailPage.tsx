@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Badge,
@@ -61,6 +61,12 @@ type PayrollEditType =
   | "attendanceBonus"
   | "allowance"
   | "autoPenalty";
+
+type EmployeeDetailTab = "personal" | "work" | "payroll";
+
+function getDetailTab(value: string | null): EmployeeDetailTab {
+  return value === "work" || value === "payroll" ? value : "personal";
+}
 
 const statusLabels: Record<EmployeeStatus, string> = {
   WORKING: "Đang làm việc",
@@ -1004,8 +1010,11 @@ function PayrollPolicyAssignModal({
 export function EmployeeDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"personal" | "work" | "payroll">("personal");
+  const [activeTab, setActiveTab] = useState<EmployeeDetailTab>(() =>
+    getDetailTab(searchParams.get("tab")),
+  );
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [jobHistories, setJobHistories] = useState<EmployeeJobHistory[]>([]);
   const [departments, setDepartments] = useState<EmployeeOption[]>([]);
@@ -1056,6 +1065,10 @@ export function EmployeeDetailPage() {
   useEffect(() => {
     void loadEmployee();
   }, [id]);
+
+  useEffect(() => {
+    setActiveTab(getDetailTab(searchParams.get("tab")));
+  }, [searchParams]);
 
   useEffect(() => {
     let ignore = false;

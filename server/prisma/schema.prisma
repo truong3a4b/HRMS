@@ -44,6 +44,7 @@ model User {
   requestedRequests     Request[]               @relation("RequestRequester")
   requestApprovals      RequestApproval[]       @relation("RequestApprover")
   watchedRequests       RequestWatcher[]        @relation("RequestWatcherUser")
+  employeeImportBatches EmployeeImportBatch[]    @relation("EmployeeImportUploader")
 }
 
 model PendingUser {
@@ -99,6 +100,12 @@ enum EmployeeStatus {
   WORKING
   ON_LEAVE
   RESIGNED
+}
+
+enum EmployeeImportStatus {
+  PREVIEWED
+  CONFIRMED
+  EXPIRED
 }
 
 enum JobApplicationStatus {
@@ -459,6 +466,43 @@ model EmployeeJobHistory {
   @@index([departmentId])
   @@index([positionId])
   @@map("employee_job_histories")
+}
+
+model EmployeeImportBatch {
+  id               String               @id @default(uuid())
+  uploadedByUserId String?
+  status           EmployeeImportStatus @default(PREVIEWED)
+  totalRows        Int
+  errorRows        Int
+  warningRows      Int                  @default(0)
+  expiresAt        DateTime
+  confirmedAt      DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  uploadedBy User?               @relation("EmployeeImportUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  rows       EmployeeImportRow[]
+
+  @@index([uploadedByUserId])
+  @@index([status, expiresAt])
+  @@map("employee_import_batches")
+}
+
+model EmployeeImportRow {
+  id             String   @id @default(uuid())
+  batchId        String
+  rowNumber      Int
+  rawData        Json
+  normalizedData Json?
+  errors         Json
+  warnings       Json
+  createdAt      DateTime @default(now())
+
+  batch EmployeeImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, rowNumber])
+  @@index([batchId])
+  @@map("employee_import_rows")
 }
 
 model Notification {

@@ -37,6 +37,10 @@ function formatNumber(value?: MoneyValue | null) {
   }).format(toNumber(value));
 }
 
+function formatPayrollMonth(payroll: PayrollDetail) {
+  return `${payroll.year}-${String(payroll.month).padStart(2, "0")}`;
+}
+
 function formatPercent(value?: MoneyValue | null) {
   if (value === undefined || value === null) return "";
   const rate = toNumber(value);
@@ -311,6 +315,20 @@ export function PayrollEmployeeDetailPage() {
     };
   }, [payroll]);
 
+  const goToEmployeeWorkTab = () => {
+    if (!employeeId) return;
+    navigate(`${paths.employeeDetailById(employeeId)}?tab=work`);
+  };
+
+  const goToEmployeeTimesheet = () => {
+    if (!employeeId || !payroll) return;
+    const params = new URLSearchParams({
+      employeeId,
+      month: formatPayrollMonth(payroll),
+    });
+    navigate(`${paths.attendanceEmployeeTimesheet}?${params.toString()}`);
+  };
+
   return (
     <AppLayout>
       <main className="h-full overflow-y-auto bg-[#f1f5f9]">
@@ -403,9 +421,9 @@ export function PayrollEmployeeDetailPage() {
                 <div className="px-5 py-3 bg-slate-50 border-b border-[#e2e8f0] text-xs font-bold uppercase tracking-wider text-[#64748b]">Thu nhập</div>
                 <table className="w-full text-sm">
                   <tbody className="divide-y divide-[#e2e8f0]">
-                    <SummaryRow icon={FileText} label="Lương cơ bản" value={formatMoney(payroll.baseSalary)} />
+                    <SummaryRow icon={FileText} label="Lương cơ bản" value={formatMoney(payroll.baseSalary)} onClick={goToEmployeeWorkTab} />
                     <SummaryRow icon={Clock} label="Công chuẩn" value={formatNumber(payroll.standardWorkDays)} />
-                    <SummaryRow icon={Clock} label="Công thực tế" value={formatNumber(payroll.actualWorkDays)} />
+                    <SummaryRow icon={Clock} label="Công thực tế" value={formatNumber(payroll.actualWorkDays)} onClick={goToEmployeeTimesheet} />
                     <SummaryRow icon={Clock} label="Tăng ca (OT)" variant="income" value={formatMoney(payroll.totalOvertimePay)} onClick={() => setDialog("overtime")} />
                     <SummaryRow icon={PlusCircle} label="Phụ cấp" variant="income" value={formatMoney(payroll.totalAllowance)} onClick={() => setDialog("allowance")} />
                     <SummaryRow icon={PlusCircle} label="Thưởng" variant="income" value={formatMoney(payroll.totalBonus)} onClick={() => setDialog("bonus")} />

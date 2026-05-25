@@ -1,7 +1,7 @@
-import { Button, DatePicker, Input, InputNumber, Popconfirm, Select, Spin, Table } from "antd";
+import { Button, DatePicker, Input, InputNumber, Popconfirm, Select, Spin, Table, Modal } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
-import { Save, Trash2, Users } from "lucide-react";
+import { Save, Trash2, Users, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { departmentService } from "../../departments/services/departmentService";
@@ -79,6 +79,8 @@ export function StandardWorkDaysTab({
   const [loading, setLoading] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
   const [savingEmployee, setSavingEmployee] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const monthYear = useMemo(() => toMonthYear(month), [month]);
 
@@ -253,46 +255,47 @@ export function StandardWorkDaysTab({
     },
     {
       title: "",
-      width: 72,
+      width: 100,
       render: (_, record) => (
-        <Popconfirm
-          title="Xóa cấu hình công chuẩn?"
-          okText="Xóa"
-          cancelText="Hủy"
-          onConfirm={() => deleteConfig(record)}
-        >
+        <div className="flex gap-2">
           <button
-            className="grid h-9 w-9 place-items-center rounded-lg border border-rose-200 text-rose-600 transition-colors hover:bg-rose-50"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-blue-200 text-blue-600 transition-colors hover:bg-blue-50"
             type="button"
-            title="Xóa"
+            title="Sửa"
+            onClick={() => {
+              setEmployeeId(record.employeeId);
+              setEmployeeWorkDays(Number(record.standardWorkDays));
+              setEmployeeNote(record.note ?? "");
+              setIsEditModalOpen(true);
+            }}
           >
-            <Trash2 className="h-4 w-4" />
+            <Pencil className="h-4 w-4" />
           </button>
-        </Popconfirm>
+          <Popconfirm
+            title="Xóa cấu hình công chuẩn?"
+            okText="Xóa"
+            cancelText="Hủy"
+            onConfirm={() => deleteConfig(record)}
+          >
+            <button
+              className="grid h-9 w-9 place-items-center rounded-lg border border-rose-200 text-rose-600 transition-colors hover:bg-rose-50"
+              type="button"
+              title="Xóa"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </Popconfirm>
+        </div>
       ),
     },
   ];
 
   return (
     <section className="flex flex-col gap-5">
-      <div className="grid grid-cols-[minmax(280px,1fr)_minmax(280px,1fr)] gap-4 max-[960px]:grid-cols-1">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-600">
-              <Users className="h-4 w-4" />
-            </span>
-            <div>
-              <h2 className="text-base font-bold text-slate-800">
-                Áp dụng theo nhóm
-              </h2>
-              <p className="text-xs text-slate-500">
-                Chọn phòng ban, chức vụ hoặc cả hai để cập nhật công chuẩn.
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-1 flex-wrap items-center gap-3">
             <DatePicker
-              className="w-full"
               picker="month"
               value={formatMonth(month)}
               format="MM/YYYY"
@@ -300,159 +303,49 @@ export function StandardWorkDaysTab({
                 if (value) setMonth(value.format("YYYY-MM"));
               }}
             />
+            <div className="min-w-[240px]">
+              <SearchableSelect
+                value={filterEmployeeId}
+                onChange={setFilterEmployeeId}
+                options={[
+                  { value: "", label: "Tất cả nhân viên" },
+                  ...employees.map((employee) => ({
+                    value: employee.id,
+                    label: `${employee.employeeId} - ${employee.name}`,
+                  })),
+                ]}
+              />
+            </div>
             <Select
-              mode="multiple"
+              className="min-w-[200px]"
               allowClear
-              placeholder="Phòng ban áp dụng"
-              value={assignDepartmentIds}
-              onChange={setAssignDepartmentIds}
+              placeholder="Phòng ban"
+              value={filterDepartmentId || undefined}
+              onChange={(value) => setFilterDepartmentId(value ?? "")}
               options={departments.map((department) => ({
                 value: department.id,
                 label: department.name,
               }))}
             />
             <Select
-              mode="multiple"
+              className="min-w-[200px]"
               allowClear
-              placeholder="Chức vụ áp dụng"
-              value={assignPositionIds}
-              onChange={setAssignPositionIds}
+              placeholder="Chức vụ"
+              value={filterPositionId || undefined}
+              onChange={(value) => setFilterPositionId(value ?? "")}
               options={positions.map((position) => ({
                 value: position.id,
                 label: position.name,
               }))}
             />
-            <InputNumber
-              className="w-full"
-              min={0.01}
-              step={0.5}
-              placeholder="Công chuẩn"
-              value={assignWorkDays}
-              onChange={setAssignWorkDays}
-            />
-            <Input
-              placeholder="Ghi chú"
-              value={assignNote}
-              onChange={(event) => setAssignNote(event.target.value)}
-            />
-            <Button
-              type="primary"
-              icon={<Save className="h-4 w-4" />}
-              loading={savingBulk}
-              onClick={submitBulk}
-            >
-              Áp dụng
-            </Button>
           </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-slate-800">
-              Cấu hình từng nhân viên
-            </h2>
-            <p className="text-xs text-slate-500">
-              Giá trị riêng của nhân viên sẽ được ưu tiên khi tính lương.
-            </p>
-          </div>
-          <div className="grid gap-3">
-            <SearchableSelect
-              value={employeeId}
-              onChange={(value) => {
-                setEmployeeId(value);
-                const config = configs.find((item) => item.employeeId === value);
-                setEmployeeWorkDays(
-                  config ? Number(config.standardWorkDays) : null,
-                );
-                setEmployeeNote(config?.note ?? "");
-              }}
-              options={[
-                { value: "", label: "Chọn nhân viên" },
-                ...employees.map((employee) => ({
-                  value: employee.id,
-                  label: `${employee.employeeId} - ${employee.name}`,
-                })),
-              ]}
-            />
-            <DatePicker
-              className="w-full"
-              picker="month"
-              value={formatMonth(month)}
-              format="MM/YYYY"
-              onChange={(value) => {
-                if (value) setMonth(value.format("YYYY-MM"));
-              }}
-            />
-            <InputNumber
-              className="w-full"
-              min={0.01}
-              step={0.5}
-              placeholder="Công chuẩn"
-              value={employeeWorkDays}
-              onChange={setEmployeeWorkDays}
-            />
-            <Input
-              placeholder="Ghi chú"
-              value={employeeNote}
-              onChange={(event) => setEmployeeNote(event.target.value)}
-            />
-            <Button
-              type="primary"
-              icon={<Save className="h-4 w-4" />}
-              loading={savingEmployee}
-              onClick={submitEmployee}
-            >
-              Lưu nhân viên
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <DatePicker
-            picker="month"
-            value={formatMonth(month)}
-            format="MM/YYYY"
-            onChange={(value) => {
-              if (value) setMonth(value.format("YYYY-MM"));
-            }}
-          />
-          <div className="min-w-[240px] flex-1">
-            <SearchableSelect
-              value={filterEmployeeId}
-              onChange={setFilterEmployeeId}
-              options={[
-                { value: "", label: "Tất cả nhân viên" },
-                ...employees.map((employee) => ({
-                  value: employee.id,
-                  label: `${employee.employeeId} - ${employee.name}`,
-                })),
-              ]}
-            />
-          </div>
-          <Select
-            className="min-w-[200px]"
-            allowClear
-            placeholder="Phòng ban"
-            value={filterDepartmentId || undefined}
-            onChange={(value) => setFilterDepartmentId(value ?? "")}
-            options={departments.map((department) => ({
-              value: department.id,
-              label: department.name,
-            }))}
-          />
-          <Select
-            className="min-w-[200px]"
-            allowClear
-            placeholder="Chức vụ"
-            value={filterPositionId || undefined}
-            onChange={(value) => setFilterPositionId(value ?? "")}
-            options={positions.map((position) => ({
-              value: position.id,
-              label: position.name,
-            }))}
-          />
+          <Button
+            type="primary"
+            icon={<Users className="h-4 w-4" />}
+            onClick={() => setIsGroupModalOpen(true)}
+          >
+            Áp dụng theo nhóm
+          </Button>
         </div>
 
         <Spin spinning={Boolean(loadingEmployees)}>
@@ -466,6 +359,113 @@ export function StandardWorkDaysTab({
           />
         </Spin>
       </div>
+
+      <Modal
+        title="Áp dụng theo nhóm"
+        open={isGroupModalOpen}
+        onCancel={() => setIsGroupModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <div className="grid gap-3 pt-4">
+          <DatePicker
+            className="w-full"
+            picker="month"
+            value={formatMonth(month)}
+            format="MM/YYYY"
+            onChange={(value) => {
+              if (value) setMonth(value.format("YYYY-MM"));
+            }}
+          />
+          <Select
+            mode="multiple"
+            allowClear
+            placeholder="Phòng ban áp dụng"
+            value={assignDepartmentIds}
+            onChange={setAssignDepartmentIds}
+            options={departments.map((department) => ({
+              value: department.id,
+              label: department.name,
+            }))}
+          />
+          <Select
+            mode="multiple"
+            allowClear
+            placeholder="Chức vụ áp dụng"
+            value={assignPositionIds}
+            onChange={setAssignPositionIds}
+            options={positions.map((position) => ({
+              value: position.id,
+              label: position.name,
+            }))}
+          />
+          <InputNumber
+            className="w-full"
+            min={0.01}
+            step={0.5}
+            placeholder="Công chuẩn"
+            value={assignWorkDays}
+            onChange={setAssignWorkDays}
+          />
+          <Input
+            placeholder="Ghi chú"
+            value={assignNote}
+            onChange={(event) => setAssignNote(event.target.value)}
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <Button onClick={() => setIsGroupModalOpen(false)}>Hủy</Button>
+            <Button
+              type="primary"
+              icon={<Save className="h-4 w-4" />}
+              loading={savingBulk}
+              onClick={async () => {
+                await submitBulk();
+                setIsGroupModalOpen(false);
+              }}
+            >
+              Áp dụng
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title="Sửa công chuẩn nhân viên"
+        open={isEditModalOpen}
+        onCancel={() => setIsEditModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <div className="grid gap-3 pt-4">
+          <InputNumber
+            className="w-full"
+            min={0.01}
+            step={0.5}
+            placeholder="Công chuẩn"
+            value={employeeWorkDays}
+            onChange={setEmployeeWorkDays}
+          />
+          <Input
+            placeholder="Ghi chú"
+            value={employeeNote}
+            onChange={(event) => setEmployeeNote(event.target.value)}
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <Button onClick={() => setIsEditModalOpen(false)}>Hủy</Button>
+            <Button
+              type="primary"
+              icon={<Save className="h-4 w-4" />}
+              loading={savingEmployee}
+              onClick={async () => {
+                await submitEmployee();
+                setIsEditModalOpen(false);
+              }}
+            >
+              Lưu thay đổi
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

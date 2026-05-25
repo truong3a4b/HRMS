@@ -25,6 +25,7 @@ export const departmentService = {
       "/departments",
       {
         name: payload.name,
+        code: payload.code || undefined,
         description: payload.description || undefined,
         managerId: payload.managerId || null,
       },

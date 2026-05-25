@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma";
 import {
   EmployeeStatus,
@@ -316,11 +317,12 @@ export const employeeService = {
     //Tao user va employee trong transaction
     const employeeId = await generateEmployeeId();
     const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           email: data.email,
-          password: temporaryPassword,
+          password: passwordHash,
           role: UserRole.EMPLOYEE,
         },
       });
@@ -643,6 +645,7 @@ export const employeeService = {
     });
   },
 
+
   async getJobHistory(id: string) {
     await ensureEmployeeExists(id);
 
@@ -654,5 +657,68 @@ export const employeeService = {
       },
       orderBy: { effectiveFrom: "desc" },
     });
+  },
+
+  // Hàm đồng bộ lịch sử công việc của tất cả nhân viên dựa trên thời gian hiện tại
+  async syncAllJobHistories() {
+    console.log("[Job] Starting employee job history synchronization...");
+    
+    // Lấy tất cả nhân viên
+    const employees = await prisma.employee.findMany({
+      select: {
+        id: true,
+        departmentId: true,
+        positionId: true,
+        hireDate: true,
+        salary: true,
+        status: true,
+      }
+    });
+
+    let updatedCount = 0;
+    const now = new Date();
+
+    for (const emp of employees) {
+      const jobHistories = await prisma.employeeJobHistory.findMany({
+        where: { employeeId: emp.id },
+        orderBy: { effectiveFrom: "asc" },
+      });
+
+      const currentJobHistory = jobHistories.find((history, index) => {
+        const nextEffectiveFrom = jobHistories[index + 1]?.effectiveFrom;
+        return (
+          history.effectiveFrom.getTime() <= now.getTime() &&
+          (!nextEffectiveFrom || nextEffectiveFrom.getTime() > now.getTime())
+        );
+      });
+
+      if (currentJobHistory) {
+        // So sánh các trường xem có cần update không
+        const empSalaryNumber = emp.salary ? Number(emp.salary) : null;
+        const historySalaryNumber = currentJobHistory.salary ? Number(currentJobHistory.salary) : null;
+
+        const needsUpdate =
+          emp.departmentId !== currentJobHistory.departmentId ||
+          emp.positionId !== currentJobHistory.positionId ||
+          emp.hireDate?.getTime() !== currentJobHistory.hireDate?.getTime() ||
+          empSalaryNumber !== historySalaryNumber ||
+          emp.status !== currentJobHistory.status;
+
+        if (needsUpdate) {
+          await prisma.employee.update({
+            where: { id: emp.id },
+            data: {
+              departmentId: currentJobHistory.departmentId,
+              positionId: currentJobHistory.positionId,
+              hireDate: currentJobHistory.hireDate,
+              salary: currentJobHistory.salary,
+              status: currentJobHistory.status,
+            },
+          });
+          updatedCount++;
+        }
+      }
+    }
+    console.log(`[Job] Finished employee job history synchronization. Updated ${updatedCount} employees.`);
   },
 };

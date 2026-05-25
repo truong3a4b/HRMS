@@ -12,6 +12,7 @@ export type Department = {
 
 export type DepartmentFormPayload = {
   name: string;
+  code?: string | null;
   description?: string;
   managerId?: string | null;
 };

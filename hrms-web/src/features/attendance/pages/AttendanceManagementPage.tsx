@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
+import { useSearchParams } from "react-router-dom";
 import { Plus, RefreshCcw, Search } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { employeeService } from "../../employees/services/employeeService";
@@ -76,6 +77,10 @@ const pageTitles: Record<AttendanceTab, { title: string; subtitle: string }> = {
 
 const currentMonth = () => dayjs().format("YYYY-MM");
 
+function getMonthParam(value: string | null) {
+  return value && /^\d{4}-\d{2}$/.test(value) ? value : currentMonth();
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (
     typeof error === "object" &&
@@ -96,6 +101,7 @@ export function AttendanceManagementPage({
   initialTab = "devices",
   tabs,
 }: AttendanceManagementPageProps) {
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<AttendanceTab>(initialTab);
   const visibleTabs = useMemo(
     () => allTabs.filter((tab) => !tabs || tabs.includes(tab.key)),
@@ -110,9 +116,11 @@ export function AttendanceManagementPage({
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [fingerprints, setFingerprints] = useState<EmployeeFingerprint[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [employeeId, setEmployeeId] = useState("");
+  const [employeeId, setEmployeeId] = useState(searchParams.get("employeeId") ?? "");
   const [month, setMonth] = useState(currentMonth);
-  const [employeeMonth, setEmployeeMonth] = useState(currentMonth);
+  const [employeeMonth, setEmployeeMonth] = useState(() =>
+    getMonthParam(searchParams.get("month")),
+  );
   const [myHistory, setMyHistory] = useState<AttendanceHistoryData | null>(
     null,
   );
@@ -257,6 +265,13 @@ export function AttendanceManagementPage({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    const queryEmployeeId = searchParams.get("employeeId");
+    const queryMonth = searchParams.get("month");
+    if (queryEmployeeId !== null) setEmployeeId(queryEmployeeId);
+    if (queryMonth !== null) setEmployeeMonth(getMonthParam(queryMonth));
+  }, [searchParams]);
 
   useEffect(() => {
     void loadDevices();

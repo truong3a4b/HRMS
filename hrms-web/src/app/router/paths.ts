@@ -18,6 +18,7 @@ export const paths = {
   // Employees
   employees: '/employees',
   employeeDetail: '/employees/:id',
+  employeeDetailById: (id: string) => `/employees/${id}`,
 
   // Categories
   departments: '/categories/departments',

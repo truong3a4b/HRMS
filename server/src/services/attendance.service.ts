@@ -454,7 +454,11 @@ const buildMonthlyTimesheet = async (
 ) => {
   const { start, end } = getMonthRange(month);
 
-  const [schedules, attendanceRecords] = await Promise.all([
+  const [yearStr, monthStr] = month.split("-");
+  const yearNum = parseInt(yearStr, 10);
+  const monthNum = parseInt(monthStr, 10);
+
+  const [schedules, attendanceRecords, standardWorkDayConfig] = await Promise.all([
     prisma.workSchedule.findMany({
       where: {
         employeeId: employee.id,
@@ -496,6 +500,15 @@ const buildMonthlyTimesheet = async (
         date: "asc",
       },
     }),
+    prisma.employeeStandardWorkDay.findUnique({
+      where: {
+        employeeId_month_year: {
+          employeeId: employee.id,
+          month: monthNum,
+          year: yearNum,
+        },
+      },
+    }),
   ]);
 
   const scheduleByDate = new Map<string, (typeof schedules)[number]>();
@@ -518,11 +531,13 @@ const buildMonthlyTimesheet = async (
     );
   };
 
-  const monthStandardWorkUnits = schedules.reduce(
-    (total, schedule) =>
-      total + getScheduledStandardWorkUnits(toDateKey(schedule.date)),
-    0,
-  );
+  const monthStandardWorkUnits = standardWorkDayConfig
+    ? Number(standardWorkDayConfig.standardWorkDays)
+    : schedules.reduce(
+        (total, schedule) =>
+          total + getScheduledStandardWorkUnits(toDateKey(schedule.date)),
+        0,
+      );
 
   const days = attendanceRecords
     .filter((record) => record.details.length > 0)

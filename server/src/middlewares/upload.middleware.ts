@@ -17,6 +17,10 @@ const allowedImageMimeTypes = new Set([
   "image/png",
   "image/webp",
 ]);
+const allowedExcelMimeTypes = new Set([
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+]);
 
 const cvFieldNames = new Set(["cv", "cvFile", "file"]);
 const imageFieldNames = new Set([
@@ -113,6 +117,31 @@ const createUpload = (options?: { allowImages?: boolean }) =>
 
 const upload = createUpload();
 const uploadProfile = createUpload({ allowImages: true });
+const uploadEmployeeExcel = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, callback) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    if (
+      allowedExcelMimeTypes.has(file.mimetype) ||
+      extension === ".xlsx" ||
+      extension === ".xls"
+    ) {
+      callback(null, true);
+      return;
+    }
+
+    callback(
+      new ApiError(
+        400,
+        "Employee import file must be an XLS or XLSX file",
+        "INVALID_EMPLOYEE_IMPORT_FILE_TYPE",
+      ),
+    );
+  },
+});
 
 const uploadCvFields = upload.fields([
   { name: "cv", maxCount: 1 },
@@ -182,6 +211,9 @@ export const uploadProfileFiles: RequestHandler = (req, res, next) => {
     next();
   });
 };
+
+export const uploadEmployeeImportExcel: RequestHandler =
+  uploadEmployeeExcel.single("file");
 
 const ensureCloudinaryConfigured = () => {
   if (

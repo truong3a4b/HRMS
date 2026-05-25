@@ -8,11 +8,13 @@ const DEPARTMENT_ERROR_CODES = {
   MANAGER_ALREADY_ASSIGNED: "DEPARTMENT_MANAGER_ALREADY_ASSIGNED",
   NOT_FOUND: "DEPARTMENT_NOT_FOUND",
   CODE_GENERATION_FAILED: "DEPARTMENT_CODE_GENERATION_FAILED",
+  CODE_EXISTS: "DEPARTMENT_CODE_EXISTS",
   HAS_ASSIGNED_EMPLOYEES: "DEPARTMENT_HAS_ASSIGNED_EMPLOYEES",
 } as const;
 
 type CreateDepartmentInput = {
   name: string;
+  code?: string | null;
   description?: string;
   managerId?: string | null;
 };
@@ -53,6 +55,11 @@ const buildRandomDepartmentCode = () => {
   return `DEP-${randomSuffix}`;
 };
 
+const normalizeDepartmentCode = (code?: string | null) => {
+  const normalized = code?.trim().toUpperCase();
+  return normalized || null;
+};
+
 const isDepartmentCodeConflictError = (error: unknown) => {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
     return false;
@@ -72,6 +79,7 @@ const isDepartmentCodeConflictError = (error: unknown) => {
 const ensureEmployeeCanManageDepartment = async (
   managerId: string,
   departmentId?: string,
+  options: { allowCurrentDepartment?: boolean } = {},
 ) => {
   const manager = await prisma.employee.findUnique({
     where: { id: managerId },
@@ -107,7 +115,7 @@ const ensureEmployeeCanManageDepartment = async (
     );
   }
 
-  if (!departmentId && manager.departmentId) {
+  if (!departmentId && manager.departmentId && !options.allowCurrentDepartment) {
     throw new ApiError(
       400,
       "Manager is currently assigned to another department",
@@ -204,7 +212,9 @@ export const departmentService = {
 
   async create(data: CreateDepartmentInput) {
     if (data.managerId) {
-      await ensureEmployeeCanManageDepartment(data.managerId);
+      await ensureEmployeeCanManageDepartment(data.managerId, undefined, {
+        allowCurrentDepartment: true,
+      });
     }
 
     return prisma.$transaction(async (tx) => {
@@ -212,14 +222,14 @@ export const departmentService = {
         | Awaited<ReturnType<typeof tx.department.create>>
         | undefined;
 
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const code = buildRandomDepartmentCode();
+      const requestedCode = normalizeDepartmentCode(data.code);
 
+      if (requestedCode) {
         try {
           department = await tx.department.create({
             data: {
               name: data.name,
-              code,
+              code: requestedCode,
               description: data.description,
               managerId: data.managerId ?? null,
             },
@@ -229,13 +239,43 @@ export const departmentService = {
               },
             },
           });
-          break;
         } catch (error) {
           if (isDepartmentCodeConflictError(error)) {
-            continue;
+            throw new ApiError(
+              400,
+              "Department code already exists",
+              DEPARTMENT_ERROR_CODES.CODE_EXISTS,
+            );
           }
 
           throw error;
+        }
+      } else {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const code = buildRandomDepartmentCode();
+
+          try {
+            department = await tx.department.create({
+              data: {
+                name: data.name,
+                code,
+                description: data.description,
+                managerId: data.managerId ?? null,
+              },
+              include: {
+                manager: {
+                  select: departmentManagerSelect,
+                },
+              },
+            });
+            break;
+          } catch (error) {
+            if (isDepartmentCodeConflictError(error)) {
+              continue;
+            }
+
+            throw error;
+          }
         }
       }
 

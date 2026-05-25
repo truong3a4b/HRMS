@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { EmployeeStatus } from "../../generated/prisma/client";
+import { employeeImportService } from "../services/employee-import.service";
 import { employeeService } from "../services/employee.service";
 import { sendResponse } from "../utils/response";
 import { ApiError } from "../utils/apiError";
@@ -32,6 +33,58 @@ const getAllEmployeesQuerySchema = z.object({
 });
 
 export const employeeController = {
+  async downloadImportTemplate(
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const buffer = employeeImportService.createTemplateBuffer();
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="employee-import-template.xlsx"',
+      );
+      return res.status(200).send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async previewImport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await employeeImportService.preview(req.file, req.user?.id);
+      return sendResponse(
+        res,
+        201,
+        "Employee import preview created successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async confirmImport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const batchId = Array.isArray(req.params.batchId)
+        ? req.params.batchId[0]
+        : req.params.batchId;
+      const result = await employeeImportService.confirm(batchId, req.user?.id);
+      return sendResponse(
+        res,
+        200,
+        "Employees imported successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const { page, limit, search, departmentId, positionId, status } =

@@ -14,6 +14,7 @@ import {
 } from "../middlewares/auth.middleware";
 import {
   attachUploadedProfileFileUrls,
+  uploadEmployeeImportExcel,
   uploadProfileFiles,
 } from "../middlewares/upload.middleware";
 import { validate } from "../middlewares/validate.middleware";
@@ -162,6 +163,25 @@ router.get(
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(PERMISSIONS.EMPLOYEE_VIEW_LIST),
   employeeController.getAll,
+);
+router.get(
+  "/import/template",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.EMPLOYEE_CREATE),
+  employeeController.downloadImportTemplate,
+);
+router.post(
+  "/import/preview",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.EMPLOYEE_CREATE),
+  uploadEmployeeImportExcel,
+  employeeController.previewImport,
+);
+router.post(
+  "/import/:batchId/confirm",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.EMPLOYEE_CREATE),
+  employeeController.confirmImport,
 );
 router.get("/me", authMiddleware(), employeeController.getMe);
 router.get(

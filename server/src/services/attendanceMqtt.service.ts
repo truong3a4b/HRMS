@@ -97,7 +97,7 @@ const offlineSweepIntervalMs = Math.min(
   Math.max(heartbeatTimeoutMs / 2, 30_000),
   60_000,
 );
-const absentSweepIntervalMs = 60_000;
+
 const mqttOptions = {
   clientId: env.MQTT_CLIENT_ID,
   keepalive: env.MQTT_KEEP_ALIVE_SECONDS,
@@ -109,7 +109,7 @@ const mqttOptions = {
 
 let mqttClient: MqttClient | null = null;
 let offlineSweepTimer: NodeJS.Timeout | null = null;
-let absentSweepTimer: NodeJS.Timeout | null = null;
+
 let isAbsentSweepRunning = false;
 
 const isObject = (value: unknown): value is JsonRecord =>
@@ -519,12 +519,13 @@ const startOfflineSweep = () => {
 };
 
 //hàm này sẽ được chạy định kỳ để tạo các bản ghi điểm danh với trạng thái vắng mặt cho những lịch làm việc đã kết thúc nhưng chưa có bản ghi điểm danh nào, giúp đảm bảo dữ liệu điểm danh luôn đầy đủ và chính xác ngay cả khi nhân viên quên chấm công hoặc có lỗi hệ thống
-const createAbsentDetailsForExpiredSchedules = async () => {
+export const createAbsentDetailsForExpiredSchedules = async () => {
   const now = new Date();
   const today = toUtcDateOnly(now);
   const fromDate = addUtcDays(today, -1);
   const toDate = addUtcDays(today, 1);
 
+  // Lấy lịch làm việc
   const schedules = await prisma.workSchedule.findMany({
     where: {
       date: {
@@ -544,8 +545,42 @@ const createAbsentDetailsForExpiredSchedules = async () => {
     },
   });
 
+  if (schedules.length === 0) return;
+
+  // Lấy trước toàn bộ attendance record trong khoảng thời gian này để đối chiếu
+  const attendanceRecords = await prisma.attendanceRecord.findMany({
+    where: {
+      date: {
+        gte: fromDate,
+        lt: toDate,
+      },
+    },
+    include: {
+      details: {
+        select: {
+          workShiftId: true,
+        },
+      },
+    },
+  });
+
+  const recordMap = new Map<string, Set<string>>();
+  for (const record of attendanceRecords) {
+    const key = `${record.employeeId}_${record.date.getTime()}`;
+    const shiftIds = new Set(record.details.map((d) => d.workShiftId));
+    recordMap.set(key, shiftIds);
+  }
+
   for (const schedule of schedules) {
+    const key = `${schedule.employeeId}_${schedule.date.getTime()}`;
+    const existingWorkShiftIds = recordMap.get(key) || new Set<string>();
+
     const expiredShiftLinks = schedule.shiftLinks.filter((shiftLink) => {
+      // Nếu ca làm việc đã có điểm danh thì bỏ qua, không tính là expired
+      if (existingWorkShiftIds.has(shiftLink.workShiftId)) {
+        return false;
+      }
+
       const shift = shiftLink.workShift;
       const attendanceDeadline = buildWindowDateTime(
         schedule.date,
@@ -573,23 +608,9 @@ const createAbsentDetailsForExpiredSchedules = async () => {
           date: schedule.date,
         },
         update: {},
-        include: {
-          details: {
-            select: {
-              workShiftId: true,
-            },
-          },
-        },
       });
-      const existingWorkShiftIds = new Set(
-        attendanceRecord.details.map((detail) => detail.workShiftId),
-      );
 
       for (const shiftLink of expiredShiftLinks) {
-        if (existingWorkShiftIds.has(shiftLink.workShiftId)) {
-          continue;
-        }
-
         const shift = shiftLink.workShift;
         const shiftStartAt = buildDateTimeOnDate(
           schedule.date,
@@ -622,32 +643,7 @@ const createAbsentDetailsForExpiredSchedules = async () => {
   }
 };
 
-//ham nay sẽ được chạy định kỳ để quét các lịch làm việc đã kết thúc nhưng chưa có bản ghi điểm danh nào, sau đó tạo các bản ghi điểm danh với trạng thái vắng mặt cho những lịch đó. Điều này giúp đảm bảo dữ liệu điểm danh luôn đầy đủ và chính xác, ngay cả khi nhân
-const startAbsentSweep = () => {
-  if (absentSweepTimer) {
-    return;
-  }
 
-  const runSweep = async () => {
-    if (isAbsentSweepRunning) {
-      return;
-    }
-
-    isAbsentSweepRunning = true;
-    try {
-      await createAbsentDetailsForExpiredSchedules();
-    } catch (error) {
-      console.error("Failed to create absent attendance records:", error);
-    } finally {
-      isAbsentSweepRunning = false;
-    }
-  };
-
-  void runSweep();
-  absentSweepTimer = setInterval(() => {
-    void runSweep();
-  }, absentSweepIntervalMs);
-};
 
 const handleHeartbeatMessage = async (deviceCode: string) => {
   await prisma.attendanceDevice.updateMany({
@@ -1197,7 +1193,7 @@ export const attendanceMqttService = {
     if (!client) {
       console.warn("MQTT_URL is not configured; attendance MQTT is disabled.");
     }
-    startAbsentSweep();
+
     return true;
   },
 
@@ -1230,10 +1226,7 @@ export const attendanceMqttService = {
       offlineSweepTimer = null;
     }
 
-    if (absentSweepTimer) {
-      clearInterval(absentSweepTimer);
-      absentSweepTimer = null;
-    }
+
 
     if (mqttClient) {
       mqttClient.end(true);

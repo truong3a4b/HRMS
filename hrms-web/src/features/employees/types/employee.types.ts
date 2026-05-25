@@ -232,3 +232,48 @@ export type UpdateEmployeeJobPayload = {
   status: EmployeeStatus;
   effectiveFrom: string;
 };
+
+export type EmployeeImportIssue = {
+  field: string;
+  message: string;
+};
+
+export type EmployeeImportPreviewRow = {
+  id: string;
+  rowNumber: number;
+  values: Record<string, unknown>;
+  normalized: {
+    name: string;
+    email: string;
+    phone?: string;
+    dateOfBirth?: string;
+    gender?: "MALE" | "FEMALE" | "OTHER";
+    address?: string;
+    bankAccount?: string;
+    departmentId: string;
+    departmentCode: string;
+    departmentName: string;
+    positionId: string;
+    positionCode: string;
+    positionName: string;
+    hireDate: string;
+    salary: number;
+    status: EmployeeStatus;
+  } | null;
+  errors: EmployeeImportIssue[];
+  warnings: EmployeeImportIssue[];
+};
+
+export type EmployeeImportPreview = {
+  id: string;
+  status: "PREVIEWED" | "CONFIRMED" | "EXPIRED";
+  totalRows: number;
+  errorRows: number;
+  warningRows: number;
+  expiresAt: string;
+  rows: EmployeeImportPreviewRow[];
+};
+
+export type EmployeeImportConfirmResult = {
+  createdCount: number;
+};

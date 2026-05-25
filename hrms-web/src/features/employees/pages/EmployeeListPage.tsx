@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pagination } from "antd";
-import { Plus, RefreshCcw, Search } from "lucide-react";
+import { FileSpreadsheet, Plus, RefreshCcw, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/services/useAuth";
 import { AppLayout } from "../../../app/layouts";
@@ -8,6 +8,7 @@ import {
   AddEmployeeModal,
   EditEmployeeModal,
 } from "../components/EmployeeModals";
+import { EmployeeImportModal } from "../components/EmployeeImportModal";
 import { EmployeeTable } from "../components/EmployeeTable";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { employeeService } from "../services/employeeService";
@@ -78,7 +79,9 @@ export function EmployeeListPage() {
   const [meta, setMeta] = useState<EmployeeListMeta>(initialMeta);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null,
@@ -189,6 +192,7 @@ export function EmployeeListPage() {
   const handleAddEmployee = async (payload: CreateEmployeePayload) => {
     await employeeService.createEmployee(payload);
     setAddOpen(false);
+    setNoticeMessage("Đã thêm nhân viên.");
     setCurrentPage(1);
     await loadEmployees();
   };
@@ -217,6 +221,14 @@ export function EmployeeListPage() {
 
     setEditOpen(false);
     setSelectedEmployee(null);
+    setNoticeMessage("Đã cập nhật nhân viên.");
+    await loadEmployees();
+  };
+
+  const handleImported = async (createdCount: number) => {
+    setImportOpen(false);
+    setNoticeMessage(`Đã import ${createdCount} nhân viên.`);
+    setCurrentPage(1);
     await loadEmployees();
   };
 
@@ -241,14 +253,24 @@ export function EmployeeListPage() {
               </h1>
             </div>
             {canCreate ? (
-              <button
-                className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
-                type="button"
-                onClick={() => setAddOpen(true)}
-              >
-                <Plus className="h-5 w-5" />
-                Thêm nhân viên
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  className="flex shrink-0 items-center gap-2 rounded-lg border border-[#c7dcf2] bg-white px-4 py-2 text-[#006fd5] transition-colors hover:bg-[#f2f8ff]"
+                  type="button"
+                  onClick={() => setImportOpen(true)}
+                >
+                  <FileSpreadsheet className="h-5 w-5" />
+                  Import Excel
+                </button>
+                <button
+                  className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                >
+                  <Plus className="h-5 w-5" />
+                  Thêm nhân viên
+                </button>
+              </div>
             ) : null}
           </div>
 
@@ -320,6 +342,11 @@ export function EmployeeListPage() {
               {errorMessage}
             </div>
           ) : null}
+          {noticeMessage ? (
+            <div className="rounded-lg border border-[#abefc6] bg-[#f6fef9] px-4 py-3 text-sm text-[#067647]">
+              {noticeMessage}
+            </div>
+          ) : null}
 
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
             <EmployeeTable
@@ -353,6 +380,11 @@ export function EmployeeListPage() {
             positions={positions}
             onClose={() => setAddOpen(false)}
             onSubmit={handleAddEmployee}
+          />
+          <EmployeeImportModal
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            onImported={handleImported}
           />
           <EditEmployeeModal
             open={editOpen}

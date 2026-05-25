@@ -4,6 +4,8 @@ import type {
   CreateEmployeePayload,
   EmployeeFilters,
   Employee,
+  EmployeeImportConfirmResult,
+  EmployeeImportPreview,
   EmployeeJobHistory,
   EmployeeListData,
   EmployeeOption,
@@ -121,6 +123,43 @@ export const employeeService = {
       "/employees",
       payload,
     );
+
+    return response.data.data;
+  },
+
+  async downloadImportTemplate() {
+    const response = await apiClient.get<Blob>("/employees/import/template", {
+      responseType: "blob",
+    });
+
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "employee-import-template.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
+
+  async previewImport(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await apiClient.post<ApiResponse<EmployeeImportPreview>>(
+      "/employees/import/preview",
+      formData,
+      multipartConfig,
+    );
+
+    return response.data.data;
+  },
+
+  async confirmImport(batchId: string) {
+    const response =
+      await apiClient.post<ApiResponse<EmployeeImportConfirmResult>>(
+        `/employees/import/${batchId}/confirm`,
+      );
 
     return response.data.data;
   },

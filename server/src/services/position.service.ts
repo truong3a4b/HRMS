@@ -4,6 +4,7 @@ import {
   PermissionKey,
 } from "../constants/permissions";
 import { ApiError } from "../utils/apiError";
+import { Prisma } from "../../generated/prisma/client";
 
 type CreatePositionInput = {
   name: string;
@@ -37,6 +38,69 @@ const ensurePermissionCatalog = async () => {
       }),
     ),
   );
+};
+
+const normalizePositionCode = (code?: string | null) => {
+  const normalized = code?.trim().toUpperCase();
+  return normalized || null;
+};
+
+const buildRandomPositionCode = () => {
+  const randomSuffix = Math.floor(Math.random() * 900000 + 100000);
+  return `POS-${randomSuffix}`;
+};
+
+const buildPositionCodeFromName = (name: string) => {
+  const normalized = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return normalized || buildRandomPositionCode();
+};
+
+const generateUniquePositionCode = async (name: string) => {
+  const baseCode = buildPositionCodeFromName(name);
+  let finalCode = baseCode;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const existing = await prisma.position.findUnique({
+      where: { code: finalCode },
+      select: { id: true },
+    });
+
+    if (!existing) return finalCode;
+
+    finalCode = baseCode.startsWith("POS-")
+      ? buildRandomPositionCode()
+      : `${baseCode}_${attempt + 1}`;
+  }
+
+  throw new ApiError(
+    500,
+    "Unable to generate a unique position code",
+    "POSITION_CODE_GENERATION_FAILED",
+  );
+};
+
+const isPositionCodeConflictError = (error: unknown) => {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+    return false;
+  }
+
+  if (error.code !== "P2002") {
+    return false;
+  }
+
+  const targets = Array.isArray(error.meta?.target)
+    ? error.meta.target.map((target) => String(target))
+    : [];
+
+  return targets.includes("code");
 };
 
 export const positionService = {
@@ -80,44 +144,55 @@ export const positionService = {
       );
     }
 
-    // Auto-generate code if not provided
-    let code = data.code;
-    if (!code) {
-      // Generate code from name: convert to uppercase, replace spaces with underscore
-      const baseCode = data.name
-        .toUpperCase()
-        .replace(/\s+/g, "_")
-        .replace(/[^A-Z0-9_]/g, "");
+    const requestedCode = normalizePositionCode(data.code);
+    const code = requestedCode ?? (await generateUniquePositionCode(data.name));
 
-      // Check if code already exists
-      let finalCode = baseCode;
-      let counter = 1;
-      while (await prisma.position.findUnique({ where: { code: finalCode } })) {
-        finalCode = `${baseCode}_${counter}`;
-        counter++;
+    if (requestedCode) {
+      const codeExists = await prisma.position.findUnique({
+        where: { code: requestedCode },
+        select: { id: true },
+      });
+
+      if (codeExists) {
+        throw new ApiError(
+          400,
+          "Position code already exists",
+          "POSITION_CODE_EXISTS",
+        );
       }
-      code = finalCode;
     }
 
-    return prisma.position.create({
-      data: {
-        name: data.name,
-        code: code,
-        description: data.description,
-        permissions: {
-          create: permissions.map((permission) => ({
-            permissionId: permission.id,
-          })),
-        },
-      },
-      include: {
-        permissions: {
-          include: {
-            permission: true,
+    try {
+      return await prisma.position.create({
+        data: {
+          name: data.name,
+          code,
+          description: data.description,
+          permissions: {
+            create: permissions.map((permission) => ({
+              permissionId: permission.id,
+            })),
           },
         },
-      },
-    });
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (isPositionCodeConflictError(error)) {
+        throw new ApiError(
+          409,
+          "Position code already exists. Please try again.",
+          "POSITION_CODE_EXISTS",
+        );
+      }
+
+      throw error;
+    }
   },
 
   async getById(id: string) {
@@ -159,9 +234,12 @@ export const positionService = {
     await ensurePermissionCatalog();
 
     // Validate new code doesn't conflict (if code is being updated)
-    if (data.code && data.code !== existingPosition.code) {
+    const nextCode =
+      data.code !== undefined ? normalizePositionCode(data.code) : undefined;
+
+    if (nextCode && nextCode !== existingPosition.code) {
       const codeExists = await prisma.position.findUnique({
-        where: { code: data.code },
+        where: { code: nextCode },
       });
 
       if (codeExists) {
@@ -207,7 +285,7 @@ export const positionService = {
       where: { id },
       data: {
         ...(data.name !== undefined ? { name: data.name } : {}),
-        ...(data.code !== undefined ? { code: data.code } : {}),
+        ...(nextCode !== undefined ? { code: nextCode } : {}),
         ...(data.description !== undefined
           ? { description: data.description }
           : {}),

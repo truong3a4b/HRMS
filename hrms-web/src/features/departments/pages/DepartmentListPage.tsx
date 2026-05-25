@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Modal } from "antd";
 import {
+  ArrowRightLeft,
   Edit2,
+  Info,
   Plus,
   RefreshCcw,
   Search,
@@ -12,7 +14,7 @@ import { AppLayout } from "../../../app/layouts";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { employeeService } from "../../employees/services/employeeService";
-import type { Employee, EmployeeOption } from "../../employees/types/employee.types";
+import type { Employee } from "../../employees/types/employee.types";
 import { departmentService } from "../services/departmentService";
 import type { Department } from "../types/department.types";
 import { useAuth } from "../../auth/services/useAuth";
@@ -24,6 +26,7 @@ const labelClass = "mb-1.5 block text-sm font-medium text-[#344054]";
 
 const emptyForm = {
   name: "",
+  code: "",
   description: "",
   managerId: "",
 };
@@ -56,18 +59,24 @@ function DepartmentFormModal({
 }: {
   open: boolean;
   department: Department | null;
-  employees: EmployeeOption[];
+  employees: Employee[];
   onClose: () => void;
   onSubmit: (form: typeof emptyForm) => Promise<void>;
 }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isCreateMode = !department;
+  const selectedManager = useMemo(
+    () => employees.find((employee) => employee.id === form.managerId) ?? null,
+    [employees, form.managerId],
+  );
 
   useEffect(() => {
     if (open) {
       setForm({
         name: department?.name ?? "",
+        code: department?.code ?? "",
         description: department?.description ?? "",
         managerId: department?.manager?.id ?? department?.managerId ?? "",
       });
@@ -129,6 +138,19 @@ function DepartmentFormModal({
           </div>
         ) : null}
         <div className="grid gap-4">
+          {isCreateMode ? (
+            <div className="rounded-lg border border-[#c7dcf2] bg-[#f2f8ff] px-4 py-3 text-sm text-[#175cd3]">
+              <div className="flex items-start gap-2">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <div className="font-semibold">Mã bộ phận có thể nhập hoặc để trống.</div>
+                  <div className="mt-0.5 text-[#475467]">
+                    Nếu để trống, hệ thống sẽ tự sinh mã. Nếu chọn trưởng bộ phận đang thuộc bộ phận khác, hệ thống sẽ chuyển nhân viên đó sang bộ phận mới sau khi lưu.
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <label>
             <span className={labelClass}>Tên bộ phận</span>
             <input
@@ -139,6 +161,31 @@ function DepartmentFormModal({
               }
             />
           </label>
+          {isCreateMode ? (
+            <label>
+              <span className={labelClass}>Mã bộ phận</span>
+              <input
+                className={fieldClass}
+                value={form.code}
+                placeholder="Tự sinh nếu để trống"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    code: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          ) : (
+            <label>
+              <span className={labelClass}>Mã bộ phận</span>
+              <input
+                className={`${fieldClass} bg-[#f9fafb]`}
+                value={form.code || "Tự sinh"}
+                disabled
+              />
+            </label>
+          )}
           <label>
             <span className={labelClass}>Mô tả</span>
             <textarea
@@ -164,10 +211,41 @@ function DepartmentFormModal({
               }
               options={[
                 { value: "", label: "Chưa chọn" },
-                ...employees.map((employee) => ({ value: employee.id, label: employee.name }))
+                ...employees.map((employee) => ({
+                  value: employee.id,
+                  label: `${employee.name} - ${employee.email}${
+                    employee.department?.name ? ` (${employee.department.name})` : ""
+                  }`,
+                }))
               ]}
             />
           </label>
+          {selectedManager ? (
+            <div className="rounded-lg border border-[#edf0f5] bg-[#fbfcfe] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <Avatar
+                  src={selectedManager.avatar}
+                  alt={selectedManager.name}
+                  sizeClass="h-10 w-10"
+                />
+                <div className="min-w-0 flex-1">
+                  <strong className="block truncate text-sm text-[#243247]">
+                    {selectedManager.name}
+                  </strong>
+                  <span className="block truncate text-xs text-[#667085]">
+                    {selectedManager.email} | Hiện tại:{" "}
+                    {selectedManager.department?.name ?? "Chưa thuộc bộ phận"}
+                  </span>
+                </div>
+              </div>
+              {isCreateMode ? (
+                <div className="mt-3 flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                  <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                  Nhân viên này sẽ được gán vào bộ phận mới khi tạo.
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </form>
     </Modal>
@@ -236,7 +314,7 @@ export function DepartmentListPage() {
   const canSetup = user?.role === "ADMIN" || user?.permissions?.includes("DEPARTMENT_SETUP");
 
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -281,12 +359,7 @@ export function DepartmentListPage() {
     employeeService
       .getEmployees({ page: 1, limit: 100, search: "" })
       .then((result) => {
-        setEmployees(
-          (result.items ?? []).map((employee) => ({
-            id: employee.id,
-            name: `${employee.name} - ${employee.email}`,
-          })),
-        );
+        setEmployees(result.items ?? []);
       })
       .catch(() => setEmployees([]));
   }, []);
@@ -314,6 +387,7 @@ export function DepartmentListPage() {
     } else {
       await departmentService.createDepartment({
         name: form.name.trim(),
+        code: form.code.trim() || undefined,
         description: form.description.trim() || undefined,
         managerId: form.managerId || null,
       });

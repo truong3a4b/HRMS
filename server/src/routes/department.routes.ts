@@ -11,8 +11,22 @@ import { validate } from "../middlewares/validate.middleware";
 
 const router = Router();
 
+const emptyToUndefined = (value: unknown) => {
+  if (value === "" || value === undefined) {
+    return undefined;
+  }
+
+  return value;
+};
+
+const optionalCodeSchema = z.preprocess(
+  emptyToUndefined,
+  z.string().min(2).nullable().optional(),
+);
+
 const createDepartmentSchema = z.object({
   name: z.string().min(2),
+  code: optionalCodeSchema,
   description: z.string().optional(),
   managerId: z.string().uuid().nullable().optional(),
 });

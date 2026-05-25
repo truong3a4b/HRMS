@@ -9,6 +9,8 @@ import { initializeSocket } from "./config/socket";
 import { attendanceMqttService } from "./services/attendanceMqtt.service";
 import routes from "./routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
+import { initEmployeeJobHistoryCron } from "./jobs/employeeJobHistory.job";
+import { initAttendanceAbsentSweepCron } from "./jobs/attendanceAbsentSweep.job";
 
 const app = express();
 const allowedOrigins = new Set(
@@ -61,6 +63,8 @@ const startServer = async () => {
   try {
     await prisma.$connect();
     await attendanceMqttService.initialize();
+    initEmployeeJobHistoryCron();
+    initAttendanceAbsentSweepCron();
 
     server.listen(env.PORT, () => {
       console.log(`Server running at http://localhost:${env.PORT}`);

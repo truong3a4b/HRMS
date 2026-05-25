@@ -32,7 +32,7 @@ export function HomeDrawer({ isOpen, onToggle }: HomeDrawerProps) {
 
   return (
     <aside
-      className={`relative flex max-h-full shrink-0 flex-col overflow-visible border-r border-[#1e293b] bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#0f172a] py-4 transition-all duration-300 text-white! ${
+      className={`relative z-30 flex max-h-full shrink-0 flex-col overflow-visible border-r border-[#1e293b] bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#0f172a] py-4 transition-all duration-300 text-white! ${
         isOpen
           ? "w-[280px] px-3.5 max-[1180px]:w-[232px] max-[860px]:w-[216px]"
           : "w-[64px] items-center px-2"

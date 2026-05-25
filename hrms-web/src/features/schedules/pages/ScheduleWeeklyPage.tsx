@@ -222,7 +222,7 @@ export function ScheduleWeeklyPage({
     }
 
     employeeService
-      .getEmployees({ page: 1, limit: 100, search: "" })
+      .getEmployees({ page: 1, limit: -1, search: "" })
       .then((result) => {
         const items = result.items ?? [];
         setEmployees(items);
@@ -361,7 +361,7 @@ export function ScheduleWeeklyPage({
                       { value: "", label: "-- Chọn nhân viên --" },
                       ...employees.map((employee) => ({
                         value: employee.id,
-                        label: employee.name,
+                        label: `${employee.employeeId} - ${employee.name}`,
                       })),
                     ]}
                   />

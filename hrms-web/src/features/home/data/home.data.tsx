@@ -7,8 +7,6 @@ import {
   LayoutDashboard,
   Lock,
   LogOut,
-  Mail,
-  User,
   Users,
   WalletCards,
   Calculator,
@@ -376,22 +374,10 @@ export function getNotifications(): NotificationItem[] {
 export function getAccountActions(onLogout: () => void): AccountAction[] {
   return [
     {
-      key: "profile",
-      title: "Thông tin cá nhân",
-      subtitle: "Chỉnh sửa thông tin cá nhân",
-      icon: <User className="h-5 w-5" />,
-    },
-    {
       key: "security",
-      title: "Bảo mật",
-      subtitle: "Danh sách thiết bị đăng nhập, đổi mật khẩu",
+      title: "Đổi mật khẩu",
+      subtitle: "Thay đổi mật khẩu tài khoản",
       icon: <Lock className="h-5 w-5" />,
-    },
-    {
-      key: "feedback",
-      title: "Đóng góp ý kiến, báo lỗi",
-      subtitle: "Gửi góp ý để cải thiện hệ thống",
-      icon: <Mail className="h-5 w-5" />,
     },
     {
       key: "logout",

@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { apiClient } from "../../../services/http/apiClient";
 import dayjs from "dayjs";
 import { Bell, ChevronRight, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -21,7 +22,7 @@ export function NotificationPopover({ onClose }: { onClose: () => void }) {
 
   return (
     <section
-      className="absolute top-[calc(100%+12px)] right-[-44px] z-30 w-[min(380px,calc(100vw-24px))] rounded-lg border border-[#e4e8f0] bg-white p-3 text-[#172033] shadow-[0_18px_45px_rgba(15,23,42,0.18)] before:absolute before:top-[-8px] before:right-14 before:h-4 before:w-4 before:rotate-45 before:border-t before:border-l before:border-[#e4e8f0] before:bg-white max-[520px]:right-[-54px]"
+      className="absolute top-[calc(100%+12px)] right-[-44px] z-[100] w-[min(380px,calc(100vw-24px))] rounded-lg border border-[#e4e8f0] bg-white p-3 text-[#172033] shadow-[0_18px_45px_rgba(15,23,42,0.18)] before:absolute before:top-[-8px] before:right-14 before:h-4 before:w-4 before:rotate-45 before:border-t before:border-l before:border-[#e4e8f0] before:bg-white max-[520px]:right-[-54px]"
       role="dialog"
       aria-label="Thông báo"
     >
@@ -97,6 +98,28 @@ export function NotificationPopover({ onClose }: { onClose: () => void }) {
 export function AccountPopover({ onClose }: { onClose: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [profileName, setProfileName] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    if (!user) return;
+    
+    const loadProfile = async () => {
+      try {
+        const endpoint = user.role === 'CANDIDATE' ? '/candidates/profile' : '/employees/me';
+        const res = await apiClient.get(endpoint);
+        if (alive) {
+          setProfileName(res.data?.data?.fullName ?? res.data?.data?.name ?? "");
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    
+    void loadProfile();
+    return () => { alive = false; };
+  }, [user]);
+
   const actions = useMemo(
     () =>
       getAccountActions(() => {
@@ -124,7 +147,7 @@ export function AccountPopover({ onClose }: { onClose: () => void }) {
 
   return (
     <section
-      className="absolute top-[calc(100%+12px)] right-0 z-30 w-[min(430px,calc(100vw-24px))] rounded-lg border border-[#e4e8f0] bg-white p-3 text-[#172033] shadow-[0_18px_45px_rgba(15,23,42,0.18)] before:absolute before:top-[-8px] before:right-3 before:h-4 before:w-4 before:rotate-45 before:border-t before:border-l before:border-[#e4e8f0] before:bg-white"
+      className="absolute top-[calc(100%+12px)] right-0 z-[100] w-[min(430px,calc(100vw-24px))] rounded-lg border border-[#e4e8f0] bg-white p-3 text-[#172033] shadow-[0_18px_45px_rgba(15,23,42,0.18)] before:absolute before:top-[-8px] before:right-3 before:h-4 before:w-4 before:rotate-45 before:border-t before:border-l before:border-[#e4e8f0] before:bg-white"
       role="dialog"
       aria-label="Tài khoản"
     >
@@ -151,7 +174,7 @@ export function AccountPopover({ onClose }: { onClose: () => void }) {
           <Avatar alt={user?.email ?? "Tài khoản"} sizeClass="h-12.5 w-12.5" />
           <span className="min-w-0">
             <strong className="block truncate text-base text-[#172033]">
-              {user?.email ?? "Người dùng"}
+              {profileName || user?.fullName || user?.name || user?.email || "Người dùng"}
             </strong>
             <small className="block truncate text-xs text-[#8a94a6]">
               Chỉnh sửa thông tin cá nhân

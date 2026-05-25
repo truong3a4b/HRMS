@@ -357,7 +357,7 @@ export function DepartmentListPage() {
     void loadDepartments();
 
     employeeService
-      .getEmployees({ page: 1, limit: 100, search: "" })
+      .getEmployees({ page: 1, limit: -1, search: "" })
       .then((result) => {
         setEmployees(result.items ?? []);
       })

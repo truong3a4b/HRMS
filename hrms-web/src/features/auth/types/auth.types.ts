@@ -40,6 +40,8 @@ export type ChangePasswordPayload = {
 export type AuthUser = {
   id: string
   email: string
+  name?: string
+  fullName?: string
   role?: string
   employeeId?: string
   permissions?: string[]

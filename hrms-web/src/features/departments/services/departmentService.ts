@@ -66,7 +66,7 @@ export const departmentService = {
       {
         params: removeEmptyParams({
           page: 1,
-          limit: 100,
+          limit: -1,
           departmentId,
         }),
       },

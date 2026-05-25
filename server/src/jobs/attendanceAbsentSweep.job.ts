@@ -8,7 +8,9 @@ export const initAttendanceAbsentSweepCron = () => {
   // Nếu muốn đổi lịch, sửa chuỗi "0 * * * *"
   cron.schedule("0 * * * *", async () => {
     if (isRunning) {
-      console.log("[Job] Absent sweep is already running, skipping this interval.");
+      console.log(
+        "[Job] Absent sweep is already running, skipping this interval.",
+      );
       return;
     }
 
@@ -22,5 +24,7 @@ export const initAttendanceAbsentSweepCron = () => {
     }
   });
 
-  console.log("[Job] Initialized attendance absent sweep cronjob (runs hourly).");
+  console.log(
+    "[Job] Initialized attendance absent sweep cronjob (runs hourly).",
+  );
 };

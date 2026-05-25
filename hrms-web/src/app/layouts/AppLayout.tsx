@@ -26,12 +26,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         }}
         onCloseAccount={() => setAccountOpen(false)}
       />
-      <div className="flex min-h-0 flex-1 overflow-y-hidden overflow-x-visible">
+      <div className="relative flex min-h-0 flex-1 overflow-y-hidden overflow-x-visible">
         <HomeDrawer
           isOpen={drawerOpen}
           onToggle={() => setDrawerOpen((open) => !open)}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+        <div className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col">
+          {children}
+        </div>
       </div>
     </div>
   );

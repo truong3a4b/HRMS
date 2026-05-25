@@ -267,7 +267,7 @@ export function PayrollBonusPenaltyPage({
       setEmployees(
         (employeePage?.items ?? []).map((employee) => ({
           id: employee.id,
-          name: employee.name,
+          name: `${employee.employeeId} - ${employee.name}`,
         })),
       );
     } catch (error) {

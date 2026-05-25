@@ -308,7 +308,7 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
       employees
         .map((employee) => ({
           id: employee.user?.id,
-          label: `${employee.name} - ${employee.email}`,
+          label: `${employee.employeeId} - ${employee.name} - ${employee.email}`,
         }))
         .filter((option): option is UserOption => Boolean(option.id) && option.id !== user?.id),
     [employees, user?.id],
@@ -339,7 +339,7 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
   useEffect(() => {
     setIsLoadingOptions(true);
     employeeService
-      .getEmployees({ page: 1, limit: 100, search: "" })
+      .getEmployees({ page: 1, limit: -1, search: "" })
       .then((result) => setEmployees(result.items ?? []))
       .catch((error) => {
         setErrorMessage(getErrorMessage(error, "Không tải được danh sách nhân viên"));

@@ -228,6 +228,15 @@ export const employeeService = {
           {
             name: { contains: normalizedSearch, mode: "insensitive" as const },
           },
+          {
+            employeeId: {
+              contains: normalizedSearch,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            email: { contains: normalizedSearch, mode: "insensitive" as const },
+          },
         ],
       });
     }

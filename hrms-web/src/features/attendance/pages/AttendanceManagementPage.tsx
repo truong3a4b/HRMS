@@ -149,7 +149,7 @@ export function AttendanceManagementPage({
   const loadEmployees = async () => {
     const data = await employeeService.getEmployees({
       page: 1,
-      limit: 100,
+      limit: -1,
     });
     setEmployees(data.items ?? []);
   };

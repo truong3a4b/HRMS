@@ -1443,7 +1443,7 @@ export function PayrollPolicyPage() {
       setEmployees(
         (employeePage?.items ?? []).map((employee) => ({
           id: employee.id,
-          name: employee.name,
+          name: `${employee.employeeId} - ${employee.name}`,
         })),
       );
       setDepartments(departmentOptions as Department[]);

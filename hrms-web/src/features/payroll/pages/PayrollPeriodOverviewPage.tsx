@@ -112,7 +112,7 @@ function PayrollApprovalRequestModal({
       employees
         .map((employee) => ({
           id: employee.user?.id,
-          label: `${employee.name} - ${employee.email}`,
+          label: `${employee.employeeId} - ${employee.name} - ${employee.email}`,
         }))
         .filter((option): option is { id: string; label: string } =>
           Boolean(option.id && option.id !== currentUserId),

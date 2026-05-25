@@ -284,7 +284,7 @@ export function ScheduleRegisterPage() {
       employees
         .map((employee) => ({
           id: employee.user?.id,
-          label: `${employee.name} - ${employee.email}`,
+          label: `${employee.employeeId} - ${employee.name} - ${employee.email}`,
         }))
         .filter(
           (item): item is { id: string; label: string } =>
@@ -297,7 +297,7 @@ export function ScheduleRegisterPage() {
     void Promise.all([
       workShiftService.getWorkShifts().then(setWorkShifts),
       employeeService
-        .getEmployees({ page: 1, limit: 100, search: "" })
+        .getEmployees({ page: 1, limit: -1, search: "" })
         .then((result) => setEmployees(result.items ?? [])),
     ]).catch(() => {
       setErrorMessage("Không tải được dữ liệu đăng ký lịch làm việc");

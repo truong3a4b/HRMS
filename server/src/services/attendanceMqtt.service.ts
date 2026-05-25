@@ -520,8 +520,11 @@ const startOfflineSweep = () => {
 
 //hàm này sẽ được chạy định kỳ để tạo các bản ghi điểm danh với trạng thái vắng mặt cho những lịch làm việc đã kết thúc nhưng chưa có bản ghi điểm danh nào, giúp đảm bảo dữ liệu điểm danh luôn đầy đủ và chính xác ngay cả khi nhân viên quên chấm công hoặc có lỗi hệ thống
 export const createAbsentDetailsForExpiredSchedules = async () => {
+  // Compare with the UTC+7 attendance clock and mark absent right after
+  // check-in closes, not after the check-out window closes.
   const now = new Date();
-  const today = toUtcDateOnly(now);
+  const attendanceClockNow = toAttendanceClockTime(now);
+  const today = toUtcDateOnly(attendanceClockNow);
   const fromDate = addUtcDays(today, -1);
   const toDate = addUtcDays(today, 1);
 
@@ -584,11 +587,11 @@ export const createAbsentDetailsForExpiredSchedules = async () => {
       const shift = shiftLink.workShift;
       const attendanceDeadline = buildWindowDateTime(
         schedule.date,
-        shift.checkOutEndTime,
+        shift.checkInEndTime,
         shift.startTime,
       );
 
-      return attendanceDeadline.getTime() <= now.getTime();
+      return attendanceDeadline.getTime() <= attendanceClockNow.getTime();
     });
 
     if (expiredShiftLinks.length === 0) {

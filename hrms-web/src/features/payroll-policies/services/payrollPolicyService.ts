@@ -11,6 +11,8 @@ import type {
   AutoPenaltyPolicyPayload,
   EmployeeAllowance,
   EmployeeAutoPenaltyPolicy,
+  Holiday,
+  HolidayPayload,
   InsurancePolicy,
   InsurancePolicyPayload,
   PayrollPolicyAssignmentPayload,
@@ -140,6 +142,45 @@ export const payrollPolicyService = {
   async deleteAttendanceBonusPolicy(id: string) {
     const response = await apiClient.delete<ApiResponse<AttendanceBonusPolicy>>(
       `/payroll-policies/attendance-bonus/${id}`,
+    );
+
+    return response.data.data;
+  },
+
+  async getHolidays(params?: {
+    isActive?: boolean;
+    month?: number;
+    year?: number;
+  }) {
+    const response = await apiClient.get<ApiResponse<Holiday[]>>(
+      "/payroll-policies/holidays",
+      { params },
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async createHoliday(payload: HolidayPayload) {
+    const response = await apiClient.post<ApiResponse<Holiday>>(
+      "/payroll-policies/holidays",
+      cleanPayload(payload),
+    );
+
+    return response.data.data;
+  },
+
+  async updateHoliday(id: string, payload: HolidayPayload) {
+    const response = await apiClient.put<ApiResponse<Holiday>>(
+      `/payroll-policies/holidays/${id}`,
+      cleanPayload(payload),
+    );
+
+    return response.data.data;
+  },
+
+  async deleteHoliday(id: string) {
+    const response = await apiClient.delete<ApiResponse<Holiday>>(
+      `/payroll-policies/holidays/${id}`,
     );
 
     return response.data.data;

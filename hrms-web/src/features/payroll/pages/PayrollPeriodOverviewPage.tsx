@@ -735,6 +735,7 @@ export function PayrollPeriodOverviewPage() {
                         <th className="px-4 py-3.5 text-right font-semibold">Lương cơ bản</th>
                         <th className="px-4 py-3.5 text-right font-semibold">Công (Thực tế/Chuẩn)</th>
                         <th className="px-4 py-3.5 text-right font-semibold">Lương thực tế</th>
+                        <th className="px-4 py-3.5 text-right font-semibold">Lương nghỉ lễ</th>
                         <th className="px-4 py-3.5 text-right font-semibold">Tăng ca</th>
                         <th className="px-4 py-3.5 text-right font-semibold">Phụ cấp</th>
                         <th className="px-4 py-3.5 text-right font-semibold">Thưởng</th>
@@ -764,6 +765,7 @@ export function PayrollPeriodOverviewPage() {
                             <span className="text-[#1e293b] font-bold">{formatNumber(payroll.actualWorkDays)}</span> / {formatNumber(payroll.standardWorkDays)}
                           </td>
                           <td className="px-4 py-3 text-right font-semibold text-[#1e293b]">{formatMoney(payroll.actualSalary)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-[#0ea5e9]">{formatMoney(payroll.holidayPay)}</td>
                           <td className="px-4 py-3 text-right font-medium text-[#0ea5e9]">{formatMoney(payroll.totalOvertimePay)}</td>
                           <td className="px-4 py-3 text-right font-medium text-[#10b981]">{formatMoney(payroll.totalAllowance)}</td>
                           <td className="px-4 py-3 text-right font-medium text-[#10b981]">{formatMoney(payroll.totalBonus)}</td>

@@ -25,6 +25,7 @@ export const paths = {
   positions: '/categories/positions',
   branches: '/categories/branches',
   workShifts: '/categories/work-shifts',
+  holidays: '/categories/holidays',
 
   // Attendance
   attendanceDevices: '/attendance/devices',

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Modal } from "antd";
 import { AlertCircle, Award, Ban, Gavel,
   BadgePercent,
+  CalendarDays,
   Edit2,
   HandCoins,
   Landmark,
@@ -15,6 +16,7 @@ import { AppLayout } from "../../../app/layouts";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { employeeService } from "../../employees/services/employeeService";
 import { payrollPolicyService } from "../services/payrollPolicyService";
+import { AnnualLeaveBalanceTab } from "../../attendance/components/AnnualLeaveBalanceTab";
 import type {
   AllowancePolicy,
   AllowancePolicyPayload,
@@ -34,9 +36,9 @@ import type {
   TaxPolicyPayload,
 } from "../types/payrollPolicy.types";
 import type { Department } from "../../departments/types/department.types";
-import type { EmployeeOption } from "../../employees/types/employee.types";
+import type { Employee, EmployeeOption } from "../../employees/types/employee.types";
 
-type TabKey = "insurance" | "tax" | "attendanceBonus" | "allowances" | "autoPenalties" | "bonusPenalties";
+type TabKey = "insurance" | "tax" | "attendanceBonus" | "allowances" | "autoPenalties" | "bonusPenalties" | "annualLeaveBalances";
 type EditablePolicy =
   | InsurancePolicy
   | TaxPolicy
@@ -50,6 +52,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: ReactNode }> = [
   { key: "allowances", label: "Phụ cấp", icon: <HandCoins className="h-4 w-4" /> },
   { key: "autoPenalties", label: "Tiền phạt", icon: <Gavel className="h-4 w-4" /> },
   { key: "attendanceBonus", label: "Thưởng chuyên cần", icon: <Award className="h-4 w-4" /> },
+  { key: "annualLeaveBalances", label: "Phép năm", icon: <CalendarDays className="h-4 w-4" /> },
 ];
 
 const fieldClass =
@@ -1353,6 +1356,7 @@ export function PayrollPolicyPage() {
   const [allowancePolicies, setAllowancePolicies] = useState<AllowancePolicy[]>([]);
   const [autoPenaltyPolicies, setAutoPenaltyPolicies] = useState<AutoPenaltyPolicy[]>([]);
   const [bonusPenalties, setBonusPenalties] = useState<PayrollBonusPenalty[]>([]);
+  const [employeeItems, setEmployeeItems] = useState<Employee[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<EmployeeOption[]>([]);
@@ -1374,6 +1378,10 @@ export function PayrollPolicyPage() {
     useState<AutoPenaltyPolicy | null>(null);
 
   const activePolicies = useMemo(() => {
+    if (activeTab === "annualLeaveBalances") {
+      return [];
+    }
+
     const source =
       activeTab === "insurance"
         ? insurancePolicies
@@ -1440,6 +1448,7 @@ export function PayrollPolicyPage() {
       setAllowancePolicies(allowances);
       setAutoPenaltyPolicies(autoPenalties);
       setBonusPenalties(vouchers);
+      setEmployeeItems(employeePage?.items ?? []);
       setEmployees(
         (employeePage?.items ?? []).map((employee) => ({
           id: employee.id,
@@ -1597,6 +1606,16 @@ export function PayrollPolicyPage() {
   };
 
   const renderRows = () => {
+    if (activeTab === "annualLeaveBalances") {
+      return (
+        <AnnualLeaveBalanceTab
+          employees={employeeItems}
+          loadingEmployees={loading}
+          onError={setErrorMessage}
+        />
+      );
+    }
+
     if (activeTab === "bonusPenalties") return renderBonusPenaltyRows();
     if (loading) return <EmptyState text="Đang tải dữ liệu..." />;
     if (activePolicies.length === 0) return <EmptyState text="Chưa có chính sách phù hợp" />;
@@ -1806,11 +1825,11 @@ export function PayrollPolicyPage() {
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-semibold text-[#344054] shadow-xs transition-all hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5] active:bg-[#e6f0fa] disabled:cursor-not-allowed disabled:opacity-40" type="button" disabled={activeTab === "bonusPenalties"} onClick={() => setAssignmentOpen(true)}>
+              <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-semibold text-[#344054] shadow-xs transition-all hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5] active:bg-[#e6f0fa] disabled:cursor-not-allowed disabled:opacity-40" type="button" disabled={activeTab === "bonusPenalties" || activeTab === "annualLeaveBalances"} onClick={() => setAssignmentOpen(true)}>
                 <Users className="h-4 w-4" />
                 Áp dụng chính sách
               </button>
-              <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! shadow-xs transition-colors hover:bg-[#0055a8] active:bg-[#003f7a]" type="button" onClick={openAdd}>
+              <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! shadow-xs transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] disabled:cursor-not-allowed disabled:opacity-40" type="button" disabled={activeTab === "annualLeaveBalances"} onClick={openAdd}>
                 <Plus className="h-4 w-4" />
                 Thêm chính sách
               </button>
@@ -1823,7 +1842,9 @@ export function PayrollPolicyPage() {
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-sm transition-shadow hover:shadow-md">
             {renderRows()}
             <div className="shrink-0 border-t border-[#ebedf2] px-5 py-3.5 text-sm font-medium text-[#667085]">
-              Hiển thị {activePolicies.length} chính sách
+              {activeTab === "annualLeaveBalances"
+                ? "Thiết lập phép năm cho nhân viên"
+                : `Hiển thị ${activePolicies.length} chính sách`}
             </div>
           </section>
         </div>

@@ -64,6 +64,8 @@ type PayrollCalculationResult = Omit<CreatePayrollInput, "month" | "year"> & {
   standardWorkDays?: DecimalInput;
   actualWorkDays?: DecimalInput;
   actualSalary?: DecimalInput;
+  holidayWorkDays?: DecimalInput;
+  holidayPay?: DecimalInput;
   totalOvertimeWorkDays?: DecimalInput;
   totalOvertimeHours?: DecimalInput;
   totalOvertimePay?: DecimalInput;
@@ -148,6 +150,8 @@ const payrollListSelect = {
   standardWorkDays: true,
   actualWorkDays: true,
   actualSalary: true,
+  holidayWorkDays: true,
+  holidayPay: true,
   totalOvertimeWorkDays: true,
   totalOvertimeHours: true,
   totalOvertimePay: true,
@@ -192,6 +196,8 @@ const payrollOverviewSelect = {
   standardWorkDays: true,
   actualWorkDays: true,
   actualSalary: true,
+  holidayWorkDays: true,
+  holidayPay: true,
   totalOvertimeWorkDays: true,
   totalOvertimeHours: true,
   totalOvertimePay: true,
@@ -406,8 +412,9 @@ const requirePermission = (user: AuthUser, permissions: PermissionKey[]) => {
   }
 };
 
-const normalizeIds = (values: string[] = []) =>
-  [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+const normalizeIds = (values: string[] = []) => [
+  ...new Set(values.map((value) => value.trim()).filter(Boolean)),
+];
 
 const attendedStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.PRESENT,
@@ -421,9 +428,19 @@ const leaveStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.PAID_LEAVE,
   AttendanceStatus.UNPAID_LEAVE,
 ]);
+const paidWorkStatuses = new Set<AttendanceStatus>([
+  ...attendedStatuses,
+  AttendanceStatus.PAID_LEAVE,
+]);
+const activeLeaveRequestStatuses = [
+  RequestStatus.PENDING,
+  RequestStatus.PROCESSING,
+  RequestStatus.APPROVED,
+];
 
 const toNumber = (value: unknown) => Number(value ?? 0);
 
+//Hàm lấy số ngày công làm thêm từ chi tiết chấm công, ưu tiên lấy số ngày công làm thêm riêng nếu có, nếu không có thì lấy theo ca làm việc của lịch làm việc đã lên kế hoạch
 const getDetailWorkUnits = (detail: {
   shiftWorkUnits: Prisma.Decimal | null;
   workShift: { workUnits: Prisma.Decimal };
@@ -451,33 +468,24 @@ const payablePayrollStatuses = new Set<PayrollStatus>([
   PayrollStatus.PARTIALLY_PAID,
 ]);
 
-const progressiveCountMultiplier = (count: number) => (count * (count + 1)) / 2;
-
-const calculateTieredPenalty = (
-  count: number,
-  tiers: Array<{
-    fromOccurrence: number;
-    toOccurrence: number | null;
-    amount: unknown;
-  }>,
-) => {
-  if (count <= 0 || tiers.length === 0) {
-    return 0;
-  }
-
-  return tiers.reduce((total, tier) => {
-    const from = tier.fromOccurrence;
-    const to = tier.toOccurrence ?? Number.POSITIVE_INFINITY;
-    const matchedCount = Math.max(0, Math.min(count, to) - from + 1);
-
-    return total + matchedCount * toNumber(tier.amount);
-  }, 0);
-};
-
 const getMonthRange = (month: number, year: number) => ({
   start: new Date(Date.UTC(year, month - 1, 1)),
   end: new Date(Date.UTC(year, month, 1)),
 });
+
+const toUtcDateOnly = (date: Date) =>
+  new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+
+const addUtcDays = (date: Date, days: number) =>
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + days,
+    ),
+  );
 
 const isEffectiveInMonth = (
   effectiveFrom: Date,
@@ -493,6 +501,94 @@ const getShiftHours = (start: Date, end: Date) => {
 
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
+const buildLeaveCoverage = async (
+  employeeId: string,
+  start: Date,
+  end: Date,
+) => {
+  const leaveRequests = await prisma.leaveRequest.findMany({
+    where: {
+      startDate: { lt: end },
+      endDate: { gte: start },
+      request: {
+        status: { in: activeLeaveRequestStatuses },
+        requester: {
+          employee: {
+            id: employeeId,
+          },
+        },
+      },
+    },
+    select: {
+      startDate: true,
+      endDate: true,
+      workShiftId: true,
+    },
+  });
+  const coverage = new Map<string, Set<string | null>>();
+
+  for (const leaveRequest of leaveRequests) {
+    for (
+      let date = toUtcDateOnly(leaveRequest.startDate);
+      date.getTime() <= toUtcDateOnly(leaveRequest.endDate).getTime();
+      date = addUtcDays(date, 1)
+    ) {
+      if (date < start || date >= end) {
+        continue;
+      }
+
+      const dateKey = getDateKey(date);
+      coverage.set(dateKey, coverage.get(dateKey) ?? new Set<string | null>());
+      coverage.get(dateKey)?.add(leaveRequest.workShiftId);
+    }
+  }
+
+  return coverage;
+};
+
+const hasLeaveCoverage = (
+  coverage: Map<string, Set<string | null>>,
+  date: Date,
+  workShiftId: string,
+) => {
+  const coveredShiftIds = coverage.get(getDateKey(date));
+
+  return Boolean(
+    coveredShiftIds &&
+      (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
+  );
+};
+
+const getShiftViolationLabel = (shift: {
+  workShiftCode?: string | null;
+  workShiftName?: string | null;
+  workShift?: { code?: string | null; name?: string | null };
+}) => {
+  const code = shift.workShiftCode ?? shift.workShift?.code;
+  const name = shift.workShiftName ?? shift.workShift?.name;
+
+  return [code, name].filter(Boolean).join(" - ") || "Khong ro ca";
+};
+
+const sortViolationItems = <
+  T extends { occurredAt: Date; workShiftName: string; detail: string },
+>(
+  items: T[],
+) =>
+  [...items].sort((first, second) => {
+    const timeDiff = first.occurredAt.getTime() - second.occurredAt.getTime();
+    if (timeDiff !== 0) {
+      return timeDiff;
+    }
+
+    const shiftDiff = first.workShiftName.localeCompare(second.workShiftName);
+    if (shiftDiff !== 0) {
+      return shiftDiff;
+    }
+
+    return first.detail.localeCompare(second.detail);
+  });
+
 const isSameOrAfterDate = (date: Date, compare: Date) =>
   getDateKey(date) >= getDateKey(compare);
 
@@ -506,7 +602,9 @@ const isJobHistoryActiveOnDate = (
   isSameOrAfterDate(date, history.effectiveFrom) &&
   (!history.effectiveTo || isBeforeDate(date, history.effectiveTo));
 
-const getJobHistoryForDate = <T extends { effectiveFrom: Date; effectiveTo: Date | null }>(
+const getJobHistoryForDate = <
+  T extends { effectiveFrom: Date; effectiveTo: Date | null },
+>(
   histories: T[],
   date: Date,
 ) => {
@@ -804,6 +902,8 @@ const buildPayrollData = (data: PayrollCalculationResult) => ({
   standardWorkDays: data.standardWorkDays ?? 0,
   actualWorkDays: data.actualWorkDays ?? 0,
   actualSalary: data.actualSalary ?? 0,
+  holidayWorkDays: data.holidayWorkDays ?? 0,
+  holidayPay: data.holidayPay ?? 0,
   totalOvertimeWorkDays: data.totalOvertimeWorkDays ?? 0,
   totalOvertimeHours: data.totalOvertimeHours ?? 0,
   totalOvertimePay: data.totalOvertimePay ?? 0,
@@ -875,6 +975,7 @@ const calculatePayrollForEmployee = async (
 ): Promise<PayrollCalculationResult> => {
   const { start, end } = getMonthRange(month, year);
 
+  //lấy tất cả dữ liệu liên quan trong tháng để tính toán bảng lương
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
     select: {
@@ -978,8 +1079,22 @@ const calculatePayrollForEmployee = async (
     throw new ApiError(404, "Employee not found", "EMPLOYEE_NOT_FOUND");
   }
 
+  const [leaveCoverage, holidays] = await Promise.all([
+    buildLeaveCoverage(employeeId, start, end),
+    prisma.holiday.findMany({
+      where: {
+        isActive: true,
+        date: {
+          gte: start,
+          lt: end,
+        },
+      },
+      orderBy: { date: "asc" },
+    }),
+  ]);
   const baseSalary = toNumber(employee.salary);
 
+  // Tính tổng số ngày công chuẩn theo lịch làm việc đã lên kế hoạch trong tháng
   const scheduledStandardWorkDays = employee.workSchedules.reduce(
     (total, schedule) => {
       const dayUnits = schedule.shiftLinks.reduce((dayTotal, shiftLink) => {
@@ -994,10 +1109,15 @@ const calculatePayrollForEmployee = async (
     },
     0,
   );
+  // Nếu nhân viên có cấu hình ngày công chuẩn riêng cho tháng, sử dụng cấu hình đó thay vì tính theo lịch làm việc
   const configuredStandardWorkDays = employee.standardWorkDayConfigs[0];
   const standardWorkDays = configuredStandardWorkDays
     ? toNumber(configuredStandardWorkDays.standardWorkDays)
     : scheduledStandardWorkDays;
+
+  /* Tính lương cơ bản hiệu chỉnh theo số ngày công chuẩn thực tế (nếu có)
+  để đảm bảo tính đúng phần lương cơ bản cho các ngày công đã lên kế hoạch,
+  đồng thời không bị ảnh hưởng bởi việc nhân viên đi làm thêm hoặc nghỉ bù*/
   const effectiveBaseSalary =
     standardWorkDays > 0 && scheduledStandardWorkDays > 0
       ? employee.workSchedules.reduce((total, schedule) => {
@@ -1014,23 +1134,32 @@ const calculatePayrollForEmployee = async (
 
           return (
             total +
-            (getSalaryForDate(employee.jobHistories, schedule.date, baseSalary) /
+            (getSalaryForDate(
+              employee.jobHistories,
+              schedule.date,
+              baseSalary,
+            ) /
               standardWorkDays) *
               regularWorkUnits
           );
         }, 0)
       : baseSalary;
 
-  const attendedDetails = employee.attendanceRecords.flatMap((record) =>
+  // Tạo một mảng tất cả chi tiết chấm công đã có trạng thái đi làm (bao gồm đi làm bình thường, đi muộn, về sớm, đi muộn và về sớm) để tính toán số ngày công thực tế và lương thực tế dựa trên chi tiết chấm công thay vì chỉ dựa trên lịch làm việc đã lên kế hoạch
+  const paidWorkDetails = employee.attendanceRecords.flatMap((record) =>
     record.details
-      .filter((detail) => attendedStatuses.has(detail.status))
+      .filter((detail) => paidWorkStatuses.has(detail.status))
       .map((detail) => ({
         ...detail,
         recordDate: record.date,
       })),
   );
+  const attendedDetails = paidWorkDetails.filter((detail) =>
+    attendedStatuses.has(detail.status),
+  );
 
-  const actualWorkDays = attendedDetails.reduce((total, detail) => {
+  // Tính tổng số ngày công thực tế (không tính làm thêm) dựa trên chi tiết chấm công
+  const actualAttendanceWorkDays = paidWorkDetails.reduce((total, detail) => {
     if (isDetailOvertime(detail)) {
       return total;
     }
@@ -1038,102 +1167,215 @@ const calculatePayrollForEmployee = async (
     return total + getDetailWorkUnits(detail);
   }, 0);
 
+  // Tính lương thực tế cho các ngày công đã chấm công (không tính làm thêm) dựa trên chi tiết chấm công và lương cơ bản hiệu chỉnh
   const getDailyRateForDate = (date: Date) =>
     standardWorkDays > 0
       ? getSalaryForDate(employee.jobHistories, date, baseSalary) /
         standardWorkDays
       : 0;
+  // Lấy mức lương theo giờ cho làm thêm để tính lương làm thêm sau này, đảm bảo tính đúng lương làm thêm theo từng ngày công đã lên kế hoạch
   const getHourlyRateForDate = (date: Date) => getDailyRateForDate(date) / 8;
-  const actualSalary = attendedDetails.reduce((total, detail) => {
+
+  // Tính lương thực tế dựa trên chi tiết chấm công, chỉ tính cho các ngày công thường
+  const actualSalary = paidWorkDetails.reduce((total, detail) => {
     if (isDetailOvertime(detail)) {
       return total;
     }
 
-    return total + getDailyRateForDate(detail.recordDate) * getDetailWorkUnits(detail);
+    return (
+      total +
+      getDailyRateForDate(detail.recordDate) * getDetailWorkUnits(detail)
+    );
   }, 0);
 
-  const attendedRegularDateKeys = new Set(
-    attendedDetails
-      .filter((detail) => !isDetailOvertime(detail))
-      .map((detail) => getDateKey(detail.recordDate)),
+  const schedulesByDate = new Map(
+    employee.workSchedules.map((schedule) => [getDateKey(schedule.date), schedule]),
   );
+  const payableHolidays = holidays.filter((holiday) => {
+    const schedule = schedulesByDate.get(getDateKey(holiday.date));
+    const hasRegularShift = schedule?.shiftLinks.some(
+      (shiftLink) => !shiftLink.workShift.isOvertime,
+    );
 
+    return !hasRegularShift;
+  });
+  const holidayWorkDays = payableHolidays.length;
+  const holidayPay = payableHolidays.reduce(
+    (total, holiday) =>
+      total +
+      getDailyRateForDate(holiday.date) * toNumber(holiday.salaryMultiplier),
+    0,
+  );
+  const actualWorkDays = actualAttendanceWorkDays + holidayWorkDays;
+
+  // Tạo một Set các ngày đã chấm công có làm việc thường để tính số ngày vắng mặt sau này
+  // Tạo một Map để tra cứu nhanh chi tiết chấm công theo ngày, phục vụ cho việc tính toán số ngày vắng mặt không phép và số lần đi muộn/về sớm
   const attendanceDetailsByDate = new Map<
     string,
     Array<(typeof employee.attendanceRecords)[number]["details"][number]>
   >();
 
+  // Đi qua tất cả bản ghi chấm công và lưu chi tiết chấm công theo ngày vào Map để tra cứu nhanh sau này
   employee.attendanceRecords.forEach((record) => {
     attendanceDetailsByDate.set(getDateKey(record.date), record.details);
   });
 
-  const absentDays = employee.workSchedules.reduce((total, schedule) => {
-    const hasRegularWork = schedule.shiftLinks.some(
-      (shiftLink) => !shiftLink.workShift.isOvertime,
-    );
-
-    if (!hasRegularWork) {
-      return total;
-    }
-
-    return (
-      total + (attendedRegularDateKeys.has(getDateKey(schedule.date)) ? 0 : 1)
-    );
-  }, 0);
-
-  const unauthorizedAbsenceDays = employee.workSchedules.reduce(
+  // Tính số ngày vắng mặt không phép dựa trên lịch làm việc đã lên kế hoạch và chi tiết chấm công, chỉ tính cho các ngày có làm việc thường
+  const leaveOrAbsentShiftCount = employee.workSchedules.reduce(
     (total, schedule) => {
-      const hasRegularWork = schedule.shiftLinks.some(
-        (shiftLink) => !shiftLink.workShift.isOvertime,
+      const detailsByShiftId = new Map(
+        (attendanceDetailsByDate.get(getDateKey(schedule.date)) ?? []).map(
+          (detail) => [detail.workShiftId, detail],
+        ),
       );
 
-      if (!hasRegularWork) {
-        return total;
-      }
+      return (
+        total +
+        schedule.shiftLinks.filter((shiftLink) => {
+          if (shiftLink.workShift.isOvertime) {
+            return false;
+          }
 
-      const dateKey = getDateKey(schedule.date);
-      const details = attendanceDetailsByDate.get(dateKey) ?? [];
-      const hasAbsentRegularShift = details.some(
-        (detail) =>
-          !isDetailOvertime(detail) &&
-          detail.status === AttendanceStatus.ABSENT,
+          if (
+            hasLeaveCoverage(
+              leaveCoverage,
+              schedule.date,
+              shiftLink.workShiftId,
+            )
+          ) {
+            return false;
+          }
+
+          const detail = detailsByShiftId.get(shiftLink.workShiftId);
+          return !detail || !attendedStatuses.has(detail.status);
+        }).length
       );
-      const hasApprovedLeave = details.some((detail) =>
-        !isDetailOvertime(detail) && leaveStatuses.has(detail.status),
-      );
-
-      if (attendedRegularDateKeys.has(dateKey)) {
-        return total;
-      }
-
-      if (hasAbsentRegularShift) {
-        return total + 1;
-      }
-
-      return total + (hasApprovedLeave ? 0 : 1);
     },
     0,
   );
 
-  const lateEarlyOccurrences = attendedDetails
-    .filter((detail) => !isDetailOvertime(detail))
-    .reduce((total, detail) => {
+  // Tính số ngày vắng mặt không phép dựa trên lịch làm việc đã lên kế hoạch và chi tiết chấm công, chỉ tính cho các ngày có làm việc thường
+  const unauthorizedAbsenceViolations = sortViolationItems(
+    employee.workSchedules.flatMap((schedule) => {
+      const detailsByShiftId = new Map(
+        (attendanceDetailsByDate.get(getDateKey(schedule.date)) ?? []).map(
+          (detail) => [detail.workShiftId, detail],
+        ),
+      );
+
+      return schedule.shiftLinks.flatMap((shiftLink) => {
+          if (shiftLink.workShift.isOvertime) {
+            return [];
+          }
+
+          if (
+            hasLeaveCoverage(
+              leaveCoverage,
+              schedule.date,
+              shiftLink.workShiftId,
+            )
+          ) {
+            return [];
+          }
+
+          const detail = detailsByShiftId.get(shiftLink.workShiftId);
+          if (!detail) {
+            return [
+              {
+                occurredAt: schedule.date,
+                workShiftId: shiftLink.workShiftId,
+                workShiftName: getShiftViolationLabel({
+                  workShift: shiftLink.workShift,
+                }),
+                detail: "vang khong cham cong",
+              },
+            ];
+          }
+
+          const isUnauthorized =
+            detail.status === AttendanceStatus.ABSENT ||
+            (!attendedStatuses.has(detail.status) &&
+              !leaveStatuses.has(detail.status));
+
+          if (!isUnauthorized) {
+            return [];
+          }
+
+          return [
+            {
+              occurredAt: schedule.date,
+              workShiftId: shiftLink.workShiftId,
+              workShiftName: getShiftViolationLabel(detail),
+              detail:
+                detail.status === AttendanceStatus.ABSENT
+                  ? "vang mat"
+                  : `trang thai ${detail.status}`,
+            },
+          ];
+        });
+    }),
+  );
+  const unauthorizedAbsenceShiftCount = unauthorizedAbsenceViolations.length;
+
+  // Tính số lần đi muộn về sớm dựa trên chi tiết chấm công, chỉ tính cho các ngày công thường
+  const lateEarlyViolations = sortViolationItems(
+    attendedDetails.flatMap((detail) => {
+      if (isDetailOvertime(detail)) {
+        return [];
+      }
+
+      if (hasLeaveCoverage(leaveCoverage, detail.recordDate, detail.workShiftId)) {
+        return [];
+      }
+
       if (detail.status === AttendanceStatus.LATE_AND_EARLY_LEAVE) {
-        return total + 2;
+        return [
+          {
+            occurredAt: detail.recordDate,
+            workShiftId: detail.workShiftId,
+            workShiftName: getShiftViolationLabel(detail),
+            detail: "di muon",
+          },
+          {
+            occurredAt: detail.recordDate,
+            workShiftId: detail.workShiftId,
+            workShiftName: getShiftViolationLabel(detail),
+            detail: "ve som",
+          },
+        ];
       }
 
-      if (
-        detail.status === AttendanceStatus.LATE ||
-        detail.status === AttendanceStatus.EARLY_LEAVE
-      ) {
-        return total + 1;
+      if (detail.status === AttendanceStatus.LATE) {
+        return [
+          {
+            occurredAt: detail.recordDate,
+            workShiftId: detail.workShiftId,
+            workShiftName: getShiftViolationLabel(detail),
+            detail: "di muon",
+          },
+        ];
       }
 
-      return total;
-    }, 0);
+      if (detail.status === AttendanceStatus.EARLY_LEAVE) {
+        return [
+          {
+            occurredAt: detail.recordDate,
+            workShiftId: detail.workShiftId,
+            workShiftName: getShiftViolationLabel(detail),
+            detail: "ve som",
+          },
+        ];
+      }
 
+      return [];
+    }),
+  );
+  const lateEarlyOccurrences = lateEarlyViolations.length;
+
+  // Tính lương làm thêm dựa trên chi tiết chấm công, chỉ tính cho các ngày công làm thêm, gộp theo ca làm việc để tính tổng số giờ làm thêm và tổng tiền làm thêm cho mỗi ca
   const overtimeLineMap = new Map<string, PayrollLineInput>();
 
+  // Đi qua tất cả chi tiết chấm công đã chấm công, lọc ra các chi tiết làm thêm, tính toán số giờ làm thêm và tiền làm thêm cho từng chi tiết, sau đó gộp theo ca làm việc để tính tổng số giờ làm thêm và tổng tiền làm thêm cho mỗi ca
   attendedDetails
     .filter((detail) => isDetailOvertime(detail))
     .forEach((detail) => {
@@ -1209,151 +1451,121 @@ const calculatePayrollForEmployee = async (
 
   const autoPenaltyVouchers = await Promise.all(
     employee.autoPenaltyPolicies
-    .map((assignment) => assignment.autoPenaltyPolicy)
-    .filter((policy) => policy.isActive)
-    .map(async (policy) => {
-      const baseAmount = toNumber(policy.amount);
-      const isProgressive =
-        policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE ||
-        policy.type === AutoPenaltyType.UNAUTHORIZED_ABSENCE_PROGRESSIVE;
-      const violationCount =
-        policy.type === AutoPenaltyType.LATE_EARLY ||
-        policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
-          ? lateEarlyOccurrences
-          : unauthorizedAbsenceDays;
+      .map((assignment) => assignment.autoPenaltyPolicy)
+      .filter((policy) => policy.isActive)
+      .map(async (policy) => {
+        const violations =
+          policy.type === AutoPenaltyType.LATE_EARLY ||
+          policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
+            ? lateEarlyViolations
+            : unauthorizedAbsenceViolations;
+        const violationCount =
+          policy.type === AutoPenaltyType.LATE_EARLY ||
+          policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
+            ? lateEarlyOccurrences
+            : unauthorizedAbsenceShiftCount;
 
-      const existingItems = await prisma.payrollBonusPenalty.findMany({
-        where: {
-          employeeId,
-          autoPenaltyPolicyId: policy.id,
-          source: PayrollBonusPenaltySource.AUTO,
-          month: {
-            gte: start,
-            lt: end,
+        const existingItems = await prisma.payrollBonusPenalty.findMany({
+          where: {
+            employeeId,
+            autoPenaltyPolicyId: policy.id,
+            source: PayrollBonusPenaltySource.AUTO,
+            month: {
+              gte: start,
+              lt: end,
+            },
           },
-        },
-      });
-      const occurrenceKeys = new Set(
-        Array.from({ length: violationCount }, (_, index) =>
-          `auto:${policy.type}:${index + 1}`,
-        ),
-      );
-      const staleItems = existingItems.filter(
-        (item) =>
-          item.status === PayrollBonusPenaltyStatus.ACTIVE &&
-          (!item.occurrenceKey || !occurrenceKeys.has(item.occurrenceKey)),
-      );
+        });
+        const occurrenceKeys = new Set(
+          Array.from(
+            { length: violationCount },
+            (_, index) => `auto:${policy.type}:${index + 1}`,
+          ),
+        );
+        const staleItems = existingItems.filter(
+          (item) =>
+            item.status === PayrollBonusPenaltyStatus.ACTIVE &&
+            (!item.occurrenceKey || !occurrenceKeys.has(item.occurrenceKey)),
+        );
 
-      if (staleItems.length > 0) {
-        await Promise.all(
-          staleItems.map((item) =>
-            prisma.payrollBonusPenalty.update({
-              where: { id: item.id },
+        if (staleItems.length > 0) {
+          await Promise.all(
+            staleItems.map((item) =>
+              prisma.payrollBonusPenalty.update({
+                where: { id: item.id },
+                data: {
+                  status: PayrollBonusPenaltyStatus.CANCELLED,
+                  cancelledAt: new Date(),
+                },
+              }),
+            ),
+          );
+        }
+        const existing = existingItems[0];
+
+        if (violationCount <= 0) {
+          if (existing?.status === PayrollBonusPenaltyStatus.ACTIVE) {
+            await prisma.payrollBonusPenalty.update({
+              where: { id: existing.id },
               data: {
                 status: PayrollBonusPenaltyStatus.CANCELLED,
                 cancelledAt: new Date(),
               },
-            }),
-          ),
-        );
-      }
-      const existing = existingItems[0];
-
-      if (violationCount <= 0) {
-        if (existing?.status === PayrollBonusPenaltyStatus.ACTIVE) {
-          await prisma.payrollBonusPenalty.update({
-            where: { id: existing.id },
-            data: {
-              status: PayrollBonusPenaltyStatus.CANCELLED,
-              cancelledAt: new Date(),
-            },
-          });
-        }
-
-        return null;
-      }
-
-      return Promise.all(
-        Array.from({ length: violationCount }, async (_, index) => {
-          const occurrenceNumber = index + 1;
-          const occurrenceKey = `auto:${policy.type}:${occurrenceNumber}`;
-          const existingOccurrence = existingItems.find(
-            (item) => item.occurrenceKey === occurrenceKey,
-          );
-          const amount = calculatePenaltyOccurrenceAmount(
-            occurrenceNumber,
-            policy,
-          );
-
-          if (
-            amount <= 0 ||
-            existingOccurrence?.status === PayrollBonusPenaltyStatus.CANCELLED
-          ) {
-            return null;
+            });
           }
 
-          const data = {
-            employeeId,
-            month: start,
-            autoPenaltyPolicyId: policy.id,
-            isBonus: false,
-            source: PayrollBonusPenaltySource.AUTO,
-            status: PayrollBonusPenaltyStatus.ACTIVE,
-            violationCount: 1,
-            occurrenceKey,
-            occurredAt: start,
-            reason: `${policy.name} - lần ${occurrenceNumber}`,
-            amount: roundMoney(amount),
-            cancelledAt: null,
-          };
+          return null;
+        }
 
-          return existingOccurrence
-            ? prisma.payrollBonusPenalty.update({
-                where: { id: existingOccurrence.id },
-                data,
-              })
-            : prisma.payrollBonusPenalty.create({
-                data,
-              });
-        }),
-      );
+        return Promise.all(
+          Array.from({ length: violationCount }, async (_, index) => {
+            const occurrenceNumber = index + 1;
+            const occurrenceKey = `auto:${policy.type}:${occurrenceNumber}`;
+            const violation = violations[index];
+            const existingOccurrence = existingItems.find(
+              (item) => item.occurrenceKey === occurrenceKey,
+            );
+            const amount = calculatePenaltyOccurrenceAmount(
+              occurrenceNumber,
+              policy,
+            );
 
-      const amount = isProgressive
-        ? policy.tiers.length > 0
-          ? calculateTieredPenalty(violationCount, policy.tiers)
-          : baseAmount * progressiveCountMultiplier(violationCount)
-        : baseAmount * violationCount;
+            if (
+              amount <= 0 ||
+              existingOccurrence?.status === PayrollBonusPenaltyStatus.CANCELLED
+            ) {
+              return null;
+            }
 
-      if (amount <= 0) {
-        return null;
-      }
+            const data = {
+              employeeId,
+              month: start,
+              autoPenaltyPolicyId: policy.id,
+              isBonus: false,
+              source: PayrollBonusPenaltySource.AUTO,
+              status: PayrollBonusPenaltyStatus.ACTIVE,
+              violationCount: 1,
+              occurrenceKey,
+              occurredAt: start,
+              reason: `${policy.name} - lần ${occurrenceNumber}`,
+              amount: roundMoney(amount),
+              cancelledAt: null,
+            };
 
-      if (existing?.status === PayrollBonusPenaltyStatus.CANCELLED) {
-        return null;
-      }
+            data.occurredAt = violation?.occurredAt ?? start;
+            data.reason = `${policy.name} - ${violation?.detail ?? "vi pham"} - ngay ${getDateKey(violation?.occurredAt ?? start)}, ca ${violation?.workShiftName ?? "Khong ro ca"}`;
 
-      const data = {
-        employeeId,
-        month: start,
-        autoPenaltyPolicyId: policy.id,
-        isBonus: false,
-        source: PayrollBonusPenaltySource.AUTO,
-        status: PayrollBonusPenaltyStatus.ACTIVE,
-        violationCount,
-        reason: `${policy.name} (${violationCount} lần)`,
-        amount: roundMoney(amount),
-        cancelledAt: null,
-      };
-
-      return existing
-        ? prisma.payrollBonusPenalty.update({
-            where: { id: existing.id },
-            data,
-          })
-        : prisma.payrollBonusPenalty.create({
-            data,
-          });
-    }),
+            return existingOccurrence
+              ? prisma.payrollBonusPenalty.update({
+                  where: { id: existingOccurrence.id },
+                  data,
+                })
+              : prisma.payrollBonusPenalty.create({
+                  data,
+                });
+          }),
+        );
+      }),
   );
 
   autoPenaltyVouchers
@@ -1385,7 +1597,7 @@ const calculatePayrollForEmployee = async (
       actualWorkDays >= toNumber(attendanceBonusPolicy.requiredWorkDays);
     const meetsAbsentDays =
       !attendanceBonusPolicy.maxAbsentDays ||
-      absentDays <= toNumber(attendanceBonusPolicy.maxAbsentDays);
+      leaveOrAbsentShiftCount <= toNumber(attendanceBonusPolicy.maxAbsentDays);
 
     if (meetsWorkDays && meetsAbsentDays) {
       bonusPenaltyLines.push({
@@ -1422,11 +1634,9 @@ const calculatePayrollForEmployee = async (
         (toNumber(insurancePolicy.employeeUnemploymentRate) / 100)
       : 0;
   const grossSalary =
-    actualSalary + totalOvertimePay + totalAllowance + totalBonus;
+    actualSalary + holidayPay + totalOvertimePay + totalAllowance + totalBonus;
   const insuranceDeduction =
-    socialInsurance +
-    healthInsurance +
-    unemploymentInsurance;
+    socialInsurance + healthInsurance + unemploymentInsurance;
   const taxableIncome =
     payrollProfile?.isTaxApplicable && taxPolicy
       ? grossSalary -
@@ -1449,6 +1659,8 @@ const calculatePayrollForEmployee = async (
     standardWorkDays: roundWork(standardWorkDays),
     actualWorkDays: roundWork(actualWorkDays),
     actualSalary: roundMoney(actualSalary),
+    holidayWorkDays: roundWork(holidayWorkDays),
+    holidayPay: roundMoney(holidayPay),
     totalOvertimeWorkDays: roundWork(totalOvertimeWorkDays),
     totalOvertimeHours: roundWork(totalOvertimeHours),
     totalOvertimePay: roundMoney(totalOvertimePay),
@@ -1484,6 +1696,10 @@ const buildPayrollUpdateData = (
   ...(data.actualSalary !== undefined
     ? { actualSalary: data.actualSalary }
     : {}),
+  ...(data.holidayWorkDays !== undefined
+    ? { holidayWorkDays: data.holidayWorkDays }
+    : {}),
+  ...(data.holidayPay !== undefined ? { holidayPay: data.holidayPay } : {}),
   ...(data.totalOvertimeWorkDays !== undefined
     ? { totalOvertimeWorkDays: data.totalOvertimeWorkDays }
     : {}),
@@ -1600,7 +1816,7 @@ export const payrollService = {
     });
   },
 
-  //tạo bảng lương hàng loạt theo tiêu chí phòng ban, vị trí, bỏ qua những nhân viên đã có bảng lương trong tháng nếu có tùy chọn
+  //tạo bảng lương hàng loạt theo tiêu chí phòng ban, vị trí
   async createByTargets(user: AuthUser, data: CreatePayrollByTargetsInput) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
     const period = await resolvePayrollPeriod(data, user.id);
@@ -1662,12 +1878,14 @@ export const payrollService = {
 
     const calculatedPayrolls = await Promise.all(
       employees.map((employee) =>
-        calculatePayrollForEmployee(employee.id, period.month, period.year).then(
-          (calculated) => ({
-            existing: existingPayrollByEmployeeId.get(employee.id),
-            calculated,
-          }),
-        ),
+        calculatePayrollForEmployee(
+          employee.id,
+          period.month,
+          period.year,
+        ).then((calculated) => ({
+          existing: existingPayrollByEmployeeId.get(employee.id),
+          calculated,
+        })),
       ),
     );
 
@@ -1946,7 +2164,10 @@ export const payrollService = {
     return payroll;
   },
 
-  async removeEmployeeFromPeriod(user: AuthUser, data: PayrollPeriodEmployeeInput) {
+  async removeEmployeeFromPeriod(
+    user: AuthUser,
+    data: PayrollPeriodEmployeeInput,
+  ) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
     const period = await findPayrollPeriodByInput(data);
     assertDraftOrCancelledPeriod(period);
@@ -2316,7 +2537,10 @@ export const payrollService = {
     return this.approvePeriod(user, { periodId: period.periodId });
   },
 
-  async createPaymentBatch(user: AuthUser, data: CreatePayrollPaymentBatchInput) {
+  async createPaymentBatch(
+    user: AuthUser,
+    data: CreatePayrollPaymentBatchInput,
+  ) {
     requirePermission(user, [PERMISSIONS.PAYROLL_PAY]);
     assertValidPaymentInput(data);
     const period = await findPayrollPeriodByInput(data);
@@ -2502,7 +2726,10 @@ export const payrollService = {
     });
   },
 
-  async getPeriods(user: AuthUser, query: Pick<PayrollQuery, "month" | "year">) {
+  async getPeriods(
+    user: AuthUser,
+    query: Pick<PayrollQuery, "month" | "year">,
+  ) {
     if (!canViewAllPayrolls(user)) {
       throw new ApiError(403, "Forbidden", "FORBIDDEN");
     }

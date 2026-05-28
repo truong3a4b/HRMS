@@ -509,6 +509,7 @@ function PayrollDetailModal({
           <div className="grid grid-cols-4 gap-3 max-[860px]:grid-cols-2 max-[520px]:grid-cols-1">
             {[
               ["Lương thực tế", payroll.actualSalary],
+              ["Lương nghỉ lễ", payroll.holidayPay],
               ["OT", payroll.totalOvertimePay],
               ["Phụ cấp + thưởng", toNumber(payroll.totalAllowance) + toNumber(payroll.totalBonus)],
               ["Thực nhận", payroll.netSalary],
@@ -691,6 +692,7 @@ function MinePayrollDetailSection({
       <div className="grid grid-cols-4 gap-3 max-[960px]:grid-cols-2 max-[560px]:grid-cols-1">
         {[
           ["Lương thực tế", payroll.actualSalary],
+          ["Lương nghỉ lễ", payroll.holidayPay],
           ["Gross", payroll.grossSalary],
           ["Khấu trừ", payroll.totalDeduction],
           ["Thực nhận", payroll.netSalary],
@@ -713,6 +715,7 @@ function MinePayrollDetailSection({
               ["Công chuẩn", `${formatNumber(payroll.standardWorkDays)} ngày`],
               ["Công thực tế", `${formatNumber(payroll.actualWorkDays)} ngày`],
               ["Lương thực tế", payroll.actualSalary],
+              ["Lương nghỉ lễ", payroll.holidayPay],
               ["Tăng ca", payroll.totalOvertimePay],
               ["Phụ cấp", payroll.totalAllowance],
               ["Thưởng", payroll.totalBonus],
@@ -1285,7 +1288,7 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
               <EmptyState text="Đang tải bảng lương..." />
             ) : filteredPayrolls.length ? (
               <div className="min-h-0 flex-1 overflow-auto">
-                <table className={`w-full text-sm ${isMine ? "min-w-[1680px]" : "min-w-[1180px]"}`}>
+                <table className={`w-full text-sm ${isMine ? "min-w-[1760px]" : "min-w-[1180px]"}`}>
                   <thead className="sticky top-0 z-1 bg-[#f8fafc] text-xs uppercase text-[#667085]">
                     {isMine ? (
                       <tr>
@@ -1294,6 +1297,7 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
                         <th className="px-4 py-3 text-right">Công chuẩn</th>
                         <th className="px-4 py-3 text-right">Công thực tế</th>
                         <th className="px-4 py-3 text-right">Lương thực tế</th>
+                        <th className="px-4 py-3 text-right">Lương nghỉ lễ</th>
                         <th className="px-4 py-3 text-right">Tăng ca</th>
                         <th className="px-4 py-3 text-right">Phụ cấp</th>
                         <th className="px-4 py-3 text-right">Thưởng</th>
@@ -1335,6 +1339,7 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
                             <td className="px-4 py-3 text-right">{formatNumber(payroll.standardWorkDays)}</td>
                             <td className="px-4 py-3 text-right">{formatNumber(payroll.actualWorkDays)}</td>
                             <td className="px-4 py-3 text-right">{formatMoney(payroll.actualSalary)}</td>
+                            <td className="px-4 py-3 text-right">{formatMoney(payroll.holidayPay)}</td>
                             <td className="px-4 py-3 text-right">{formatMoney(payroll.totalOvertimePay)}</td>
                             <td className="px-4 py-3 text-right">{formatMoney(payroll.totalAllowance)}</td>
                             <td className="px-4 py-3 text-right">{formatMoney(payroll.totalBonus)}</td>

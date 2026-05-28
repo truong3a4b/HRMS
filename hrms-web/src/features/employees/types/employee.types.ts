@@ -136,6 +136,16 @@ export type EmployeeAutoPenaltyPolicy = {
   autoPenaltyPolicy?: AutoPenaltyPolicy | null;
 };
 
+export type EmployeeLeaveBalance = {
+  id: string;
+  employeeId: string;
+  year: number;
+  entitledLeaveDays: string | number;
+  usedPaidLeaveDays: string | number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type EmployeeJobHistory = {
   id: string;
   employeeId: string;
@@ -187,6 +197,7 @@ export type Employee = {
   payrollProfile?: EmployeePayrollProfile | null;
   allowances?: EmployeeAllowance[];
   autoPenaltyPolicies?: EmployeeAutoPenaltyPolicy[];
+  leaveBalances?: EmployeeLeaveBalance[];
 };
 
 export type EmployeeFilters = {

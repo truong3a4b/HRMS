@@ -133,6 +133,12 @@ function formatPercent(value?: string | number | null) {
   return `${Number(value).toLocaleString("vi-VN")}%`;
 }
 
+function formatNumber(value?: string | number | null) {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number)) return "0";
+  return number.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+}
+
 function formatPolicyPeriod(from?: string | null, to?: string | null) {
   if (!from && !to) return "-";
   return `${formatDate(from)} - ${to ? formatDate(to) : "Không giới hạn"}`;
@@ -155,6 +161,19 @@ function countWorkDays(hireDate?: string | null) {
 
 function display(value?: string | number | null) {
   return value == null || value === "" ? "-" : String(value);
+}
+
+function getCurrentLeaveBalance(employee: Employee | null) {
+  const year = new Date().getFullYear();
+  const balance = employee?.leaveBalances?.find((item) => item.year === year);
+  const entitled = Number(balance?.entitledLeaveDays ?? 0);
+  const used = Number(balance?.usedPaidLeaveDays ?? 0);
+
+  return {
+    year,
+    entitled: Number.isFinite(entitled) ? entitled : 0,
+    used: Number.isFinite(used) ? used : 0,
+  };
 }
 
 function displayImage(url?: string | null, alt = "Image") {
@@ -1229,6 +1248,7 @@ export function EmployeeDetailPage() {
   const insurance = payrollProfile?.insurancePolicy;
   const tax = payrollProfile?.taxPolicy;
   const attendanceBonus = payrollProfile?.attendanceBonusPolicy;
+  const leaveBalance = useMemo(() => getCurrentLeaveBalance(employee), [employee]);
   const allowancePolicies =
     employee?.allowances?.map((item) => item.allowancePolicy).filter(Boolean) ?? [];
   const autoPenaltyPolicies =
@@ -1414,6 +1434,31 @@ export function EmployeeDetailPage() {
                   icon={<WalletCards className="h-5 w-5" />}
                 >
                   <div className="grid grid-cols-2 gap-3 max-[980px]:grid-cols-1">
+                    <PolicyCard
+                      title="Phép năm"
+                      icon={<CalendarDays className="h-4 w-4 shrink-0 text-[#006fd5]" />}
+                    >
+                      <div className="rounded-lg border border-[#edf0f5] bg-[#f9fafb] p-3 text-sm">
+                        <div className="mb-2 font-semibold text-[#006fd5]">
+                          Năm {leaveBalance.year}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[#475467] max-[640px]:grid-cols-1">
+                          <div>
+                            <span className="block text-xs text-[#667085]">Được cấp</span>
+                            <span className="font-medium text-[#243247]">{formatNumber(leaveBalance.entitled)} ngày</span>
+                          </div>
+                          <div>
+                            <span className="block text-xs text-[#667085]">Đã dùng</span>
+                            <span className="font-medium text-[#243247]">{formatNumber(leaveBalance.used)} ngày</span>
+                          </div>
+                          <div>
+                            <span className="block text-xs text-[#667085]">Còn lại</span>
+                            <span className="font-medium text-[#243247]">{formatNumber(Math.max(0, leaveBalance.entitled - leaveBalance.used))} ngày</span>
+                          </div>
+                        </div>
+                      </div>
+                    </PolicyCard>
+
                     <PolicyCard
                       title="Bảo hiểm"
                       icon={<ShieldCheck className="h-4 w-4 shrink-0 text-[#006fd5]" />}

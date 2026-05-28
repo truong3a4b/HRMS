@@ -65,6 +65,8 @@ export type PayrollSummary = {
   standardWorkDays: MoneyValue;
   actualWorkDays: MoneyValue;
   actualSalary: MoneyValue;
+  holidayWorkDays: MoneyValue;
+  holidayPay: MoneyValue;
   totalOvertimeWorkDays: MoneyValue;
   totalOvertimeHours: MoneyValue;
   totalOvertimePay: MoneyValue;

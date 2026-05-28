@@ -3,28 +3,32 @@ import { createAbsentDetailsForExpiredSchedules } from "../services/attendanceMq
 
 let isRunning = false;
 
-export const initAttendanceAbsentSweepCron = () => {
-  // Chạy vào phút thứ 0 của mỗi giờ (1 tiếng 1 lần)
-  // Nếu muốn đổi lịch, sửa chuỗi "0 * * * *"
-  cron.schedule("0 * * * *", async () => {
-    if (isRunning) {
-      console.log(
-        "[Job] Absent sweep is already running, skipping this interval.",
-      );
-      return;
-    }
+const runAbsentSweep = async () => {
+  if (isRunning) {
+    console.log(
+      "[Job] Absent sweep is already running, skipping this interval.",
+    );
+    return;
+  }
 
-    isRunning = true;
-    try {
-      await createAbsentDetailsForExpiredSchedules();
-    } catch (error) {
-      console.error("[Job] Error in absent sweep job:", error);
-    } finally {
-      isRunning = false;
+  isRunning = true;
+  try {
+    const result = await createAbsentDetailsForExpiredSchedules();
+    if (result.createdCount > 0) {
+      console.log(`[Job] Created ${result.createdCount} absent shift(s).`);
     }
-  });
+  } catch (error) {
+    console.error("[Job] Error in absent sweep job:", error);
+  } finally {
+    isRunning = false;
+  }
+};
+
+export const initAttendanceAbsentSweepCron = () => {
+  void runAbsentSweep();
+  cron.schedule("* * * * *", runAbsentSweep);
 
   console.log(
-    "[Job] Initialized attendance absent sweep cronjob (runs hourly).",
+    "[Job] Initialized attendance absent sweep cronjob (runs every minute).",
   );
 };

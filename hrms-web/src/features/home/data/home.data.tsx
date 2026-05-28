@@ -238,6 +238,17 @@ export function getDrawerItems(
           },
         ]
       : []),
+    ...(hasPermission("PAYROLL_POLICY_VIEW") ||
+    hasPermission("PAYROLL_POLICY_SETUP") ||
+    isAdmin
+      ? [
+          {
+            key: "holidays",
+            label: "NgÃ y nghá»‰ lá»…",
+            path: paths.holidays,
+          },
+        ]
+      : []),
   ];
 
   return [

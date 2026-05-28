@@ -429,11 +429,15 @@ const attendedStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.EARLY_LEAVE,
   AttendanceStatus.LATE_AND_EARLY_LEAVE,
 ]);
+const paidWorkStatuses = new Set<AttendanceStatus>([
+  ...attendedStatuses,
+  AttendanceStatus.PAID_LEAVE,
+]);
 
 const leaveStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.ON_LEAVE,
-  "PAID_LEAVE" as AttendanceStatus,
-  "UNPAID_LEAVE" as AttendanceStatus,
+  AttendanceStatus.PAID_LEAVE,
+  AttendanceStatus.UNPAID_LEAVE,
 ]);
 
 const absentStatuses = new Set<AttendanceStatus>([AttendanceStatus.ABSENT]);
@@ -579,7 +583,7 @@ const buildMonthlyTimesheet = async (
           shiftIsOvertime: isOvertime,
           workUnits,
           countedWorkUnits:
-            attendedStatuses.has(detail.status) && !isOvertime ? workUnits : 0,
+            paidWorkStatuses.has(detail.status) && !isOvertime ? workUnits : 0,
           countedOvertimeUnits:
             attendedStatuses.has(detail.status) && isOvertime ? workUnits : 0,
           isLate: lateStatuses.has(detail.status),
@@ -650,9 +654,8 @@ const buildMonthlyTimesheet = async (
       leaveCount: accumulator.leaveCount + day.leaveCount,
       absentCount: accumulator.absentCount + day.absentCount,
       leaveOrAbsentDays:
-        accumulator.leaveOrAbsentDays + (day.leaveOrAbsentCount > 0 ? 1 : 0),
-      leaveDays:
-        accumulator.leaveDays + (day.leaveOrAbsentCount > 0 ? 1 : 0),
+        accumulator.leaveOrAbsentDays + day.leaveOrAbsentCount,
+      leaveDays: accumulator.leaveDays + day.leaveCount,
       bonusUnits: 0,
     }),
     {

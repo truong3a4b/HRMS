@@ -1,5 +1,5 @@
 import { Modal } from "antd";
-import { ArrowLeft, BadgeCheck, Banknote, ChevronRight, Clock, Coins, FileText, MinusCircle, PlusCircle, Receipt, ShieldAlert, WalletCards } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Banknote, CalendarDays, ChevronRight, Clock, Coins, FileText, MinusCircle, PlusCircle, Receipt, ShieldAlert, WalletCards } from "lucide-react";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -381,7 +381,8 @@ export function PayrollEmployeeDetailPage() {
 
               <div className="grid grid-cols-4 gap-4 max-[960px]:grid-cols-2 max-[560px]:grid-cols-1">
                 {[
-                  { label: "Lương thực tế", value: payroll.actualSalary, icon: Banknote, color: "blue" },
+                  { label: "Lương công thực tế", value: payroll.actualSalary, icon: Banknote, color: "blue" },
+                  { label: "Lương nghỉ lễ", value: payroll.holidayPay, icon: CalendarDays, color: "blue" },
                   { label: "Tổng Gross", value: payroll.grossSalary, icon: Coins, color: "blue" },
                   { label: "Khấu trừ", value: payroll.totalDeduction, icon: MinusCircle, color: "rose" },
                   { label: "Thực nhận", value: payroll.netSalary, icon: WalletCards, color: "emerald" },
@@ -424,6 +425,8 @@ export function PayrollEmployeeDetailPage() {
                     <SummaryRow icon={FileText} label="Lương cơ bản" value={formatMoney(payroll.baseSalary)} onClick={goToEmployeeWorkTab} />
                     <SummaryRow icon={Clock} label="Công chuẩn" value={formatNumber(payroll.standardWorkDays)} />
                     <SummaryRow icon={Clock} label="Công thực tế" value={formatNumber(payroll.actualWorkDays)} onClick={goToEmployeeTimesheet} />
+                    <SummaryRow icon={CalendarDays} label="Lương nghỉ lễ" variant="income" value={formatMoney(payroll.holidayPay)} />
+                    <SummaryRow icon={CalendarDays} label="Công nghỉ lễ" value={formatNumber(payroll.holidayWorkDays)} />
                     <SummaryRow icon={Clock} label="Tăng ca (OT)" variant="income" value={formatMoney(payroll.totalOvertimePay)} onClick={() => setDialog("overtime")} />
                     <SummaryRow icon={PlusCircle} label="Phụ cấp" variant="income" value={formatMoney(payroll.totalAllowance)} onClick={() => setDialog("allowance")} />
                     <SummaryRow icon={PlusCircle} label="Thưởng" variant="income" value={formatMoney(payroll.totalBonus)} onClick={() => setDialog("bonus")} />

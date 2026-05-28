@@ -280,6 +280,58 @@ export const payrollPolicyController = {
     }
   },
 
+  async getHolidays(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await payrollPolicyService.holidays.getAll({
+        isActive: getBooleanQuery(req.query.isActive),
+        month: getNumberQuery(req.query.month),
+        year: getNumberQuery(req.query.year),
+      });
+      return sendResponse(res, 200, "Holidays fetched successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getHolidayById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await payrollPolicyService.holidays.getById(id);
+      return sendResponse(res, 200, "Holiday fetched successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createHoliday(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await payrollPolicyService.holidays.create(req.body);
+      return sendResponse(res, 201, "Holiday created successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateHoliday(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await payrollPolicyService.holidays.update(id, req.body);
+      return sendResponse(res, 200, "Holiday updated successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteHoliday(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await payrollPolicyService.holidays.delete(id);
+      return sendResponse(res, 200, "Holiday deleted successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getAllowancePolicies(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await payrollPolicyService.allowancePolicies.getAll({
@@ -867,6 +919,124 @@ export const payrollPolicyController = {
         res,
         200,
         "Employee standard work days config deleted successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getAnnualLeaveBalances(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.annualLeaveBalances.getAll({
+        employeeId:
+          typeof req.query.employeeId === "string"
+            ? req.query.employeeId
+            : undefined,
+        departmentId:
+          typeof req.query.departmentId === "string"
+            ? req.query.departmentId
+            : undefined,
+        positionId:
+          typeof req.query.positionId === "string"
+            ? req.query.positionId
+            : undefined,
+        year: getNumberQuery(req.query.year),
+      });
+      return sendResponse(
+        res,
+        200,
+        "Annual leave balance configs fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getEmployeeAnnualLeaveBalance(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.annualLeaveBalances.getByEmployeeYear(
+          getParamValue(req.params.employeeId),
+          Number(getParamValue(req.params.year)),
+        );
+      return sendResponse(
+        res,
+        200,
+        "Employee annual leave balance config fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async upsertEmployeeAnnualLeaveBalance(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.annualLeaveBalances.upsertEmployee({
+          employeeId: getParamValue(req.params.employeeId),
+          ...req.body,
+        });
+      return sendResponse(
+        res,
+        200,
+        "Employee annual leave balance config saved successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async assignAnnualLeaveBalances(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.annualLeaveBalances.assign(
+        req.body,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Annual leave balance configs assigned successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteEmployeeAnnualLeaveBalance(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result =
+        await payrollPolicyService.annualLeaveBalances.deleteByEmployeeYear(
+          getParamValue(req.params.employeeId),
+          Number(getParamValue(req.params.year)),
+        );
+      return sendResponse(
+        res,
+        200,
+        "Employee annual leave balance config deleted successfully",
         result,
       );
     } catch (error) {

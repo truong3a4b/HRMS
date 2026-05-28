@@ -198,3 +198,24 @@ export type AssignStandardWorkDaysPayload = StandardWorkDaysPayload & {
   departmentIds?: string[];
   positionIds?: string[];
 };
+
+export type EmployeeAnnualLeaveBalance = {
+  id: string;
+  employeeId: string;
+  year: number;
+  entitledLeaveDays: string | number;
+  usedPaidLeaveDays: string | number;
+  createdAt: string;
+  updatedAt: string;
+  employee: AttendanceEmployee;
+};
+
+export type AnnualLeaveBalancePayload = {
+  year: number;
+  entitledLeaveDays: string | number;
+};
+
+export type AssignAnnualLeaveBalancePayload = AnnualLeaveBalancePayload & {
+  departmentIds?: string[];
+  positionIds?: string[];
+};

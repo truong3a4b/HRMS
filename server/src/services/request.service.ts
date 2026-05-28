@@ -1,7 +1,10 @@
 import {
   ApprovalMode,
+  AutoPenaltyType,
   AttendanceStatus,
   LateEarlyType,
+  PayrollBonusPenaltySource,
+  PayrollBonusPenaltyStatus,
   PayrollPeriodStatus,
   PayrollStatus,
   LeaveType,
@@ -158,6 +161,11 @@ const leaveAttendanceStatuses = new Set<AttendanceStatus>([
   unpaidLeaveStatus,
   AttendanceStatus.ON_LEAVE,
 ]);
+const annualLeaveTypes = new Set<LeaveType>([LeaveType.ANNUAL_LEAVE]);
+const paidWithoutBalanceLeaveTypes = new Set<LeaveType>([
+  LeaveType.BEREAVEMENT_LEAVE,
+  LeaveType.MARRIAGE_LEAVE,
+]);
 const lateEarlyAttendanceStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.LATE,
   AttendanceStatus.EARLY_LEAVE,
@@ -257,6 +265,8 @@ const addUtcDays = (date: Date, days: number) =>
       date.getUTCDate() + days,
     ),
   );
+
+const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
 const buildDateTimeOnDate = (date: Date, time: string) => {
   const parsedTime = parseTimeOnly(time, "shift time");
@@ -441,27 +451,277 @@ const ensureLeaveWorkShiftInSchedule = async (
   }
 };
 
-const tryConsumePaidLeaveDays = async (
+type LeaveShiftOccurrence = {
+  date: Date;
+  workShiftId: string;
+  workUnits: number;
+  shift: AttendanceShiftSnapshotSource;
+  shiftStartAt: Date;
+  shiftEndAt: Date;
+};
+
+const getLeaveShiftOccurrences = async (
+  client: Prisma.TransactionClient | typeof prisma,
+  employeeId: string,
+  startDate: Date,
+  endDate: Date,
+  workShiftId?: string | null,
+) => {
+  const startDateOnly = toUtcDateOnly(startDate);
+  const endDateExclusive = addUtcDays(toUtcDateOnly(endDate), 1);
+  const schedules = await client.workSchedule.findMany({
+    where: {
+      employeeId,
+      date: {
+        gte: startDateOnly,
+        lt: endDateExclusive,
+      },
+    },
+    include: {
+      shiftLinks: {
+        include: {
+          workShift: true,
+        },
+      },
+    },
+    orderBy: {
+      date: "asc",
+    },
+  });
+
+  return schedules.flatMap((schedule) =>
+    schedule.shiftLinks.flatMap((shiftLink) => {
+      const shift = shiftLink.workShift;
+
+      if (workShiftId && shift.id !== workShiftId) {
+        return [];
+      }
+
+      const shiftStartAt = buildDateTimeOnDate(schedule.date, shift.startTime);
+      const shiftEndAt = getShiftEndDateTime(
+        schedule.date,
+        shift.startTime,
+        shift.endTime,
+        shift.isOvernight,
+      );
+
+      if (!rangesOverlap(startDate, endDate, shiftStartAt, shiftEndAt)) {
+        return [];
+      }
+
+      return [
+        {
+          date: schedule.date,
+          workShiftId: shift.id,
+          workUnits: Number(shift.workUnits ?? 0),
+          shift,
+          shiftStartAt,
+          shiftEndAt,
+        },
+      ];
+    }),
+  );
+};
+
+const groupLeaveUnitsByYear = (occurrences: LeaveShiftOccurrence[]) => {
+  const unitsByYear = new Map<number, number>();
+
+  for (const occurrence of occurrences) {
+    const year = occurrence.date.getUTCFullYear();
+    unitsByYear.set(year, (unitsByYear.get(year) ?? 0) + occurrence.workUnits);
+  }
+
+  return unitsByYear;
+};
+
+const ensureAnnualLeaveBalance = async (
+  client: Prisma.TransactionClient | typeof prisma,
+  employeeId: string,
+  unitsByYear: Map<number, number>,
+) => {
+  if (unitsByYear.size === 0) {
+    return;
+  }
+
+  const years = [...unitsByYear.keys()];
+  const balances = await client.employeeLeaveBalance.findMany({
+    where: {
+      employeeId,
+      year: {
+        in: years,
+      },
+    },
+    select: {
+      year: true,
+      entitledLeaveDays: true,
+      usedPaidLeaveDays: true,
+    },
+  });
+  const balancesByYear = new Map(balances.map((item) => [item.year, item]));
+
+  for (const [year, requestedUnits] of unitsByYear) {
+    const balance = balancesByYear.get(year);
+    const remaining =
+      Number(balance?.entitledLeaveDays ?? 0) -
+      Number(balance?.usedPaidLeaveDays ?? 0);
+
+    if (requestedUnits > remaining) {
+      throw new ApiError(
+        400,
+        `Annual leave balance is not enough for ${year}. Remaining: ${remaining}, requested: ${requestedUnits}`,
+        "ANNUAL_LEAVE_BALANCE_NOT_ENOUGH",
+      );
+    }
+  }
+};
+
+const consumeAnnualLeaveUnits = async (
   tx: Prisma.TransactionClient,
   employeeId: string,
   year: number,
-  days: number,
+  units: number,
 ) => {
-  if (days <= 0) {
-    return false;
+  if (units <= 0) {
+    return;
   }
 
   const updatedRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     UPDATE employee_leave_balances
-    SET used_paid_leave_days = used_paid_leave_days + ${days},
+    SET used_paid_leave_days = used_paid_leave_days + ${units},
         updated_at = NOW()
     WHERE employee_id = ${employeeId}
       AND year = ${year}
-      AND entitled_leave_days - used_paid_leave_days >= ${days}
+      AND entitled_leave_days - used_paid_leave_days >= ${units}
     RETURNING id
   `);
 
-  return updatedRows.length > 0;
+  if (updatedRows.length === 0) {
+    throw new ApiError(
+      400,
+      `Annual leave balance is not enough for ${year}`,
+      "ANNUAL_LEAVE_BALANCE_NOT_ENOUGH",
+    );
+  }
+};
+
+const cancelAutoPenaltyVouchersForLeave = async (
+  tx: Prisma.TransactionClient,
+  employeeId: string,
+  occurrences: LeaveShiftOccurrence[],
+) => {
+  if (occurrences.length === 0) {
+    return;
+  }
+
+  const leaveDateKeys = new Set(
+    occurrences.map((occurrence) => occurrence.date.toISOString().slice(0, 10)),
+  );
+  const start = [...occurrences].sort(
+    (left, right) => left.date.getTime() - right.date.getTime(),
+  )[0].date;
+  const endExclusive = addUtcDays(
+    [...occurrences].sort(
+      (left, right) => right.date.getTime() - left.date.getTime(),
+    )[0].date,
+    1,
+  );
+
+  const existingItems = await tx.payrollBonusPenalty.findMany({
+    where: {
+      employeeId,
+      source: PayrollBonusPenaltySource.AUTO,
+      status: PayrollBonusPenaltyStatus.ACTIVE,
+      occurredAt: {
+        gte: start,
+        lt: endExclusive,
+      },
+    },
+    select: {
+      id: true,
+      occurredAt: true,
+    },
+  });
+  const itemIds = existingItems
+    .filter(
+      (item) => item.occurredAt && leaveDateKeys.has(getDateKey(item.occurredAt)),
+    )
+    .map((item) => item.id);
+
+  if (itemIds.length === 0) {
+    return;
+  }
+
+  await tx.payrollBonusPenalty.updateMany({
+    where: {
+      id: {
+        in: itemIds,
+      },
+    },
+    data: {
+      status: PayrollBonusPenaltyStatus.CANCELLED,
+      cancelledAt: new Date(),
+    },
+  });
+};
+
+const cancelAutoPenaltyVouchersForLateEarly = async (
+  tx: Prisma.TransactionClient,
+  employeeId: string,
+  date: Date,
+  workShiftId: string,
+) => {
+  const start = toUtcDateOnly(date);
+  const end = addUtcDays(start, 1);
+  const workShift = await tx.workShift.findUnique({
+    where: {
+      id: workShiftId,
+    },
+    select: {
+      code: true,
+      name: true,
+    },
+  });
+  const shiftLabels = [
+    [workShift?.code, workShift?.name].filter(Boolean).join(" - "),
+    workShift?.code,
+    workShift?.name,
+  ].filter((value): value is string => Boolean(value));
+  const reasonFilter =
+    shiftLabels.length > 0
+      ? {
+          OR: shiftLabels.map((label) => ({
+            reason: {
+              contains: label,
+              mode: "insensitive" as const,
+            },
+          })),
+        }
+      : {};
+
+  await tx.payrollBonusPenalty.updateMany({
+    where: {
+      employeeId,
+      source: PayrollBonusPenaltySource.AUTO,
+      status: PayrollBonusPenaltyStatus.ACTIVE,
+      occurredAt: {
+        gte: start,
+        lt: end,
+      },
+      autoPenaltyPolicy: {
+        type: {
+          in: [
+            AutoPenaltyType.LATE_EARLY,
+            AutoPenaltyType.LATE_EARLY_PROGRESSIVE,
+          ],
+        },
+      },
+      ...reasonFilter,
+    },
+    data: {
+      status: PayrollBonusPenaltyStatus.CANCELLED,
+      cancelledAt: new Date(),
+    },
+  });
 };
 
 const getEmployeeByUserId = async (
@@ -970,96 +1230,69 @@ const executeLeaveLogic = async (
   }
 
   const employee = await getEmployeeByUserId(tx, request.requesterId);
+  const occurrences = await getLeaveShiftOccurrences(
+    tx,
+    employee.id,
+    leaveRequest.startDate,
+    leaveRequest.endDate,
+    leaveRequest.workShiftId,
+  );
 
-  const startDate = toUtcDateOnly(leaveRequest.startDate);
-  const endDateExclusive = addUtcDays(toUtcDateOnly(leaveRequest.endDate), 1);
-  const schedules = await tx.workSchedule.findMany({
-    where: {
-      employeeId: employee.id,
-      date: {
-        gte: startDate,
-        lt: endDateExclusive,
-      },
-    },
-    include: {
-      shiftLinks: {
-        include: {
-          workShift: true,
-        },
-      },
-    },
-    orderBy: {
-      date: "asc",
-    },
-  });
+  if (annualLeaveTypes.has(leaveRequest.leaveType)) {
+    const unitsByYear = groupLeaveUnitsByYear(occurrences);
+    await ensureAnnualLeaveBalance(tx, employee.id, unitsByYear);
 
-  for (const schedule of schedules) {
+    for (const [year, units] of unitsByYear) {
+      await consumeAnnualLeaveUnits(tx, employee.id, year, units);
+    }
+  }
+
+  await cancelAutoPenaltyVouchersForLeave(tx, employee.id, occurrences);
+
+  const occurrencesByDate = new Map<string, LeaveShiftOccurrence[]>();
+  for (const occurrence of occurrences) {
+    const key = getDateKey(occurrence.date);
+    occurrencesByDate.set(key, [...(occurrencesByDate.get(key) ?? []), occurrence]);
+  }
+
+  const isPaidLeave =
+    annualLeaveTypes.has(leaveRequest.leaveType) ||
+    paidWithoutBalanceLeaveTypes.has(leaveRequest.leaveType);
+  const status = isPaidLeave ? paidLeaveStatus : unpaidLeaveStatus;
+
+  for (const dateOccurrences of occurrencesByDate.values()) {
+    const attendanceDate = dateOccurrences[0].date;
     const attendanceRecord = await tx.attendanceRecord.upsert({
       where: {
         employeeId_date: {
           employeeId: employee.id,
-          date: schedule.date,
+          date: attendanceDate,
         },
       },
       create: {
         employeeId: employee.id,
-        date: schedule.date,
+        date: attendanceDate,
       },
       update: {},
     });
 
-    for (const shiftLink of schedule.shiftLinks) {
-      const shift = shiftLink.workShift;
-
-      if (leaveRequest.workShiftId && shift.id !== leaveRequest.workShiftId) {
-        continue;
-      }
-
-      const shiftStartAt = buildDateTimeOnDate(schedule.date, shift.startTime);
-      const shiftEndAt = getShiftEndDateTime(
-        schedule.date,
-        shift.startTime,
-        shift.endTime,
-        shift.isOvernight,
-      );
-
-      if (
-        !rangesOverlap(
-          leaveRequest.startDate,
-          leaveRequest.endDate,
-          shiftStartAt,
-          shiftEndAt,
-        )
-      ) {
-        continue;
-      }
-
-      const workUnits = Number(shift.workUnits);
-      const isPaidLeave =
-        !shift.isOvertime &&
-        (await tryConsumePaidLeaveDays(
-          tx,
-          employee.id,
-          schedule.date.getUTCFullYear(),
-          workUnits,
-        ));
-      const status = isPaidLeave ? paidLeaveStatus : unpaidLeaveStatus;
+    for (const occurrence of dateOccurrences) {
       const shiftSnapshot = buildAttendanceDetailShiftSnapshot(
-        shift,
-        shiftStartAt,
-        shiftEndAt,
+        occurrence.shift,
+        occurrence.shiftStartAt,
+        occurrence.shiftEndAt,
       );
 
       await tx.attendanceRecordDetail.upsert({
         where: {
           attendanceRecordId_workShiftId: {
             attendanceRecordId: attendanceRecord.id,
-            workShiftId: shift.id,
+            workShiftId: occurrence.workShiftId,
           },
         },
         create: {
           attendanceRecordId: attendanceRecord.id,
-          workShiftId: shift.id,
+          workShiftId: occurrence.workShiftId,
           ...shiftSnapshot,
           checkInTime: null,
           checkOutTime: null,
@@ -1257,6 +1490,12 @@ const executeLateEarlyLogic = async (
     lateEarlyRequest.endDate,
     lateEarlyRequest.workShiftId,
   );
+  await cancelAutoPenaltyVouchersForLateEarly(
+    tx,
+    lateEarlyRequest.employeeId,
+    lateEarlyRequest.date,
+    lateEarlyRequest.workShiftId,
+  );
 
   await tx.lateEarlyRequest.update({
     where: {
@@ -1376,6 +1615,22 @@ export const requestService = {
       input.workShiftId,
     );
 
+    const occurrences = await getLeaveShiftOccurrences(
+      prisma,
+      employee.id,
+      startDate,
+      endDate,
+      input.workShiftId,
+    );
+
+    if (annualLeaveTypes.has(input.leaveType)) {
+      await ensureAnnualLeaveBalance(
+        prisma,
+        employee.id,
+        groupLeaveUnitsByYear(occurrences),
+      );
+    }
+
     const reason = input.reason.trim();
     if (!reason) {
       throw new ApiError(400, "reason is required");
@@ -1390,6 +1645,8 @@ export const requestService = {
       approverIds: input.approverIds,
       watcherIds: input.watcherIds,
       createExtra: async (tx, requestId) => {
+        await cancelAutoPenaltyVouchersForLeave(tx, employee.id, occurrences);
+
         await tx.leaveRequest.create({
           data: {
             requestId,

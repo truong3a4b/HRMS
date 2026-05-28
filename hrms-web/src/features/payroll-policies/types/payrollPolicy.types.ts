@@ -67,6 +67,22 @@ export type AttendanceBonusPolicyPayload = Omit<
   "id" | "createdAt" | "updatedAt"
 >;
 
+export type Holiday = {
+  id: string;
+  name: string;
+  date: string;
+  salaryMultiplier: string | number;
+  description?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type HolidayPayload = Omit<
+  Holiday,
+  "id" | "createdAt" | "updatedAt"
+>;
+
 export type AllowancePolicy = {
   id: string;
   name: string;

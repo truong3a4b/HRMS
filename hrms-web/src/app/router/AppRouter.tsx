@@ -11,6 +11,7 @@ import { DepartmentListPage } from "../../features/departments/pages/DepartmentL
 import { EmployeeDetailPage } from "../../features/employees/pages/EmployeeDetailPage";
 import { EmployeeListPage } from "../../features/employees/pages/EmployeeListPage";
 import { HomePage } from "../../features/home/pages/HomePage";
+import { HolidayListPage } from "../../features/categories/pages/HolidayListPage";
 import { PayrollEmployeeDetailPage } from "../../features/payroll/pages/PayrollEmployeeDetailPage";
 import { PayrollBonusPenaltyPage } from "../../features/payroll/pages/PayrollBonusPenaltyPage";
 import { PayrollPage } from "../../features/payroll/pages/PayrollPage";
@@ -329,6 +330,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute>
             <WorkShiftListPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.holidays}
+        element={
+          <ProtectedRoute>
+            <HolidayListPage />
           </ProtectedRoute>
         }
       />

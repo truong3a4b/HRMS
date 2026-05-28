@@ -4,6 +4,7 @@ import {
   PayrollBonusPenaltySource,
   PayrollBonusPenaltyStatus,
   Prisma,
+  RequestStatus,
 } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { ApiError } from "../utils/apiError";
@@ -68,6 +69,22 @@ type CreateAttendanceBonusPolicyInput = {
 type UpdateAttendanceBonusPolicyInput =
   Partial<CreateAttendanceBonusPolicyInput>;
 
+type CreateHolidayInput = {
+  name: string;
+  date: Date;
+  salaryMultiplier: DecimalInput;
+  description?: string | null;
+  isActive?: boolean;
+};
+
+type UpdateHolidayInput = Partial<CreateHolidayInput>;
+
+type HolidayQuery = {
+  isActive?: boolean;
+  month?: number;
+  year?: number;
+};
+
 type CreateAllowancePolicyInput = {
   name: string;
   description?: string | null;
@@ -116,6 +133,10 @@ type StandardWorkDayQuery = PayrollProfileQuery & {
   year?: number;
 };
 
+type AnnualLeaveBalanceQuery = PayrollProfileQuery & {
+  year?: number;
+};
+
 type AssignStandardWorkDaysInput = {
   employeeIds?: string[];
   departmentIds?: string[];
@@ -132,6 +153,20 @@ type UpsertEmployeeStandardWorkDaysInput = {
   year: number;
   standardWorkDays: DecimalInput;
   note?: string | null;
+};
+
+type AssignAnnualLeaveBalanceInput = {
+  employeeIds?: string[];
+  departmentIds?: string[];
+  positionIds?: string[];
+  year: number;
+  entitledLeaveDays: DecimalInput;
+};
+
+type UpsertEmployeeAnnualLeaveBalanceInput = {
+  employeeId: string;
+  year: number;
+  entitledLeaveDays: DecimalInput;
 };
 
 type AssignAllowancePolicyInput = {
@@ -256,6 +291,23 @@ const ensureDateRange = (effectiveFrom?: Date, effectiveTo?: Date | null) => {
     );
   }
 };
+
+const ensurePositiveMultiplier = (value: DecimalInput) => {
+  const multiplier = Number(value);
+
+  if (!Number.isFinite(multiplier) || multiplier <= 0) {
+    throw new ApiError(
+      400,
+      "salaryMultiplier must be greater than 0",
+      "INVALID_HOLIDAY_MULTIPLIER",
+    );
+  }
+};
+
+const toDateOnly = (date: Date) =>
+  new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
 
 const ensureTaxBrackets = (brackets?: TaxBracketInput[]) => {
   if (!brackets) {
@@ -529,6 +581,8 @@ const standardWorkDayInclude = {
   },
 };
 
+const annualLeaveBalanceInclude = standardWorkDayInclude;
+
 const ensureEmployeeExists = async (employeeId: string) => {
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
@@ -562,6 +616,24 @@ const ensurePositiveStandardWorkDays = (standardWorkDays: DecimalInput) => {
   }
 };
 
+const ensureYear = (year: number) => {
+  if (!Number.isInteger(year) || year < 1900 || year > 9999) {
+    throw new ApiError(400, "year must be between 1900 and 9999", "INVALID_YEAR");
+  }
+};
+
+const ensureNonNegativeLeaveDays = (leaveDays: DecimalInput) => {
+  const value = Number(leaveDays);
+
+  if (!Number.isFinite(value) || value < 0) {
+    throw new ApiError(
+      400,
+      "entitledLeaveDays must be greater than or equal to 0",
+      "INVALID_ENTITLED_LEAVE_DAYS",
+    );
+  }
+};
+
 const attendedStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.PRESENT,
   AttendanceStatus.LATE,
@@ -574,6 +646,11 @@ const leaveStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.PAID_LEAVE,
   AttendanceStatus.UNPAID_LEAVE,
 ]);
+const activeLeaveRequestStatuses = [
+  RequestStatus.PENDING,
+  RequestStatus.PROCESSING,
+  RequestStatus.APPROVED,
+];
 
 const toNumber = (value: unknown) => Number(value ?? 0);
 
@@ -638,7 +715,136 @@ const getMonthRange = (month: number, year: number) => ({
   end: new Date(Date.UTC(year, month, 1)),
 });
 
+const toUtcDateOnly = (date: Date) =>
+  new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+
+const addUtcDays = (date: Date, days: number) =>
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + days,
+    ),
+  );
+
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
+
+const buildLeaveCoverageByEmployee = async (
+  employeeIds: string[],
+  start: Date,
+  end: Date,
+) => {
+  if (employeeIds.length === 0) {
+    return new Map<string, Map<string, Set<string | null>>>();
+  }
+
+  const leaveRequests = await prisma.leaveRequest.findMany({
+    where: {
+      startDate: { lt: end },
+      endDate: { gte: start },
+      request: {
+        status: { in: activeLeaveRequestStatuses },
+        requester: {
+          employee: {
+            id: { in: employeeIds },
+          },
+        },
+      },
+    },
+    select: {
+      startDate: true,
+      endDate: true,
+      workShiftId: true,
+      request: {
+        select: {
+          requester: {
+            select: {
+              employee: {
+                select: { id: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  const coverage = new Map<string, Map<string, Set<string | null>>>();
+
+  for (const leaveRequest of leaveRequests) {
+    const employeeId = leaveRequest.request.requester.employee?.id;
+    if (!employeeId) {
+      continue;
+    }
+
+    const employeeCoverage =
+      coverage.get(employeeId) ?? new Map<string, Set<string | null>>();
+    coverage.set(employeeId, employeeCoverage);
+
+    for (
+      let date = toUtcDateOnly(leaveRequest.startDate);
+      date.getTime() <= toUtcDateOnly(leaveRequest.endDate).getTime();
+      date = addUtcDays(date, 1)
+    ) {
+      if (date < start || date >= end) {
+        continue;
+      }
+
+      const dateKey = getDateKey(date);
+      employeeCoverage.set(
+        dateKey,
+        employeeCoverage.get(dateKey) ?? new Set<string | null>(),
+      );
+      employeeCoverage.get(dateKey)?.add(leaveRequest.workShiftId);
+    }
+  }
+
+  return coverage;
+};
+
+const hasLeaveCoverage = (
+  coverage: Map<string, Set<string | null>> | undefined,
+  date: Date,
+  workShiftId: string,
+) => {
+  const coveredShiftIds = coverage?.get(getDateKey(date));
+
+  return Boolean(
+    coveredShiftIds &&
+      (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
+  );
+};
+
+const getShiftViolationLabel = (shift: {
+  workShiftCode?: string | null;
+  workShiftName?: string | null;
+  workShift?: { code?: string | null; name?: string | null };
+}) => {
+  const code = shift.workShiftCode ?? shift.workShift?.code;
+  const name = shift.workShiftName ?? shift.workShift?.name;
+
+  return [code, name].filter(Boolean).join(" - ") || "Khong ro ca";
+};
+
+const sortViolationItems = <
+  T extends { occurredAt: Date; workShiftName: string; detail: string },
+>(
+  items: T[],
+) =>
+  [...items].sort((first, second) => {
+    const timeDiff = first.occurredAt.getTime() - second.occurredAt.getTime();
+    if (timeDiff !== 0) {
+      return timeDiff;
+    }
+
+    const shiftDiff = first.workShiftName.localeCompare(second.workShiftName);
+    if (shiftDiff !== 0) {
+      return shiftDiff;
+    }
+
+    return first.detail.localeCompare(second.detail);
+  });
 
 const isDetailOvertime = (detail: {
   shiftIsOvertime: boolean;
@@ -944,6 +1150,83 @@ export const payrollPolicyService = {
       }
 
       return prisma.attendanceBonusPolicy.delete({ where: { id } });
+    },
+  },
+
+  holidays: {
+    getAll(query: HolidayQuery) {
+      const monthRange =
+        query.month && query.year ? getMonthRange(query.month, query.year) : null;
+
+      return prisma.holiday.findMany({
+        where: {
+          ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+          ...(monthRange
+            ? {
+                date: {
+                  gte: monthRange.start,
+                  lt: monthRange.end,
+                },
+              }
+            : {}),
+        },
+        orderBy: [{ date: "asc" }, { name: "asc" }],
+      });
+    },
+
+    async getById(id: string) {
+      const holiday = await prisma.holiday.findUnique({
+        where: { id },
+      });
+
+      if (!holiday) {
+        throw new ApiError(404, "Holiday not found", "HOLIDAY_NOT_FOUND");
+      }
+
+      return holiday;
+    },
+
+    create(data: CreateHolidayInput) {
+      ensurePositiveMultiplier(data.salaryMultiplier);
+
+      return prisma.holiday.create({
+        data: {
+          name: data.name,
+          date: toDateOnly(data.date),
+          salaryMultiplier: data.salaryMultiplier,
+          description: data.description,
+          isActive: data.isActive ?? true,
+        },
+      });
+    },
+
+    async update(id: string, data: UpdateHolidayInput) {
+      await this.getById(id);
+
+      if (data.salaryMultiplier !== undefined) {
+        ensurePositiveMultiplier(data.salaryMultiplier);
+      }
+
+      return prisma.holiday.update({
+        where: { id },
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.date !== undefined ? { date: toDateOnly(data.date) } : {}),
+          ...(data.salaryMultiplier !== undefined
+            ? { salaryMultiplier: data.salaryMultiplier }
+            : {}),
+          ...(data.description !== undefined
+            ? { description: data.description }
+            : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        },
+      });
+    },
+
+    async delete(id: string) {
+      await this.getById(id);
+
+      return prisma.holiday.delete({ where: { id } });
     },
   },
 
@@ -1407,9 +1690,15 @@ export const payrollPolicyService = {
       let updatedCount = 0;
       let skippedCount = 0;
       let cancelledCount = 0;
+      const leaveCoverageByEmployee = await buildLeaveCoverageByEmployee(
+        employees.map((employee) => employee.id),
+        start,
+        end,
+      );
 
       await Promise.all(
         employees.flatMap((employee) => {
+          const leaveCoverage = leaveCoverageByEmployee.get(employee.id);
           const attendedDetails = employee.attendanceRecords.flatMap((record) =>
             record.details
               .filter((detail) => attendedStatuses.has(detail.status))
@@ -1417,11 +1706,6 @@ export const payrollPolicyService = {
                 ...detail,
                 recordDate: record.date,
               })),
-          );
-          const attendedRegularDateKeys = new Set(
-            attendedDetails
-              .filter((detail) => !isDetailOvertime(detail))
-              .map((detail) => getDateKey(detail.recordDate)),
           );
           const attendanceDetailsByDate = new Map<
             string,
@@ -1432,57 +1716,128 @@ export const payrollPolicyService = {
             attendanceDetailsByDate.set(getDateKey(record.date), record.details);
           });
 
-          const unauthorizedAbsenceDays = employee.workSchedules.reduce(
-            (total, schedule) => {
-              const hasRegularWork = schedule.shiftLinks.some(
-                (shiftLink) => !shiftLink.workShift.isOvertime,
+          const unauthorizedAbsenceViolations = sortViolationItems(
+            employee.workSchedules.flatMap((schedule) => {
+              const detailsByShiftId = new Map(
+                (attendanceDetailsByDate.get(getDateKey(schedule.date)) ?? []).map(
+                  (detail) => [detail.workShiftId, detail],
+                ),
               );
 
-              if (!hasRegularWork) {
-                return total;
-              }
+              return schedule.shiftLinks.flatMap((shiftLink) => {
+                  if (shiftLink.workShift.isOvertime) {
+                    return [];
+                  }
 
-              const dateKey = getDateKey(schedule.date);
-              const details = attendanceDetailsByDate.get(dateKey) ?? [];
-              const hasAbsentRegularShift = details.some(
-                (detail) =>
-                  !isDetailOvertime(detail) &&
-                  detail.status === AttendanceStatus.ABSENT,
-              );
-              const hasApprovedLeave = details.some(
-                (detail) =>
-                  !isDetailOvertime(detail) && leaveStatuses.has(detail.status),
-              );
+                  if (
+                    hasLeaveCoverage(
+                      leaveCoverage,
+                      schedule.date,
+                      shiftLink.workShiftId,
+                    )
+                  ) {
+                    return [];
+                  }
 
-              if (attendedRegularDateKeys.has(dateKey)) {
-                return total;
-              }
+                  const detail = detailsByShiftId.get(shiftLink.workShiftId);
+                  if (!detail) {
+                    return [
+                      {
+                        occurredAt: schedule.date,
+                        workShiftId: shiftLink.workShiftId,
+                        workShiftName: getShiftViolationLabel({
+                          workShift: shiftLink.workShift,
+                        }),
+                        detail: "vang khong cham cong",
+                      },
+                    ];
+                  }
 
-              if (hasAbsentRegularShift) {
-                return total + 1;
-              }
+                  const isUnauthorized =
+                    detail.status === AttendanceStatus.ABSENT ||
+                    (!attendedStatuses.has(detail.status) &&
+                      !leaveStatuses.has(detail.status));
 
-              return total + (hasApprovedLeave ? 0 : 1);
-            },
-            0,
+                  if (!isUnauthorized) {
+                    return [];
+                  }
+
+                  return [
+                    {
+                      occurredAt: schedule.date,
+                      workShiftId: shiftLink.workShiftId,
+                      workShiftName: getShiftViolationLabel(detail),
+                      detail:
+                        detail.status === AttendanceStatus.ABSENT
+                          ? "vang mat"
+                          : `trang thai ${detail.status}`,
+                    },
+                  ];
+                });
+            }),
           );
+          const unauthorizedAbsenceShiftCount =
+            unauthorizedAbsenceViolations.length;
 
-          const lateEarlyOccurrences = attendedDetails
-            .filter((detail) => !isDetailOvertime(detail))
-            .reduce((total, detail) => {
-              if (detail.status === AttendanceStatus.LATE_AND_EARLY_LEAVE) {
-                return total + 2;
+          const lateEarlyViolations = sortViolationItems(
+            attendedDetails.flatMap((detail) => {
+              if (isDetailOvertime(detail)) {
+                return [];
               }
 
               if (
-                detail.status === AttendanceStatus.LATE ||
-                detail.status === AttendanceStatus.EARLY_LEAVE
+                hasLeaveCoverage(
+                  leaveCoverage,
+                  detail.recordDate,
+                  detail.workShiftId,
+                )
               ) {
-                return total + 1;
+                return [];
               }
 
-              return total;
-            }, 0);
+              if (detail.status === AttendanceStatus.LATE_AND_EARLY_LEAVE) {
+                return [
+                  {
+                    occurredAt: detail.recordDate,
+                    workShiftId: detail.workShiftId,
+                    workShiftName: getShiftViolationLabel(detail),
+                    detail: "di muon",
+                  },
+                  {
+                    occurredAt: detail.recordDate,
+                    workShiftId: detail.workShiftId,
+                    workShiftName: getShiftViolationLabel(detail),
+                    detail: "ve som",
+                  },
+                ];
+              }
+
+              if (detail.status === AttendanceStatus.LATE) {
+                return [
+                  {
+                    occurredAt: detail.recordDate,
+                    workShiftId: detail.workShiftId,
+                    workShiftName: getShiftViolationLabel(detail),
+                    detail: "di muon",
+                  },
+                ];
+              }
+
+              if (detail.status === AttendanceStatus.EARLY_LEAVE) {
+                return [
+                  {
+                    occurredAt: detail.recordDate,
+                    workShiftId: detail.workShiftId,
+                    workShiftName: getShiftViolationLabel(detail),
+                    detail: "ve som",
+                  },
+                ];
+              }
+
+              return [];
+            }),
+          );
+          const lateEarlyOccurrences = lateEarlyViolations.length;
 
           return employee.autoPenaltyPolicies.map(async (assignment) => {
             const policy = assignment.autoPenaltyPolicy;
@@ -1491,11 +1846,16 @@ export const payrollPolicyService = {
               return;
             }
 
+            const violations =
+              policy.type === AutoPenaltyType.LATE_EARLY ||
+              policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
+                ? lateEarlyViolations
+                : unauthorizedAbsenceViolations;
             const violationCount =
               policy.type === AutoPenaltyType.LATE_EARLY ||
               policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
                 ? lateEarlyOccurrences
-                : unauthorizedAbsenceDays;
+                : unauthorizedAbsenceShiftCount;
             const occurrenceKeys = new Set(
               Array.from({ length: violationCount }, (_, index) =>
                 `auto:${policy.type}:${index + 1}`,
@@ -1542,6 +1902,7 @@ export const payrollPolicyService = {
               Array.from({ length: violationCount }, async (_, index) => {
                 const occurrenceNumber = index + 1;
                 const occurrenceKey = `auto:${policy.type}:${occurrenceNumber}`;
+                const violation = violations[index];
                 const existing = existingItems.find(
                   (item) => item.occurrenceKey === occurrenceKey,
                 );
@@ -1572,6 +1933,9 @@ export const payrollPolicyService = {
                   amount: roundMoney(amount),
                   cancelledAt: null,
                 };
+
+                payload.occurredAt = violation?.occurredAt ?? start;
+                payload.reason = `${policy.name} - ${violation?.detail ?? "vi pham"} - ngay ${getDateKey(violation?.occurredAt ?? start)}, ca ${violation?.workShiftName ?? "Khong ro ca"}`;
 
                 if (existing) {
                   await prisma.payrollBonusPenalty.update({
@@ -1728,6 +2092,123 @@ export const payrollPolicyService = {
           },
         },
         include: standardWorkDayInclude,
+      });
+    },
+  },
+
+  annualLeaveBalances: {
+    getAll(query: AnnualLeaveBalanceQuery) {
+      return prisma.employeeLeaveBalance.findMany({
+        where: {
+          ...(query.employeeId ? { employeeId: query.employeeId } : {}),
+          ...(query.year ? { year: query.year } : {}),
+          employee: {
+            ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+            ...(query.positionId ? { positionId: query.positionId } : {}),
+          },
+        },
+        include: annualLeaveBalanceInclude,
+        orderBy: [{ year: "desc" }, { employee: { name: "asc" } }],
+      });
+    },
+
+    async getByEmployeeYear(employeeId: string, year: number) {
+      ensureYear(year);
+      await ensureEmployeeExists(employeeId);
+
+      const config = await prisma.employeeLeaveBalance.findUnique({
+        where: {
+          employeeId_year: {
+            employeeId,
+            year,
+          },
+        },
+        include: annualLeaveBalanceInclude,
+      });
+
+      if (!config) {
+        throw new ApiError(
+          404,
+          "Employee annual leave balance config not found",
+          "ANNUAL_LEAVE_BALANCE_NOT_FOUND",
+        );
+      }
+
+      return config;
+    },
+
+    async upsertEmployee(data: UpsertEmployeeAnnualLeaveBalanceInput) {
+      ensureYear(data.year);
+      ensureNonNegativeLeaveDays(data.entitledLeaveDays);
+      await ensureEmployeeExists(data.employeeId);
+
+      return prisma.employeeLeaveBalance.upsert({
+        where: {
+          employeeId_year: {
+            employeeId: data.employeeId,
+            year: data.year,
+          },
+        },
+        update: {
+          entitledLeaveDays: data.entitledLeaveDays,
+        },
+        create: {
+          employeeId: data.employeeId,
+          year: data.year,
+          entitledLeaveDays: data.entitledLeaveDays,
+        },
+        include: annualLeaveBalanceInclude,
+      });
+    },
+
+    async assign(data: AssignAnnualLeaveBalanceInput) {
+      ensureYear(data.year);
+      ensureNonNegativeLeaveDays(data.entitledLeaveDays);
+
+      const employeeIds = await getTargetEmployeeIds(data);
+
+      await prisma.$transaction(
+        employeeIds.map((employeeId) =>
+          prisma.employeeLeaveBalance.upsert({
+            where: {
+              employeeId_year: {
+                employeeId,
+                year: data.year,
+              },
+            },
+            update: {
+              entitledLeaveDays: data.entitledLeaveDays,
+            },
+            create: {
+              employeeId,
+              year: data.year,
+              entitledLeaveDays: data.entitledLeaveDays,
+            },
+          }),
+        ),
+      );
+
+      return prisma.employeeLeaveBalance.findMany({
+        where: {
+          employeeId: { in: employeeIds },
+          year: data.year,
+        },
+        include: annualLeaveBalanceInclude,
+        orderBy: { employee: { name: "asc" } },
+      });
+    },
+
+    async deleteByEmployeeYear(employeeId: string, year: number) {
+      await this.getByEmployeeYear(employeeId, year);
+
+      return prisma.employeeLeaveBalance.delete({
+        where: {
+          employeeId_year: {
+            employeeId,
+            year,
+          },
+        },
+        include: annualLeaveBalanceInclude,
       });
     },
   },

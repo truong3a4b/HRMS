@@ -1,7 +1,11 @@
 import mqtt, { MqttClient } from "mqtt";
 import { env } from "../config/env";
 import { prisma } from "../config/prisma";
-import { AttendanceStatus, Prisma } from "../../generated/prisma/client";
+import {
+  AttendanceStatus,
+  Prisma,
+  RequestStatus,
+} from "../../generated/prisma/client";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -112,6 +116,12 @@ let offlineSweepTimer: NodeJS.Timeout | null = null;
 
 let isAbsentSweepRunning = false;
 
+const activeLeaveRequestStatuses = [
+  RequestStatus.PENDING,
+  RequestStatus.PROCESSING,
+  RequestStatus.APPROVED,
+];
+
 const isObject = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -184,6 +194,8 @@ const isSameUtcDate = (left: Date, right: Date) =>
   left.getUTCMonth() === right.getUTCMonth() &&
   left.getUTCDate() === right.getUTCDate();
 
+const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
+
 const addUtcDays = (date: Date, days: number) =>
   new Date(
     Date.UTC(
@@ -249,6 +261,87 @@ const isMinutesInWindow = (
   }
 
   return punchMinutes >= startMinutes || punchMinutes <= endMinutes;
+};
+
+const buildLeaveCoverageMap = async (
+  employeeIds: string[],
+  start: Date,
+  end: Date,
+) => {
+  if (employeeIds.length === 0) {
+    return new Map<string, Set<string | null>>();
+  }
+
+  const leaveRequests = await prisma.leaveRequest.findMany({
+    where: {
+      startDate: { lt: end },
+      endDate: { gte: start },
+      request: {
+        status: { in: activeLeaveRequestStatuses },
+        requester: {
+          employee: {
+            id: { in: employeeIds },
+          },
+        },
+      },
+    },
+    select: {
+      startDate: true,
+      endDate: true,
+      workShiftId: true,
+      request: {
+        select: {
+          requester: {
+            select: {
+              employee: {
+                select: {
+                  id: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  const coverage = new Map<string, Set<string | null>>();
+
+  for (const leaveRequest of leaveRequests) {
+    const employeeId = leaveRequest.request.requester.employee?.id;
+    if (!employeeId) {
+      continue;
+    }
+
+    for (
+      let date = toUtcDateOnly(leaveRequest.startDate);
+      date.getTime() <= toUtcDateOnly(leaveRequest.endDate).getTime();
+      date = addUtcDays(date, 1)
+    ) {
+      if (date < start || date >= end) {
+        continue;
+      }
+
+      const key = `${employeeId}_${getDateKey(date)}`;
+      coverage.set(key, coverage.get(key) ?? new Set<string | null>());
+      coverage.get(key)?.add(leaveRequest.workShiftId);
+    }
+  }
+
+  return coverage;
+};
+
+const hasLeaveCoverage = (
+  coverage: Map<string, Set<string | null>>,
+  employeeId: string,
+  date: Date,
+  workShiftId: string,
+) => {
+  const coveredShiftIds = coverage.get(`${employeeId}_${getDateKey(date)}`);
+
+  return Boolean(
+    coveredShiftIds &&
+      (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
+  );
 };
 
 const getClockDistance = (left: number, right: number) => {
@@ -520,6 +613,14 @@ const startOfflineSweep = () => {
 
 //hàm này sẽ được chạy định kỳ để tạo các bản ghi điểm danh với trạng thái vắng mặt cho những lịch làm việc đã kết thúc nhưng chưa có bản ghi điểm danh nào, giúp đảm bảo dữ liệu điểm danh luôn đầy đủ và chính xác ngay cả khi nhân viên quên chấm công hoặc có lỗi hệ thống
 export const createAbsentDetailsForExpiredSchedules = async () => {
+  if (isAbsentSweepRunning) {
+    return { createdCount: 0, skipped: true };
+  }
+
+  isAbsentSweepRunning = true;
+  let createdCount = 0;
+
+  try {
   // Compare with the UTC+7 attendance clock and mark absent right after
   // check-in closes, not after the check-out window closes.
   const now = new Date();
@@ -548,7 +649,15 @@ export const createAbsentDetailsForExpiredSchedules = async () => {
     },
   });
 
-  if (schedules.length === 0) return;
+  if (schedules.length === 0) {
+    return { createdCount, skipped: false };
+  }
+
+  const leaveCoverage = await buildLeaveCoverageMap(
+    [...new Set(schedules.map((schedule) => schedule.employeeId))],
+    fromDate,
+    toDate,
+  );
 
   // Lấy trước toàn bộ attendance record trong khoảng thời gian này để đối chiếu
   const attendanceRecords = await prisma.attendanceRecord.findMany({
@@ -581,6 +690,17 @@ export const createAbsentDetailsForExpiredSchedules = async () => {
     const expiredShiftLinks = schedule.shiftLinks.filter((shiftLink) => {
       // Nếu ca làm việc đã có điểm danh thì bỏ qua, không tính là expired
       if (existingWorkShiftIds.has(shiftLink.workShiftId)) {
+        return false;
+      }
+
+      if (
+        hasLeaveCoverage(
+          leaveCoverage,
+          schedule.employeeId,
+          schedule.date,
+          shiftLink.workShiftId,
+        )
+      ) {
         return false;
       }
 
@@ -631,8 +751,16 @@ export const createAbsentDetailsForExpiredSchedules = async () => {
           shiftEndAt,
         );
 
-        await tx.attendanceRecordDetail.create({
-          data: {
+        const existingShiftIds = recordMap.get(key) ?? new Set<string>();
+
+        await tx.attendanceRecordDetail.upsert({
+          where: {
+            attendanceRecordId_workShiftId: {
+              attendanceRecordId: attendanceRecord.id,
+              workShiftId: shiftLink.workShiftId,
+            },
+          },
+          create: {
             attendanceRecordId: attendanceRecord.id,
             workShiftId: shiftLink.workShiftId,
             ...shiftSnapshot,
@@ -640,9 +768,21 @@ export const createAbsentDetailsForExpiredSchedules = async () => {
             checkOutTime: null,
             status: AttendanceStatus.ABSENT,
           },
+          update: {},
         });
+
+        if (!existingShiftIds.has(shiftLink.workShiftId)) {
+          existingShiftIds.add(shiftLink.workShiftId);
+          recordMap.set(key, existingShiftIds);
+          createdCount += 1;
+        }
       }
     });
+  }
+
+  return { createdCount, skipped: false };
+  } finally {
+    isAbsentSweepRunning = false;
   }
 };
 

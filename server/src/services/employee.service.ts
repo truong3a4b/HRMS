@@ -143,6 +143,11 @@ const employeeInclude = {
       createdAt: "desc" as const,
     },
   },
+  leaveBalances: {
+    orderBy: {
+      year: "desc" as const,
+    },
+  },
 };
 
 const toNullableJson = (

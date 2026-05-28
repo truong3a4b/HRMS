@@ -44,7 +44,7 @@ model User {
   requestedRequests     Request[]               @relation("RequestRequester")
   requestApprovals      RequestApproval[]       @relation("RequestApprover")
   watchedRequests       RequestWatcher[]        @relation("RequestWatcherUser")
-  employeeImportBatches EmployeeImportBatch[]    @relation("EmployeeImportUploader")
+  employeeImportBatches EmployeeImportBatch[]   @relation("EmployeeImportUploader")
 }
 
 model PendingUser {
@@ -1089,6 +1089,21 @@ model EmployeeStandardWorkDay {
   @@map("employee_standard_work_days")
 }
 
+model Holiday {
+  id               String   @id @default(uuid())
+  name             String
+  date             DateTime
+  salaryMultiplier Decimal  @default(1) @map("salary_multiplier") @db.Decimal(6, 2)
+  description      String?
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([date])
+  @@index([isActive, date])
+  @@map("holidays")
+}
+
 //phu cap
 model AllowancePolicy {
   id            String    @id @default(uuid())
@@ -1142,9 +1157,9 @@ model AutoPenaltyPolicy {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  tiers               AutoPenaltyTier[]
-  employeeAssignments EmployeeAutoPenaltyPolicy[]
-  payrollLines        PayrollBonusPenaltyLine[]
+  tiers                 AutoPenaltyTier[]
+  employeeAssignments   EmployeeAutoPenaltyPolicy[]
+  payrollLines          PayrollBonusPenaltyLine[]
   payrollBonusPenalties PayrollBonusPenalty[]
 
   @@index([type])
@@ -1225,30 +1240,30 @@ enum PayrollBonusPenaltySource {
 }
 
 model PayrollBonusPenalty {
-  id         String   @id @default(uuid())
-  employeeId String
-  month      DateTime //tháng áp dụng, chỉ lưu phần năm và tháng
+  id                  String                    @id @default(uuid())
+  employeeId          String
+  month               DateTime //tháng áp dụng, chỉ lưu phần năm và tháng
   autoPenaltyPolicyId String?
-  amount     Decimal  @db.Decimal(15, 2)
-  isBonus    Boolean  @default(true) //true là thưởng, false là phạt
-  reason     String?
-  source     PayrollBonusPenaltySource @default(MANUAL)
-  status     PayrollBonusPenaltyStatus @default(ACTIVE)
-  violationCount Int?
-  occurrenceKey String?
-  occurredAt DateTime?
-  cancelledAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  amount              Decimal                   @db.Decimal(15, 2)
+  isBonus             Boolean                   @default(true) //true là thưởng, false là phạt
+  reason              String?
+  source              PayrollBonusPenaltySource @default(MANUAL)
+  status              PayrollBonusPenaltyStatus @default(ACTIVE)
+  violationCount      Int?
+  occurrenceKey       String?
+  occurredAt          DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
 
-  employee     Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  autoPenaltyPolicy AutoPenaltyPolicy? @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: SetNull)
-  payrollLines PayrollBonusPenaltyLine[]
+  employee          Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  autoPenaltyPolicy AutoPenaltyPolicy?        @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: SetNull)
+  payrollLines      PayrollBonusPenaltyLine[]
 
+  @@unique([employeeId, autoPenaltyPolicyId, occurrenceKey])
   @@index([employeeId, month])
   @@index([autoPenaltyPolicyId])
   @@index([status])
-  @@unique([employeeId, autoPenaltyPolicyId, occurrenceKey])
   @@map("payroll_bonus_penalties")
 }
 
@@ -1267,6 +1282,9 @@ model Payroll {
   actualSalary     Decimal @default(0) // lương thực/lương chính theo công
 
   // Tổng OT
+  holidayWorkDays Decimal @default(0)
+  holidayPay      Decimal @default(0) @db.Decimal(15, 2)
+
   totalOvertimeWorkDays Decimal @default(0)
   totalOvertimeHours    Decimal @default(0)
   totalOvertimePay      Decimal @default(0)
@@ -1327,9 +1345,9 @@ model PayrollPeriod {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  createdBy      User?                 @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  payrolls       Payroll[]
-  paymentBatches PayrollPaymentBatch[]
+  createdBy        User?                    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  payrolls         Payroll[]
+  paymentBatches   PayrollPaymentBatch[]
   approvalRequests PayrollApprovalRequest[]
 
   @@unique([month, year])

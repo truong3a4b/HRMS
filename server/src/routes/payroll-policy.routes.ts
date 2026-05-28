@@ -97,6 +97,19 @@ const createAttendanceBonusPolicySchema = z.object({
 const updateAttendanceBonusPolicySchema =
   createAttendanceBonusPolicySchema.partial();
 
+const createHolidaySchema = z.object({
+  name: z.string().trim().min(2),
+  date: z.coerce.date(),
+  salaryMultiplier: decimalSchema,
+  description: z.preprocess(
+    nullableEmptyToNull,
+    z.string().trim().min(1).nullable().optional(),
+  ),
+  isActive: z.boolean().optional(),
+});
+
+const updateHolidaySchema = createHolidaySchema.partial();
+
 const createAllowancePolicySchema = z.object({
   name: z.string().trim().min(2),
   description: z.preprocess(
@@ -240,6 +253,26 @@ const assignStandardWorkDaysSchema = standardWorkDaysSchema
     }
   });
 
+const annualLeaveBalanceSchema = z.object({
+  year: z.number().int().min(1900).max(9999),
+  entitledLeaveDays: decimalSchema,
+});
+
+const assignAnnualLeaveBalanceSchema = annualLeaveBalanceSchema
+  .extend({
+    departmentIds: idArraySchema,
+    positionIds: idArraySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.departmentIds?.length && !data.positionIds?.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["departmentIds"],
+        message: "departmentIds or positionIds is required",
+      });
+    }
+  });
+
 const canViewPayrollPolicies = [
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   permissionMiddleware(
@@ -355,6 +388,34 @@ router.delete(
   "/attendance-bonus/:id",
   ...canSetupPayrollPolicies,
   payrollPolicyController.deleteAttendanceBonusPolicy,
+);
+
+router.get(
+  "/holidays",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getHolidays,
+);
+router.get(
+  "/holidays/:id",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getHolidayById,
+);
+router.post(
+  "/holidays",
+  ...canSetupPayrollPolicies,
+  validate(createHolidaySchema),
+  payrollPolicyController.createHoliday,
+);
+router.put(
+  "/holidays/:id",
+  ...canSetupPayrollPolicies,
+  validate(updateHolidaySchema),
+  payrollPolicyController.updateHoliday,
+);
+router.delete(
+  "/holidays/:id",
+  ...canSetupPayrollPolicies,
+  payrollPolicyController.deleteHoliday,
 );
 
 router.get(
@@ -500,6 +561,34 @@ router.delete(
   "/standard-work-days/employees/:employeeId/:year/:month",
   ...canSetupPayrollPolicies,
   payrollPolicyController.deleteEmployeeStandardWorkDays,
+);
+
+router.get(
+  "/annual-leave-balances",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getAnnualLeaveBalances,
+);
+router.post(
+  "/annual-leave-balances/assign",
+  ...canSetupPayrollPolicies,
+  validate(assignAnnualLeaveBalanceSchema),
+  payrollPolicyController.assignAnnualLeaveBalances,
+);
+router.get(
+  "/annual-leave-balances/employees/:employeeId/:year",
+  ...canViewPayrollPolicies,
+  payrollPolicyController.getEmployeeAnnualLeaveBalance,
+);
+router.put(
+  "/annual-leave-balances/employees/:employeeId",
+  ...canSetupPayrollPolicies,
+  validate(annualLeaveBalanceSchema),
+  payrollPolicyController.upsertEmployeeAnnualLeaveBalance,
+);
+router.delete(
+  "/annual-leave-balances/employees/:employeeId/:year",
+  ...canSetupPayrollPolicies,
+  payrollPolicyController.deleteEmployeeAnnualLeaveBalance,
 );
 
 router.get(

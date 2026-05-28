@@ -6,8 +6,11 @@ import type {
   AttendanceDeviceListData,
   AttendanceHistoryData,
   AttendanceTimesheetData,
+  AnnualLeaveBalancePayload,
+  AssignAnnualLeaveBalancePayload,
   AssignStandardWorkDaysPayload,
   CreateAttendanceDevicePayload,
+  EmployeeAnnualLeaveBalance,
   EmployeeFingerprint,
   EmployeeStandardWorkDay,
   RegisterFingerprintPayload,
@@ -174,6 +177,48 @@ export const attendanceService = {
     const response = await apiClient.delete<ApiResponse<EmployeeStandardWorkDay>>(
       `/payroll-policies/standard-work-days/employees/${employeeId}/${year}/${month}`,
     );
+
+    return response.data.data;
+  },
+
+  async getAnnualLeaveBalances(params: {
+    year?: number;
+    employeeId?: string;
+    departmentId?: string;
+    positionId?: string;
+  }) {
+    const response = await apiClient.get<
+      ApiResponse<EmployeeAnnualLeaveBalance[]>
+    >("/payroll-policies/annual-leave-balances", {
+      params: removeEmptyParams(params),
+    });
+
+    return response.data.data ?? [];
+  },
+
+  async assignAnnualLeaveBalances(payload: AssignAnnualLeaveBalancePayload) {
+    const response = await apiClient.post<
+      ApiResponse<EmployeeAnnualLeaveBalance[]>
+    >("/payroll-policies/annual-leave-balances/assign", payload);
+
+    return response.data.data ?? [];
+  },
+
+  async upsertEmployeeAnnualLeaveBalance(
+    employeeId: string,
+    payload: AnnualLeaveBalancePayload,
+  ) {
+    const response = await apiClient.put<
+      ApiResponse<EmployeeAnnualLeaveBalance>
+    >(`/payroll-policies/annual-leave-balances/employees/${employeeId}`, payload);
+
+    return response.data.data;
+  },
+
+  async deleteEmployeeAnnualLeaveBalance(employeeId: string, year: number) {
+    const response = await apiClient.delete<
+      ApiResponse<EmployeeAnnualLeaveBalance>
+    >(`/payroll-policies/annual-leave-balances/employees/${employeeId}/${year}`);
 
     return response.data.data;
   },

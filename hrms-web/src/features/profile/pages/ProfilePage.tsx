@@ -122,6 +122,12 @@ function formatPercent(value?: string | number | null) {
   return `${amount.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`;
 }
 
+function formatNumber(value?: string | number | null) {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number)) return "0";
+  return number.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+}
+
 function formatPolicyPeriod(from?: string | null, to?: string | null) {
   if (!from && !to) return "-";
   return `${formatDate(from)} - ${to ? formatDate(to) : "Hiện tại"}`;
@@ -136,6 +142,19 @@ function getAutoPenaltyTypeLabel(type?: string) {
   };
 
   return type ? labels[type] ?? type : "-";
+}
+
+function getCurrentLeaveBalance(employee: Employee) {
+  const year = new Date().getFullYear();
+  const balance = employee.leaveBalances?.find((item) => item.year === year);
+  const entitled = Number(balance?.entitledLeaveDays ?? 0);
+  const used = Number(balance?.usedPaidLeaveDays ?? 0);
+
+  return {
+    year,
+    entitled: Number.isFinite(entitled) ? entitled : 0,
+    used: Number.isFinite(used) ? used : 0,
+  };
 }
 
 function getErrorMessage(error: unknown) {
@@ -234,6 +253,7 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
   const insurance = profile?.insurancePolicy;
   const tax = profile?.taxPolicy;
   const attendanceBonus = profile?.attendanceBonusPolicy;
+  const leaveBalance = getCurrentLeaveBalance(employee);
   const allowancePolicies =
     employee.allowances?.map((item) => item.allowancePolicy).filter(Boolean) ?? [];
   const autoPenaltyPolicies =
@@ -253,6 +273,27 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 max-[920px]:grid-cols-1">
+        <article className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 shrink-0 text-[#006fd5]" />
+            <strong className="text-sm text-[#243247]">Phép năm</strong>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-sm text-[#475467] max-[640px]:grid-cols-1">
+            <div>
+              <span className="block text-xs text-[#667085]">Được cấp {leaveBalance.year}</span>
+              <span className="font-semibold text-[#243247]">{formatNumber(leaveBalance.entitled)} ngày</span>
+            </div>
+            <div>
+              <span className="block text-xs text-[#667085]">Đã dùng</span>
+              <span className="font-semibold text-[#243247]">{formatNumber(leaveBalance.used)} ngày</span>
+            </div>
+            <div>
+              <span className="block text-xs text-[#667085]">Còn lại</span>
+              <span className="font-semibold text-[#243247]">{formatNumber(Math.max(0, leaveBalance.entitled - leaveBalance.used))} ngày</span>
+            </div>
+          </div>
+        </article>
+
         <article className="rounded-lg border border-[#edf1f5] bg-[#fbfcfe] p-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">

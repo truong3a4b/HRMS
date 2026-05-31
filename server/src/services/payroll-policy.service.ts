@@ -309,6 +309,21 @@ const toDateOnly = (date: Date) =>
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
   );
 
+const ensureHolidayDateAvailable = async (date: Date, excludeId?: string) => {
+  const existingHoliday = await prisma.holiday.findUnique({
+    where: { date: toDateOnly(date) },
+    select: { id: true },
+  });
+
+  if (existingHoliday && existingHoliday.id !== excludeId) {
+    throw new ApiError(
+      409,
+      "Ngày nghỉ lễ này đã tồn tại",
+      "HOLIDAY_DATE_EXISTS",
+    );
+  }
+};
+
 const ensureTaxBrackets = (brackets?: TaxBracketInput[]) => {
   if (!brackets) {
     return;
@@ -1186,8 +1201,9 @@ export const payrollPolicyService = {
       return holiday;
     },
 
-    create(data: CreateHolidayInput) {
+    async create(data: CreateHolidayInput) {
       ensurePositiveMultiplier(data.salaryMultiplier);
+      await ensureHolidayDateAvailable(data.date);
 
       return prisma.holiday.create({
         data: {
@@ -1205,6 +1221,9 @@ export const payrollPolicyService = {
 
       if (data.salaryMultiplier !== undefined) {
         ensurePositiveMultiplier(data.salaryMultiplier);
+      }
+      if (data.date !== undefined) {
+        await ensureHolidayDateAvailable(data.date, id);
       }
 
       return prisma.holiday.update({

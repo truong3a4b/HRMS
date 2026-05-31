@@ -35,4 +35,26 @@ abstract class AppRoutes {
   static const addPosition = '/add-position';
   static String updatePosition(String id) => '/update-position/$id';
 
+  // Work shift routes
+  static const workShiftList = '/work-shift-list';
+  static String workShiftDetail(String id) => '/work-shift-detail/$id';
+
+  // Attendance routes
+  static const myAttendanceHistory = '/my-attendance-history';
+  static const myAttendanceTimesheet = '/my-attendance-timesheet';
+
+  // Schedule routes
+  static const mySchedule = '/my-schedule';
+
+  // Request routes
+  static const myRequests = '/my-requests';
+  static const employeeRequests = '/employee-requests';
+  static const createLeaveRequest = '/request-create-leave';
+  static const createAttendanceCorrectionRequest =
+      '/request-create-attendance-correction';
+
+  // Payroll routes
+  static const holidayList = '/holiday-list';
+  static const myPayroll = '/my-payroll';
+  static const myBonusPenalties = '/my-bonus-penalties';
 }

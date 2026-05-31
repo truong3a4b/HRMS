@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Modal, Pagination } from "antd";
+import { Modal, Pagination, DatePicker } from "antd";
+import dayjs from "dayjs";
 import {
   BriefcaseBusiness,
   Edit2,
@@ -257,11 +258,11 @@ function JobFormModal({
           </label>
           <label>
             <span className={labelClass}>Hạn nộp</span>
-            <input
-              className={fieldClass}
-              type="date"
-              value={form.deadline}
-              onChange={(event) => update("deadline", event.target.value)}
+            <DatePicker
+              className={`${fieldClass} !py-2 w-full`}
+              format="DD/MM/YYYY"
+              value={form.deadline ? dayjs(form.deadline) : null}
+              onChange={(date) => update("deadline", date ? date.format("YYYY-MM-DD") : "")}
             />
           </label>
           {(["description", "requirements", "benefits"] as const).map((key) => (
@@ -392,11 +393,11 @@ function ApplyJobModal({
           </label>
           <label>
             <span className={labelClass}>Ngày sinh</span>
-            <input
-              className={fieldClass}
-              type="date"
-              value={form.dateOfBirth}
-              onChange={(event) => update("dateOfBirth", event.target.value)}
+            <DatePicker
+              className={`${fieldClass} !py-2 w-full`}
+              format="DD/MM/YYYY"
+              value={form.dateOfBirth ? dayjs(form.dateOfBirth) : null}
+              onChange={(date) => update("dateOfBirth", date ? date.format("YYYY-MM-DD") : "")}
             />
           </label>
           <label>

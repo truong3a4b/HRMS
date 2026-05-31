@@ -13,10 +13,7 @@ class ProfileHeader extends StatelessWidget {
     required this.name,
     required this.subtitle,
     this.showTabs = false,
-    this.tabs = const [
-      Tab(text: 'Cá nhân'),
-      Tab(text: 'Công việc'),
-    ],
+    this.tabs = const [Tab(text: 'Cá nhân'), Tab(text: 'Công việc')],
   });
 
   @override
@@ -34,12 +31,13 @@ class ProfileHeader extends StatelessWidget {
               ClipOval(
                 child: avatar != null && avatar!.isNotEmpty
                     ? Image.network(
-                  avatar!,
-                  width: 60,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _defaultAvatar(),
-                )
+                        avatar!,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _defaultAvatar(),
+                      )
                     : _defaultAvatar(),
               ),
               const SizedBox(width: 18),
@@ -72,16 +70,18 @@ class ProfileHeader extends StatelessWidget {
           if (showTabs) ...[
             const SizedBox(height: 20),
             TabBar(
+              isScrollable: tabs.length > 3,
+              tabAlignment: tabs.length > 3 ? TabAlignment.start : null,
               labelColor: primaryColor,
               unselectedLabelColor: const Color(0xFFAAAAAA),
               indicatorColor: primaryColor,
               indicatorWeight: 2,
               labelStyle: const TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
               ),
               unselectedLabelStyle: const TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
               tabs: tabs,
@@ -91,6 +91,7 @@ class ProfileHeader extends StatelessWidget {
       ),
     );
   }
+
   Widget _defaultAvatar() {
     return Image.asset(
       'assets/images/profile.png',

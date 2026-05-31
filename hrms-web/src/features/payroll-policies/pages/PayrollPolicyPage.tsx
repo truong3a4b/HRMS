@@ -153,7 +153,12 @@ function toDateInput(value?: string | null) {
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("vi-VN").format(new Date(value));
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function formatMoney(value?: string | number | null) {

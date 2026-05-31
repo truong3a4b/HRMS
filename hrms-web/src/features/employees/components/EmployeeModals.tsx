@@ -5,7 +5,8 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Modal } from "antd";
+import { Modal, DatePicker } from "antd";
+import dayjs from "dayjs";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import type {
@@ -319,11 +320,11 @@ export function AddEmployeeModal({
             />
           </Field>
           <Field label="Ngày sinh">
-            <input
-              className={fieldClass}
-              type="date"
-              value={form.dateOfBirth}
-              onChange={(e) => update("dateOfBirth", e.target.value)}
+            <DatePicker
+              className={`${fieldClass} !py-2 w-full`}
+              format="DD/MM/YYYY"
+              value={form.dateOfBirth ? dayjs(form.dateOfBirth) : null}
+              onChange={(date) => update("dateOfBirth", date ? date.format("YYYY-MM-DD") : "")}
             />
           </Field>
           <Field label="Giới tính">
@@ -372,11 +373,11 @@ export function AddEmployeeModal({
             />
           </Field>
           <Field label="Ngày vào làm">
-            <input
-              className={fieldClass}
-              type="date"
-              value={form.hireDate}
-              onChange={(e) => update("hireDate", e.target.value)}
+            <DatePicker
+              className={`${fieldClass} !py-2 w-full`}
+              format="DD/MM/YYYY"
+              value={form.hireDate ? dayjs(form.hireDate) : null}
+              onChange={(date) => update("hireDate", date ? date.format("YYYY-MM-DD") : "")}
             />
           </Field>
           <Field label="Lương">
@@ -654,11 +655,11 @@ export function EditEmployeeModal({
             />
           </Field>
           <Field label="Ngày sinh">
-            <input
-              className={fieldClass}
-              type="date"
-              value={form.dateOfBirth}
-              onChange={(e) => update("dateOfBirth", e.target.value)}
+            <DatePicker
+              className={`${fieldClass} !py-2 w-full`}
+              format="DD/MM/YYYY"
+              value={form.dateOfBirth ? dayjs(form.dateOfBirth) : null}
+              onChange={(date) => update("dateOfBirth", date ? date.format("YYYY-MM-DD") : "")}
             />
           </Field>
           <Field label="Giới tính">
@@ -714,11 +715,11 @@ export function EditEmployeeModal({
             />
           </Field>
           <Field label="Ngày vào làm">
-            <input
-              className={fieldClass}
-              type="date"
-              value={form.hireDate}
-              onChange={(e) => update("hireDate", e.target.value)}
+            <DatePicker
+              className={`${fieldClass} !py-2 w-full`}
+              format="DD/MM/YYYY"
+              value={form.hireDate ? dayjs(form.hireDate) : null}
+              onChange={(date) => update("hireDate", date ? date.format("YYYY-MM-DD") : "")}
             />
           </Field>
           <Field label="Lương">
@@ -742,11 +743,11 @@ export function EditEmployeeModal({
             </select>
           </Field>
           <Field label="Ngày hiệu lực thay đổi">
-            <input
-              className={fieldClass}
-              type="date"
-              value={form.effectiveFrom}
-              onChange={(e) => update("effectiveFrom", e.target.value)}
+            <DatePicker
+              className={`${fieldClass} !py-2 w-full`}
+              format="DD/MM/YYYY"
+              value={form.effectiveFrom ? dayjs(form.effectiveFrom) : null}
+              onChange={(date) => update("effectiveFrom", date ? date.format("YYYY-MM-DD") : "")}
             />
           </Field>
         </div>

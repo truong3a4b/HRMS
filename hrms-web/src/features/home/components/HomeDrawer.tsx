@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../auth/services/useAuth";
 import { getDrawerItems } from "../data/home.data";
@@ -9,17 +9,25 @@ type HomeDrawerProps = {
   onToggle: () => void;
 };
 
+function pathMatches(pathname: string, path: string) {
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
 export function HomeDrawer({ isOpen, onToggle }: HomeDrawerProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const drawerItems = getDrawerItems(user?.role, user?.permissions ?? []);
+  const activeChildKey = drawerItems
+    .flatMap((item) => item.children ?? [])
+    .filter((child) => pathMatches(location.pathname, child.path))
+    .sort((first, second) => second.path.length - first.path.length)[0]?.key;
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => {
     const initial = new Set<string>();
 
     for (const item of drawerItems) {
-      const hasActiveChild = item.children?.some((child) =>
-        location.pathname.startsWith(child.path),
+      const hasActiveChild = item.children?.some(
+        (child) => child.key === activeChildKey,
       );
 
       if (hasActiveChild) {
@@ -29,6 +37,23 @@ export function HomeDrawer({ isOpen, onToggle }: HomeDrawerProps) {
 
     return initial;
   });
+
+  useEffect(() => {
+    if (!activeChildKey) return;
+
+    const activeParent = drawerItems.find((item) =>
+      item.children?.some((child) => child.key === activeChildKey),
+    );
+
+    if (!activeParent) return;
+
+    setExpandedKeys((current) => {
+      if (current.has(activeParent.key)) return current;
+      const next = new Set(current);
+      next.add(activeParent.key);
+      return next;
+    });
+  }, [activeChildKey, drawerItems]);
 
   return (
     <aside
@@ -61,8 +86,8 @@ export function HomeDrawer({ isOpen, onToggle }: HomeDrawerProps) {
         }`}
       >
         {drawerItems.map((item) => {
-          const childActive = item.children?.some((child) =>
-            location.pathname.startsWith(child.path),
+          const childActive = item.children?.some(
+            (child) => child.key === activeChildKey,
           );
           const hasChildren = Boolean(item.children?.length);
           const expanded = expandedKeys.has(item.key);
@@ -124,9 +149,7 @@ export function HomeDrawer({ isOpen, onToggle }: HomeDrawerProps) {
               {item.children?.length && expanded ? (
                 <div className="my-1.5 ml-7 grid gap-1 border-l border-slate-700/80 pl-3">
                   {item.children.map((child) => {
-                    const childSelected = location.pathname.startsWith(
-                      child.path,
-                    );
+                    const childSelected = child.key === activeChildKey;
 
                     return (
                       <button

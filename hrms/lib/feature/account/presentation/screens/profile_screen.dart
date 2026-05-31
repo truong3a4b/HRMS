@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../employee/domain/entities/employee.dart';
 import '../../../candidate/domain/entities/candidate.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/candidate_profile_preview.dart';
-import '../widgets/candidate_recruitment_tab.dart';
 import '../widgets/employee_profile_view.dart';
-import '../widgets/personal_profile_tab.dart';
-import '../widgets/profile_header.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -48,7 +44,8 @@ class ProfileScreen extends ConsumerWidget {
               employee: profile,
               canEditBasicInfo: true,
               canEditAdditionalInfo: true,
-              canEditWorkInfo: true,
+              canEditWorkInfo: false,
+              isMine: true,
               onRefresh: () {
                 ref.invalidate(profileProvider);
               },
@@ -56,7 +53,12 @@ class ProfileScreen extends ConsumerWidget {
           }
 
           if (profile is Candidate) {
-            return CandidateProfileView(candidate: profile,canEditAdditionalInfo: true,canEditBasicInfo: true, canEditCv: true, );
+            return CandidateProfileView(
+              candidate: profile,
+              canEditAdditionalInfo: true,
+              canEditBasicInfo: true,
+              canEditCv: true,
+            );
           }
 
           return const Center(child: Text('Không xác định loại hồ sơ'));
@@ -73,5 +75,3 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 }
-
-

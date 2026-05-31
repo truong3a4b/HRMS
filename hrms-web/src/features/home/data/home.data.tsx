@@ -165,7 +165,8 @@ export function getDrawerItems(
           },
         ]
       : []),
-    ...(hasPermission("PAYROLL_POLICY_SETUP") || hasPermission("WORK_SCHEDULE_MANAGE")
+    ...(hasPermission("PAYROLL_POLICY_SETUP") ||
+    hasPermission("WORK_SCHEDULE_MANAGE")
       ? [
           {
             key: "attendance-standard-work-days",
@@ -244,7 +245,7 @@ export function getDrawerItems(
       ? [
           {
             key: "holidays",
-            label: "NgÃ y nghá»‰ lá»…",
+            label: "Ngày lễ",
             path: paths.holidays,
           },
         ]

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppLayout } from "../../../app/layouts";
+import { useAuth } from "../../auth/services/useAuth";
 import { payrollPolicyService } from "../../payroll-policies/services/payrollPolicyService";
 import type {
   Holiday,
@@ -48,7 +49,12 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("vi-VN").format(new Date(value));
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function formatNumber(value?: string | number | null) {
@@ -155,17 +161,18 @@ function HolidayModal({
       onCancel={onClose}
       width={640}
       centered
+      styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '8px' } }}
       footer={
-        <div className="flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
+        <div className="flex justify-end gap-3 pt-4 border-t border-[#edf0f5]">
           <button
-            className="rounded-lg border border-[#d0d5dd] px-5 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
+            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
             type="button"
             onClick={onClose}
           >
             Hủy
           </button>
           <button
-            className="rounded-lg bg-[#006fd5] px-5 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:opacity-60"
+            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
             form="holidayForm"
             disabled={submitting}
@@ -249,6 +256,7 @@ function HolidayModal({
 }
 
 export function HolidayListPage() {
+  const { user } = useAuth();
   const currentDate = new Date();
   const [items, setItems] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
@@ -261,6 +269,9 @@ export function HolidayListPage() {
   const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null);
 
   const activeParam = status === "all" ? undefined : status === "active";
+  const canManage =
+    user?.role?.toUpperCase() === "ADMIN" ||
+    (user?.permissions ?? []).includes("PAYROLL_POLICY_SETUP");
 
   const loadData = async () => {
     setLoading(true);
@@ -336,39 +347,41 @@ export function HolidayListPage() {
 
   return (
     <AppLayout>
-      <main className="h-full min-w-0 overflow-y-auto bg-[#f1f5f9]">
-        <div className="flex min-h-full min-w-0 flex-col gap-5 px-5 py-5 max-[640px]:px-4">
+      <main className="h-full min-w-0 overflow-hidden">
+        <div className="flex h-full min-w-0 flex-col gap-5 px-5 py-5 max-[640px]:px-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-[#243247]">
                 Danh mục ngày nghỉ lễ
               </h1>
-              <p className="text-sm text-[#667085]">
+              <p className="mt-1 text-sm text-[#667085]">
                 Thiết lập ngày nghỉ và hệ số lương dùng khi tạo bảng lương.
               </p>
             </div>
+            {canManage ? (
             <button
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! shadow-xs transition-colors hover:bg-[#0055a8]"
+              className="flex shrink-0 items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] active:bg-[#003f7a] [&_*]:!text-white"
               type="button"
               onClick={openAdd}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-5 w-5" />
               Thêm ngày nghỉ
             </button>
+            ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
-            <div className="relative min-w-[260px] flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
+          <div className="flex gap-3 overflow-x-auto rounded-2xl border border-[#d0d5dd] bg-white p-4 shadow-[0_4px_24px_rgba(16,24,40,0.06)] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d0d5dd] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-2">
+            <div className="relative min-w-[240px] max-w-md flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
               <input
-                className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-9 pr-3 text-sm text-[#344054] placeholder-[#98a2b3] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10"
+                className="w-full rounded-xl border border-[#d0d5dd] bg-white py-2.5 pl-10 pr-4 text-sm text-[#344054] shadow-sm transition-all placeholder-[#98a2b3] focus:border-[#006fd5] focus:outline-none focus:ring-4 focus:ring-[#006fd5]/10 hover:border-[#98a2b3]"
                 placeholder="Tìm kiếm ngày nghỉ..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
             </div>
             <select
-              className={fieldClass}
+              className={`${fieldClass} min-w-[120px] !rounded-xl !py-2.5 !shadow-sm`}
               value={month}
               onChange={(event) => setMonth(Number(event.target.value))}
             >
@@ -381,7 +394,7 @@ export function HolidayListPage() {
               )}
             </select>
             <select
-              className={fieldClass}
+              className={`${fieldClass} min-w-[100px] !rounded-xl !py-2.5 !shadow-sm`}
               value={year}
               onChange={(event) => setYear(Number(event.target.value))}
             >
@@ -392,7 +405,7 @@ export function HolidayListPage() {
               ))}
             </select>
             <select
-              className={fieldClass}
+              className={`${fieldClass} min-w-[150px] !rounded-xl !py-2.5 !shadow-sm`}
               value={status}
               onChange={(event) => setStatus(event.target.value as StatusFilter)}
             >
@@ -401,12 +414,12 @@ export function HolidayListPage() {
               <option value="inactive">Tạm dừng</option>
             </select>
             <button
-              className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d0d5dd] text-[#344054] transition-all hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5]"
+              className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl border border-[#d0d5dd] bg-white text-[#667085] shadow-sm transition-all hover:bg-[#f9fafb] hover:text-[#344054] active:scale-95"
               type="button"
               title="Tải lại"
               onClick={() => void loadData()}
             >
-              <RefreshCcw className="h-4.5 w-4.5 transition-transform duration-300 group-hover:-rotate-180" />
+              <RefreshCcw className="h-4.5 w-4.5" />
             </button>
           </div>
 
@@ -416,59 +429,63 @@ export function HolidayListPage() {
             </div>
           ) : null}
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-sm">
-            <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-              <table className="w-full min-w-[760px]">
-                <thead className="sticky top-0 z-1">
-                  <tr className="border-b border-[#ebedf2] bg-[#f9fafb]">
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">
-                      Ngày nghỉ
-                    </th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">
-                      Ngày
-                    </th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">
-                      Hệ số lương
-                    </th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[#667085]">
-                      Trạng thái
-                    </th>
-                    <th className="px-5 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-[#667085]">
-                      Thao tác
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#ebedf2]">
-                  {loading ? (
-                    <tr>
-                      <td
-                        className="px-5 py-16 text-center text-sm text-[#667085]"
-                        colSpan={5}
-                      >
-                        Đang tải dữ liệu...
-                      </td>
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white shadow-[0_4px_24px_rgba(16,24,40,0.06)]">
+            {loading ? (
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#006fd5] border-r-transparent"></div>
+                  <p className="text-sm font-medium">Đang tải dữ liệu...</p>
+                </div>
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="flex h-full items-center justify-center py-16 text-[#667085]">
+                <div className="flex flex-col items-center gap-3 opacity-60">
+                  <CalendarDays className="h-12 w-12 text-[#98a2b3]" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-[#667085]">Chưa có ngày nghỉ lễ phù hợp</p>
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+                <table className="w-full min-w-[760px] border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-[#d0d5dd] bg-[#f9fafb]/90 backdrop-blur-md">
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
+                        #
+                      </th>
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
+                        Ngày nghỉ
+                      </th>
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
+                        Ngày
+                      </th>
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
+                        Hệ số lương
+                      </th>
+                      <th className="px-5 py-3.5 text-left text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
+                        Trạng thái
+                      </th>
+                      {canManage ? (
+                      <th className="px-5 py-3.5 text-center text-[13px] font-semibold uppercase tracking-wider text-[#667085]">
+                        Thao tác
+                      </th>
+                      ) : null}
                     </tr>
-                  ) : filteredItems.length === 0 ? (
-                    <tr>
-                      <td
-                        className="px-5 py-16 text-center text-sm text-[#667085]"
-                        colSpan={5}
-                      >
-                        Chưa có ngày nghỉ lễ phù hợp
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredItems.map((holiday) => (
+                  </thead>
+                  <tbody className="divide-y divide-[#d0d5dd]">
+                    {filteredItems.map((holiday, index) => (
                       <tr
-                        className="transition-colors hover:bg-[#f9fafb]"
+                        className="group transition-colors hover:bg-[#f8faff]"
                         key={holiday.id}
                       >
+                        <td className="px-5 py-4 text-sm text-[#667085]">
+                          {index + 1}
+                        </td>
                         <td className="px-5 py-4">
-                          <strong className="block text-sm font-semibold text-[#243247]">
+                          <strong className="block text-sm font-semibold text-[#243247] transition-colors group-hover:text-[#006fd5]">
                             {holiday.name}
                           </strong>
                           {holiday.description ? (
-                            <span className="mt-1 block text-xs text-[#667085]">
+                            <span className="mt-0.5 line-clamp-2 block text-xs text-[#667085]">
                               {holiday.description}
                             </span>
                           ) : null}
@@ -477,17 +494,18 @@ export function HolidayListPage() {
                           {formatDate(holiday.date)}
                         </td>
                         <td className="px-5 py-4">
-                          <span className="inline-flex rounded-lg bg-[#f0f7ff] px-3 py-1 text-sm font-semibold text-[#006fd5]">
+                          <span className="inline-flex rounded-md bg-[#f0f7ff] px-2.5 py-1 text-xs font-semibold text-[#006fd5]">
                             x{formatNumber(holiday.salaryMultiplier)}
                           </span>
                         </td>
                         <td className="px-5 py-4">
                           <StatusBadge active={holiday.isActive} />
                         </td>
+                        {canManage ? (
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#f0f7ff] text-[#006fd5] transition-colors hover:bg-[#006fd5] hover:text-white!"
+                              className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white hover:shadow-md hover:shadow-emerald-500/20 active:scale-95"
                               type="button"
                               title="Sửa"
                               onClick={() => openEdit(holiday)}
@@ -495,7 +513,7 @@ export function HolidayListPage() {
                               <Edit2 className="h-4 w-4" />
                             </button>
                             <button
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#fef3f2] text-[#b42318] transition-colors hover:bg-[#fee4e2]"
+                              className="grid h-8 w-8 place-items-center rounded-lg bg-[#fef3f2] text-[#b42318] transition-all hover:bg-[#b42318] hover:text-white hover:shadow-md hover:shadow-rose-500/20 active:scale-95"
                               type="button"
                               title="Xóa"
                               onClick={() => deleteHoliday(holiday)}
@@ -504,25 +522,30 @@ export function HolidayListPage() {
                             </button>
                           </div>
                         </td>
+                        ) : null}
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="shrink-0 border-t border-[#ebedf2] px-5 py-3.5 text-sm font-medium text-[#667085]">
-              Hiển thị {filteredItems.length} ngày nghỉ lễ
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#d0d5dd] bg-[#fcfcfd] px-5 py-3.5 max-[720px]:flex-col max-[720px]:items-stretch">
+              <span className="text-sm font-medium text-[#667085]">
+                Hiển thị {filteredItems.length} / {items.length} ngày nghỉ lễ
+              </span>
             </div>
           </section>
         </div>
       </main>
 
-      <HolidayModal
-        open={modalOpen}
-        holiday={selectedHoliday}
-        onClose={() => setModalOpen(false)}
-        onSubmit={submitHoliday}
-      />
+      {canManage ? (
+        <HolidayModal
+          open={modalOpen}
+          holiday={selectedHoliday}
+          onClose={() => setModalOpen(false)}
+          onSubmit={submitHoliday}
+        />
+      ) : null}
     </AppLayout>
   );
 }

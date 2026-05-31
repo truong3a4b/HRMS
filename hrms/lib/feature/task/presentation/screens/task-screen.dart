@@ -18,7 +18,8 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userProvider).value!;
-    final Set<Permission> permissions = ref.watch(permissionProvider).value ?? {};
+    final Set<Permission> permissions =
+        ref.watch(permissionProvider).value ?? {};
 
     return Scaffold(
       backgroundColor: const Color(0xC7EDEDED),
@@ -43,27 +44,32 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
               TaskGroupCard(
                 title: 'Tuyển dụng',
                 items: [
-                  if(user.role == UserRole.admin || permissions.contains(Permission.recruitmentViewApplication) ) TaskItemData(
-                    icon: 'assets/images/candidate.png',
-                    label: 'Danh sách ứng tuyển',
-                    onTap: (){
-                      context.push('/job-application-list');
-                    }
-                  ),
+                  if (user.role == UserRole.admin ||
+                      permissions.contains(
+                        Permission.recruitmentViewApplication,
+                      ))
+                    TaskItemData(
+                      icon: 'assets/images/candidate.png',
+                      label: 'Danh sách ứng tuyển',
+                      onTap: () {
+                        context.push('/job-application-list');
+                      },
+                    ),
                   TaskItemData(
                     icon: 'assets/images/recruitment.png',
                     label: 'Vị trí tuyển dụng',
-                    onTap: (){
+                    onTap: () {
                       context.push('/recruitment-job-list');
-                    }
+                    },
                   ),
-                  if(user.role == UserRole.candidate )TaskItemData(
+                  if (user.role == UserRole.candidate)
+                    TaskItemData(
                       icon: 'assets/images/candidate.png',
                       label: 'Đơn ứng tuyển của tôi',
-                      onTap: (){
+                      onTap: () {
                         context.push('/my-applications');
-                      }
-                  ),
+                      },
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -75,7 +81,27 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                     label: 'Danh sách\nnhân viên',
                     onTap: () {
                       context.push('/employee-list');
-                    }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TaskGroupCard(
+                title: 'Yêu cầu',
+                items: [
+                  TaskItemData(
+                    icon: 'assets/images/proposal.png',
+                    onTap: () {
+                      context.push('/my-requests');
+                    },
+                    label: 'Yêu cầu của tôi',
+                  ),
+                  TaskItemData(
+                    icon: 'assets/images/target.png',
+                    onTap: () {
+                      context.push('/employee-requests');
+                    },
+                    label: 'Danh sách yêu cầu',
                   ),
                 ],
               ),
@@ -84,20 +110,25 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                 title: 'Chấm công',
                 items: [
                   TaskItemData(
-                    icon: 'assets/images/checkin.png',
-                    label: 'Chấm công',
-                  ),
-                  TaskItemData(
                     icon: 'assets/images/history_checkin.png',
+                    onTap: () {
+                      context.push('/my-attendance-history');
+                    },
                     label: 'Lịch sử chấm công',
                   ),
                   TaskItemData(
                     icon: 'assets/images/checkin_table.png',
+                    onTap: () {
+                      context.push('/my-attendance-timesheet');
+                    },
                     label: 'Bảng công',
                   ),
                   TaskItemData(
                     icon: 'assets/images/add_schedule.png',
                     label: 'Đề xuất cộng công',
+                    onTap: () {
+                      context.push('/request-create-attendance-correction');
+                    },
                   ),
                 ],
               ),
@@ -107,15 +138,17 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                 items: [
                   TaskItemData(
                     icon: 'assets/images/schedule_week.png',
-                    label: 'Lịch làm việc theo tuần',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/auto_schedule.png',
-                    label: 'Xếp lịch làm việc',
+                    onTap: () {
+                      context.push('/my-schedule');
+                    },
+                    label: 'Lịch làm việc',
                   ),
                   TaskItemData(
                     icon: 'assets/images/leave.png',
                     label: 'Xin nghỉ phép',
+                    onTap: () {
+                      context.push('/request-create-leave');
+                    },
                   ),
                 ],
               ),
@@ -125,89 +158,53 @@ class _TaskScreenState extends ConsumerState<TaskScreen> {
                 items: [
                   TaskItemData(
                     icon: 'assets/images/salary.png',
-                    label: 'Lương hiện tại',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/wages.png',
-                    label: 'Tạm ứng',
+                    label: 'Bảng lương',
+                    onTap: () {
+                      context.push('/my-payroll');
+                    },
                   ),
                   TaskItemData(
                     icon: 'assets/images/add_money.png',
-                    label: 'Phiếu cộng lương',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/remove_money.png',
-                    label: 'Phiếu trừ lương',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/money_paper.png',
-                    label: 'Phiếu lương',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/salary_setting.png',
-                    label: 'Lịch sử điều chỉnh lương',
+                    label: 'Phiếu thưởng phạt',
+                    onTap: () {
+                      context.push('/my-bonus-penalties');
+                    },
                   ),
                 ],
               ),
-              TaskGroupCard(
-                title: 'Yêu cầu',
-                items: [
-                  TaskItemData(
-                      icon: 'assets/images/proposal.png',
-                      label: 'Yêu cầu của tôi',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/validation.png',
-                    label: 'Yêu cầu cần phê duyệt',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/target.png',
-                    label: 'Danh sách yêu cầu',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const SizedBox(height: 12),
-              TaskGroupCard(
-                title: 'Phòng ban',
-                items: [
-                  TaskItemData(
-                    icon: 'assets/images/room_setting.png',
-                    label: 'Danh sách phòng ban',
-                    onTap: (){
-                      context.push('/department-list');
-                    }
-                  ),
-                ],
-              ),
+
               const SizedBox(height: 12),
               TaskGroupCard(
                 title: 'Cài đặt',
                 items: [
                   TaskItemData(
-                    icon: 'assets/images/checkin_setting.png',
-                    label: 'Cấu hình chấm công',
-                  ),
-                  TaskItemData(
-                    icon: 'assets/images/money_setting.png',
-                    label: 'Câu hình tính lương',
+                    icon: 'assets/images/room_setting.png',
+                    label: 'Phòng ban',
+                    onTap: () {
+                      context.push('/department-list');
+                    },
                   ),
                   TaskItemData(
                     icon: 'assets/images/postion_setting.png',
                     label: 'Chức danh',
-                    onTap: (){
+                    onTap: () {
                       context.push('/position-list');
-                    }
+                    },
                   ),
                   TaskItemData(
                     icon: 'assets/images/people_time.png',
+                    onTap: () {
+                      context.push('/work-shift-list');
+                    },
                     label: 'Ca làm việc',
                   ),
                   TaskItemData(
-                      icon: 'assets/images/star_schedule.png',
-                      label: 'Loại ngày nghỉ',
-                    ),
-
+                    icon: 'assets/images/star_schedule.png',
+                    label: 'Ngày nghỉ lễ',
+                    onTap: () {
+                      context.push('/holiday-list');
+                    },
+                  ),
                 ],
               ),
             ],
@@ -223,22 +220,14 @@ class TaskItemData {
   final String label;
   final VoidCallback? onTap;
 
-  const TaskItemData({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const TaskItemData({required this.icon, required this.label, this.onTap});
 }
 
 class TaskGroupCard extends StatelessWidget {
   final String title;
   final List<TaskItemData> items;
 
-  const TaskGroupCard({
-    super.key,
-    required this.title,
-    required this.items,
-  });
+  const TaskGroupCard({super.key, required this.title, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -265,43 +254,42 @@ class TaskGroupCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Column(
-            children: List.generate(
-              (items.length / maxItemsPerRow).ceil(),
-                  (rowIndex) {
-                final start = rowIndex * maxItemsPerRow;
-                final end = (start + maxItemsPerRow > items.length)
-                    ? items.length
-                    : start + maxItemsPerRow;
+            children: List.generate((items.length / maxItemsPerRow).ceil(), (
+              rowIndex,
+            ) {
+              final start = rowIndex * maxItemsPerRow;
+              final end = (start + maxItemsPerRow > items.length)
+                  ? items.length
+                  : start + maxItemsPerRow;
 
-                final rowItems = items.sublist(start, end);
+              final rowItems = items.sublist(start, end);
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: rowIndex < (items.length / maxItemsPerRow).ceil() - 1
-                        ? 18
-                        : 0,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (int i = 0; i < maxItemsPerRow; i++) ...[
-                        Expanded(
-                          child: i < rowItems.length
-                              ? TaskActionButton(
-                            icon: rowItems[i].icon,
-                            label: rowItems[i].label,
-                            onTap: rowItems[i].onTap,
-                          )
-                              : const SizedBox(),
-                        ),
-                        if (i < maxItemsPerRow - 1)
-                          const SizedBox(width: horizontalSpacing),
-                      ],
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: rowIndex < (items.length / maxItemsPerRow).ceil() - 1
+                      ? 18
+                      : 0,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (int i = 0; i < maxItemsPerRow; i++) ...[
+                      Expanded(
+                        child: i < rowItems.length
+                            ? TaskActionButton(
+                                icon: rowItems[i].icon,
+                                label: rowItems[i].label,
+                                onTap: rowItems[i].onTap,
+                              )
+                            : const SizedBox(),
+                      ),
+                      if (i < maxItemsPerRow - 1)
+                        const SizedBox(width: horizontalSpacing),
                     ],
-                  ),
-                );
-              },
-            ),
+                  ],
+                ),
+              );
+            }),
           ),
         ],
       ),

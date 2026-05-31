@@ -15,10 +15,12 @@ const labelClass = "mb-1.5 block text-sm font-medium text-[#344054]";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("vi-VN", {
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(value));
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function formatMoney(value?: string | number | null) {
@@ -218,6 +220,7 @@ export function PayrollBonusPenaltyPage({
 }: {
   scope?: "all" | "mine";
 }) {
+  const isMine = scope === "mine";
   const { user } = useAuth();
   const [items, setItems] = useState<PayrollBonusPenalty[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
@@ -236,14 +239,14 @@ export function PayrollBonusPenaltyPage({
   const permissions = new Set(user?.permissions ?? []);
   const hasPermission = (permission: string) =>
     isAdmin || permissions.has(permission);
-  const canManage = hasPermission("PAYROLL_MANAGE");
+  const canManage = !isMine && hasPermission("PAYROLL_MANAGE");
 
   const loadData = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
       const vouchers =
-        scope === "mine"
+        isMine
           ? await payrollPolicyService.getMyPayrollBonusPenalties({
               status: status || undefined,
             })
@@ -279,7 +282,7 @@ export function PayrollBonusPenaltyPage({
 
   useEffect(() => {
     void loadData();
-  }, [status, scope, canManage]);
+  }, [status, isMine, canManage]);
 
   const filteredItems = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
@@ -298,7 +301,7 @@ export function PayrollBonusPenaltyPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, status, scope]);
+  }, [searchTerm, status, isMine]);
 
   const pagedItems = useMemo(
     () =>
@@ -371,7 +374,7 @@ export function PayrollBonusPenaltyPage({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-[#243247]">
-                Phiếu thưởng/phạt
+                {isMine ? "Phiếu thưởng/phạt của tôi" : "Phiếu thưởng/phạt"}
               </h1>
             </div>
             {canManage ? (

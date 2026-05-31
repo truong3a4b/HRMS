@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef, type FormEvent } from "react";
-import { Modal } from "antd";
+import { Modal, DatePicker } from "antd";
+import dayjs from "dayjs";
 import { Send, Check, ChevronDown, Search, X } from "lucide-react";
 import { useAuth } from "../../auth/services/useAuth";
 import { employeeService } from "../../employees/services/employeeService";
@@ -551,11 +552,11 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
           <div className="grid gap-4 md:grid-cols-2">
             <label>
               <span className={labelClass}>Ngày bắt đầu <span className="text-[#f04438]">*</span></span>
-              <input className={fieldClass} type="date" value={leaveStartDate} onChange={(e) => setLeaveStartDate(e.target.value)} />
+              <DatePicker className={`${fieldClass} !py-2`} format="DD/MM/YYYY" value={leaveStartDate ? dayjs(leaveStartDate) : null} onChange={(date) => setLeaveStartDate(date ? date.format("YYYY-MM-DD") : "")} />
             </label>
             <label>
               <span className={labelClass}>Ngày kết thúc <span className="text-[#f04438]">*</span></span>
-              <input className={fieldClass} type="date" value={leaveEndDate} onChange={(e) => setLeaveEndDate(e.target.value)} />
+              <DatePicker className={`${fieldClass} !py-2`} format="DD/MM/YYYY" value={leaveEndDate ? dayjs(leaveEndDate) : null} onChange={(date) => setLeaveEndDate(date ? date.format("YYYY-MM-DD") : "")} />
             </label>
             <label>
               <span className={labelClass}>Loại nghỉ <span className="text-[#f04438]">*</span></span>
@@ -581,7 +582,7 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
           <div className="grid gap-4 md:grid-cols-2">
             <label>
               <span className={labelClass}>Ngày cộng công <span className="text-[#f04438]">*</span></span>
-              <input className={fieldClass} type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} />
+              <DatePicker className={`${fieldClass} !py-2`} format="DD/MM/YYYY" value={attendanceDate ? dayjs(attendanceDate) : null} onChange={(date) => setAttendanceDate(date ? date.format("YYYY-MM-DD") : "")} />
             </label>
             <label>
               <span className={labelClass}>Ca làm <span className="text-[#f04438]">*</span></span>
@@ -601,7 +602,7 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
           <div className="grid gap-4 md:grid-cols-2">
             <label>
               <span className={labelClass}>Ngày <span className="text-[#f04438]">*</span></span>
-              <input className={fieldClass} type="date" value={lateEarlyDate} onChange={(e) => setLateEarlyDate(e.target.value)} />
+              <DatePicker className={`${fieldClass} !py-2`} format="DD/MM/YYYY" value={lateEarlyDate ? dayjs(lateEarlyDate) : null} onChange={(date) => setLateEarlyDate(date ? date.format("YYYY-MM-DD") : "")} />
             </label>
             <label>
               <span className={labelClass}>Loại đơn</span>

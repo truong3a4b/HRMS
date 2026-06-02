@@ -609,6 +609,26 @@ const ensureEmployeeExists = async (employeeId: string) => {
   }
 };
 
+const buildMonthRangeFilter = (month?: Date) => {
+  if (!month || Number.isNaN(month.getTime())) {
+    return {};
+  }
+
+  const start = new Date(
+    Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1),
+  );
+  const end = new Date(
+    Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1),
+  );
+
+  return {
+    month: {
+      gte: start,
+      lt: end,
+    },
+  };
+};
+
 const ensureMonthYear = (month: number, year: number) => {
   if (!Number.isInteger(month) || month < 1 || month > 12) {
     throw new ApiError(400, "month must be between 1 and 12", "INVALID_MONTH");
@@ -1539,7 +1559,7 @@ export const payrollPolicyService = {
       return prisma.payrollBonusPenalty.findMany({
         where: {
           ...(query.employeeId ? { employeeId: query.employeeId } : {}),
-          ...(query.month ? { month: query.month } : {}),
+          ...buildMonthRangeFilter(query.month),
           ...(query.status ? { status: query.status } : {}),
           employee: {
             ...(query.departmentId ? { departmentId: query.departmentId } : {}),
@@ -1576,7 +1596,7 @@ export const payrollPolicyService = {
       return prisma.payrollBonusPenalty.findMany({
         where: {
           employeeId: user.employeeId,
-          ...(query.month ? { month: query.month } : {}),
+          ...buildMonthRangeFilter(query.month),
           ...(query.status ? { status: query.status } : {}),
         },
         include: payrollBonusPenaltyInclude,

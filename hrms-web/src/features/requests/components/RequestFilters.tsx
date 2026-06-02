@@ -17,6 +17,7 @@ const typeLabels: Record<RequestType, string> = {
   OVERTIME: "Tăng ca",
   SCHEDULE_APPROVAL: "Duyệt lịch",
   PAYROLL_APPROVAL: "Duyệt kỳ lương",
+  BONUS_PENALTY: "Yêu cầu thưởng phạt",
   TERMINATION: "Nghỉ việc",
 };
 

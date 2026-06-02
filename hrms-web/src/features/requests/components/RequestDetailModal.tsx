@@ -34,6 +34,7 @@ const typeLabel: Record<RequestType, string> = {
   OVERTIME: "Tăng ca",
   SCHEDULE_APPROVAL: "Duyệt lịch",
   PAYROLL_APPROVAL: "Duyệt kỳ lương",
+  BONUS_PENALTY: "Yêu cầu thưởng phạt",
   TERMINATION: "Nghỉ việc",
 };
 
@@ -100,6 +101,25 @@ function formatDate(value?: string | null) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function formatMonth(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${month}/${year}`;
+}
+
+function formatCurrency(value?: string | number | null) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount)) return "-";
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function StatusBadge({ status }: { status: RequestStatus }) {
@@ -365,6 +385,56 @@ export function RequestDetailModal({
                         </div>
                       </div>
                     )}
+                  </div>
+                </section>
+              ) : null}
+
+              {request.bonusPenaltyRequest ? (
+                <section>
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <div className="rounded-lg bg-violet-50 p-1.5 text-violet-600">
+                      <WalletCards className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[#243247]">Chi tiết thưởng phạt</h3>
+                  </div>
+                  <div className="rounded-2xl border border-[#d0d5dd] bg-slate-50 p-5 shadow-[0_4px_20px_rgba(16,24,40,0.05)]">
+                    <div className="grid grid-cols-2 gap-y-6 gap-x-6 max-[640px]:grid-cols-1">
+                      <InfoRow
+                        label="Nhân viên"
+                        value={
+                          request.bonusPenaltyRequest.employee
+                            ? `${request.bonusPenaltyRequest.employee.employeeId} - ${request.bonusPenaltyRequest.employee.name}`
+                            : request.bonusPenaltyRequest.employeeId
+                        }
+                      />
+                      <InfoRow
+                        label="Kỳ lương"
+                        value={formatMonth(request.bonusPenaltyRequest.month)}
+                      />
+                      <InfoRow
+                        label="Loại"
+                        value={request.bonusPenaltyRequest.isBonus ? "Thưởng" : "Phạt"}
+                      />
+                      <InfoRow
+                        label="Số tiền"
+                        value={formatCurrency(request.bonusPenaltyRequest.amount)}
+                      />
+                      <InfoRow
+                        label="Phiếu đã tạo"
+                        value={request.bonusPenaltyRequest.bonusPenaltyId ? "Đã tạo" : "Chưa tạo"}
+                      />
+                      <InfoRow
+                        label="Ngày áp dụng"
+                        value={formatDateTime(request.bonusPenaltyRequest.appliedAt)}
+                      />
+                    </div>
+                    <div className="mt-6 flex gap-3 rounded-xl bg-slate-50 border border-slate-100 p-4 text-[15px] text-[#344054]">
+                      <MessageSquare className="h-5 w-5 shrink-0 text-[#667085]" />
+                      <div>
+                        <span className="font-semibold text-[#243247] mr-2">Lý do:</span>
+                        {request.bonusPenaltyRequest.reason}
+                      </div>
+                    </div>
                   </div>
                 </section>
               ) : null}

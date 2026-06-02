@@ -81,6 +81,17 @@ const createAttendanceCorrectionRequestSchema = z.object({
   reason: z.string().min(2, "reason is required"),
 });
 
+const createBonusPenaltyRequestSchema = z.object({
+  ...approvalFieldsSchema,
+  employeeId: z.string().min(1, "employeeId is required"),
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "month must be in YYYY-MM format"),
+  amount: z.coerce.number().positive("amount must be greater than 0"),
+  isBonus: z.boolean(),
+  reason: z.string().trim().min(2, "reason is required"),
+});
+
 const decisionSchema = z.object({
   decision: z.nativeEnum(RequestApprovalStatus),
   note: z.string().optional(),
@@ -116,6 +127,11 @@ router.get(
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   requestController.getMyScheduleShiftsByDate,
 );
+router.get(
+  "/employee-options",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  requestController.getEmployeeOptions,
+);
 router.post(
   "/leave",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
@@ -133,6 +149,12 @@ router.post(
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   validate(createAttendanceCorrectionRequestSchema),
   requestController.createAttendanceCorrectionRequest,
+);
+router.post(
+  "/bonus-penalty",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  validate(createBonusPenaltyRequestSchema),
+  requestController.createBonusPenaltyRequest,
 );
 router.post(
   "/",

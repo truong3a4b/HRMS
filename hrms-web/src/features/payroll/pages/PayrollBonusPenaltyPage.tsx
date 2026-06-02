@@ -13,14 +13,13 @@ const fieldClass =
   "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
 const labelClass = "mb-1.5 block text-sm font-medium text-[#344054]";
 
-function formatDate(value?: string | null) {
+function formatMonth(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
   if (isNaN(date.getTime())) return "-";
-  const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+  return `${month}/${year}`;
 }
 
 function formatMoney(value?: string | number | null) {
@@ -248,9 +247,11 @@ export function PayrollBonusPenaltyPage({
       const vouchers =
         isMine
           ? await payrollPolicyService.getMyPayrollBonusPenalties({
+              month: scanMonth ? `${scanMonth}-01` : undefined,
               status: status || undefined,
             })
           : await payrollPolicyService.getPayrollBonusPenalties({
+              month: scanMonth ? `${scanMonth}-01` : undefined,
               status: status || undefined,
             });
       setItems(vouchers);
@@ -282,7 +283,7 @@ export function PayrollBonusPenaltyPage({
 
   useEffect(() => {
     void loadData();
-  }, [status, isMine, canManage]);
+  }, [status, scanMonth, isMine, canManage]);
 
   const filteredItems = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
@@ -301,7 +302,7 @@ export function PayrollBonusPenaltyPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, status, isMine]);
+  }, [searchTerm, status, scanMonth, isMine]);
 
   const pagedItems = useMemo(
     () =>
@@ -397,7 +398,11 @@ export function PayrollBonusPenaltyPage({
               <Search className="absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#667085]" />
               <input
                 className="w-full rounded-lg border border-[#d0d5dd] bg-white py-2 pl-9 pr-3 text-sm text-[#344054] placeholder-[#98a2b3] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10"
-                placeholder="Tìm nhân viên, lý do, chính sách..."
+                placeholder={
+                  isMine
+                    ? "Tìm lý do, chính sách..."
+                    : "Tìm nhân viên, lý do, chính sách..."
+                }
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
@@ -414,15 +419,16 @@ export function PayrollBonusPenaltyPage({
               <option value="ACTIVE">Hiệu lực</option>
               <option value="CANCELLED">Đã hủy</option>
             </select>
+            <input
+              className={fieldClass}
+              style={{ maxWidth: 170 }}
+              type="month"
+              value={scanMonth}
+              onChange={(event) => setScanMonth(event.target.value)}
+              title="Lọc theo tháng"
+            />
             {canManage ? (
               <>
-                <input
-                  className={fieldClass}
-                  style={{ maxWidth: 170 }}
-                  type="month"
-                  value={scanMonth}
-                  onChange={(event) => setScanMonth(event.target.value)}
-                />
                 <button
                   className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-semibold text-[#344054] transition-colors hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5] disabled:cursor-not-allowed disabled:opacity-60"
                   type="button"
@@ -486,7 +492,7 @@ export function PayrollBonusPenaltyPage({
                             {item.isBonus ? "Thưởng" : "Phạt"} · {item.source === "AUTO" ? "Tự động" : "Thủ công"}
                           </span>
                         </td>
-                        <td className="px-5 py-4 text-sm text-[#344054]">{formatDate(item.month)}</td>
+                        <td className="px-5 py-4 text-sm text-[#344054]">{formatMonth(item.month)}</td>
                         <td className="px-5 py-4 text-sm text-[#344054]">{item.reason || item.autoPenaltyPolicy?.name || "-"}</td>
                         <td className="px-5 py-4 text-right text-sm font-semibold text-[#243247]">{formatMoney(item.amount)}</td>
                         <td className="px-5 py-4">

@@ -2,9 +2,11 @@ import { apiClient } from "../../../services/http/apiClient";
 import type { ApiResponse } from "../../auth/types/auth.types";
 import type {
   CreateAttendanceCorrectionRequestPayload,
+  CreateBonusPenaltyRequestPayload,
   CreateLateEarlyRequestPayload,
   CreateLeaveRequestPayload,
   RequestDecisionPayload,
+  RequestEmployeeOption,
   RequestItem,
   RequestListFilters,
   RequestListResponse,
@@ -88,6 +90,14 @@ export const requestService = {
     return response.data.data ?? [];
   },
 
+  async getEmployeeOptions() {
+    const response = await apiClient.get<ApiResponse<RequestEmployeeOption[]>>(
+      "/requests/employee-options",
+    );
+
+    return response.data.data ?? [];
+  },
+
   async createLeaveRequest(payload: CreateLeaveRequestPayload) {
     const response = await apiClient.post<ApiResponse<RequestItem>>(
       "/requests/leave",
@@ -111,6 +121,15 @@ export const requestService = {
   ) {
     const response = await apiClient.post<ApiResponse<RequestItem>>(
       "/requests/attendance-correction",
+      payload,
+    );
+
+    return response.data.data;
+  },
+
+  async createBonusPenaltyRequest(payload: CreateBonusPenaltyRequestPayload) {
+    const response = await apiClient.post<ApiResponse<RequestItem>>(
+      "/requests/bonus-penalty",
       payload,
     );
 

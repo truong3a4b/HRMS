@@ -147,6 +147,8 @@ RequestType _typeFromApi(String value) {
       return RequestType.scheduleApproval;
     case 'PAYROLL_APPROVAL':
       return RequestType.payrollApproval;
+    case 'BONUS_PENALTY':
+      return RequestType.bonusPenalty;
     case 'TERMINATION':
       return RequestType.termination;
     case 'LEAVE':

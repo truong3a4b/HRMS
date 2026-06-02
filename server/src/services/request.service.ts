@@ -70,6 +70,18 @@ const requestInclude = {
       period: true,
     },
   },
+  bonusPenaltyRequest: {
+    include: {
+      employee: {
+        select: {
+          id: true,
+          employeeId: true,
+          name: true,
+        },
+      },
+      bonusPenalty: true,
+    },
+  },
 } satisfies Prisma.RequestInclude;
 
 export type RequestWithDetails = Prisma.RequestGetPayload<{
@@ -100,6 +112,18 @@ export type CreateRequestInput = {
   approvalMode?: ApprovalMode;
   approverIds: string[];
   watcherIds?: string[];
+};
+
+export type RequestEmployeeOption = {
+  id: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  user?: {
+    id: string;
+    email: string;
+    role: UserRole;
+  } | null;
 };
 
 export type CreateLeaveRequestInput = {
@@ -134,6 +158,19 @@ export type CreateLateEarlyRequestInput = {
 export type CreateAttendanceCorrectionRequestInput = {
   attendanceDate: string;
   workShiftId: string;
+  reason: string;
+  title: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+export type CreateBonusPenaltyRequestInput = {
+  employeeId: string;
+  month: string;
+  amount: string | number;
+  isBonus: boolean;
   reason: string;
   title: string;
   description?: string;
@@ -208,6 +245,39 @@ const parseDateOnly = (value: string, fieldName: string) => {
   }
 
   return date;
+};
+
+const parseMonthOnly = (value: string, fieldName: string) => {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    throw new ApiError(400, `${fieldName} must be in YYYY-MM format`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+
+  if (month < 1 || month > 12) {
+    throw new ApiError(400, `${fieldName} is invalid`);
+  }
+
+  return new Date(Date.UTC(year, month - 1, 1));
+};
+
+const parsePositiveDecimal = (value: string | number, fieldName: string) => {
+  let decimal: Prisma.Decimal;
+
+  try {
+    decimal = new Prisma.Decimal(value);
+  } catch {
+    throw new ApiError(400, `${fieldName} is invalid`);
+  }
+
+  if (decimal.lte(0)) {
+    throw new ApiError(400, `${fieldName} must be greater than 0`);
+  }
+
+  return decimal;
 };
 
 const parseTimeOnly = (value: string, fieldName: string) => {
@@ -391,6 +461,23 @@ const ensureEmployeeRequester = async (userId: string) => {
 
   if (!employee) {
     throw new ApiError(400, "Only employees can create this request");
+  }
+
+  return employee;
+};
+
+const ensureEmployeeExists = async (employeeId: string) => {
+  const employee = await prisma.employee.findUnique({
+    where: {
+      id: employeeId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!employee) {
+    throw new ApiError(400, "Employee not found", "EMPLOYEE_NOT_FOUND");
   }
 
   return employee;
@@ -1047,6 +1134,8 @@ const executeRequestLogic = async (
       return await executeScheduleApprovalLogic(tx, request, decidedAt);
     case RequestType.PAYROLL_APPROVAL:
       return await executePayrollApprovalLogic(tx, request, decidedAt);
+    case RequestType.BONUS_PENALTY:
+      return await executeBonusPenaltyLogic(tx, request, decidedAt);
     case RequestType.LEAVE:
       return await executeLeaveLogic(tx, request, decidedAt);
     case RequestType.LATE_EARLY:
@@ -1158,6 +1247,61 @@ const executePayrollApprovalLogic = async (
 /**
  * Xử lý logic cho đơn phê duyệt lịch làm việc
  */
+const executeBonusPenaltyLogic = async (
+  tx: Prisma.TransactionClient,
+  request: RequestWithDetails,
+  decidedAt: Date,
+) => {
+  const bonusPenaltyRequest = await tx.bonusPenaltyRequest.findUnique({
+    where: {
+      requestId: request.id,
+    },
+  });
+
+  if (!bonusPenaltyRequest) {
+    throw new ApiError(
+      400,
+      "Bonus/penalty request data is missing",
+      "BONUS_PENALTY_REQUEST_NOT_FOUND",
+    );
+  }
+
+  if (bonusPenaltyRequest.bonusPenaltyId) {
+    await tx.bonusPenaltyRequest.update({
+      where: {
+        requestId: request.id,
+      },
+      data: {
+        appliedAt: bonusPenaltyRequest.appliedAt ?? decidedAt,
+      },
+    });
+    return;
+  }
+
+  const voucher = await tx.payrollBonusPenalty.create({
+    data: {
+      employeeId: bonusPenaltyRequest.employeeId,
+      month: bonusPenaltyRequest.month,
+      amount: bonusPenaltyRequest.amount,
+      isBonus: bonusPenaltyRequest.isBonus,
+      reason: bonusPenaltyRequest.reason,
+      source: PayrollBonusPenaltySource.MANUAL,
+      status: PayrollBonusPenaltyStatus.ACTIVE,
+      cancelledAt: null,
+    },
+  });
+
+  await tx.bonusPenaltyRequest.update({
+    where: {
+      requestId: request.id,
+    },
+    data: {
+      bonusPenaltyId: voucher.id,
+      appliedAt: decidedAt,
+    },
+  });
+};
+
 const executeScheduleApprovalLogic = async (
   tx: Prisma.TransactionClient,
   request: RequestWithDetails,
@@ -1591,6 +1735,32 @@ export const requestService = {
     return getEmployeeScheduleShiftsByDate(prisma, employee.id, date);
   },
 
+  async getEmployeeOptions(): Promise<RequestEmployeeOption[]> {
+    return prisma.employee.findMany({
+      where: {
+        userId: {
+          not: null,
+        },
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        name: true,
+        email: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+  },
+
   async createRequest(userId: string, input: CreateRequestInput) {
     return createRequestWithApprovals(userId, input);
   },
@@ -1777,6 +1947,44 @@ export const requestService = {
             attendanceDate,
             workShiftId: selectedShift.id,
             addedWorkUnits: selectedShift.workUnits,
+            reason,
+          },
+        });
+      },
+    });
+  },
+
+  async createBonusPenaltyRequest(
+    userId: string,
+    input: CreateBonusPenaltyRequestInput,
+  ) {
+    await ensureEmployeeExists(input.employeeId);
+
+    const month = parseMonthOnly(input.month, "month");
+    const amount = parsePositiveDecimal(input.amount, "amount");
+    const reason = input.reason.trim();
+
+    if (!reason) {
+      throw new ApiError(400, "reason is required");
+    }
+
+    const title = input.title.trim();
+
+    return createRequestWithApprovals(userId, {
+      type: RequestType.BONUS_PENALTY,
+      title,
+      description: input.description,
+      approvalMode: input.approvalMode,
+      approverIds: input.approverIds,
+      watcherIds: input.watcherIds,
+      createExtra: async (tx, requestId) => {
+        await tx.bonusPenaltyRequest.create({
+          data: {
+            requestId,
+            employeeId: input.employeeId,
+            month,
+            amount,
+            isBonus: input.isBonus,
             reason,
           },
         });

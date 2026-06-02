@@ -696,6 +696,8 @@ IconData _typeIcon(RequestType type) {
       return Icons.calendar_month_outlined;
     case RequestType.payrollApproval:
       return Icons.payments_outlined;
+    case RequestType.bonusPenalty:
+      return Icons.price_change_outlined;
     case RequestType.termination:
       return Icons.person_remove_alt_1_outlined;
   }

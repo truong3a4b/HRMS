@@ -3,13 +3,20 @@ import { Modal, DatePicker } from "antd";
 import dayjs from "dayjs";
 import { Send, Check, ChevronDown, Search, X } from "lucide-react";
 import { useAuth } from "../../auth/services/useAuth";
-import { employeeService } from "../../employees/services/employeeService";
-import type { Employee } from "../../employees/types/employee.types";
+import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import type { WorkShift } from "../../work-shifts/types/workShift.types";
 import { requestService } from "../services/requestService";
-import type { ApprovalMode, LeaveType } from "../types/request.types";
+import type {
+  ApprovalMode,
+  LeaveType,
+  RequestEmployeeOption,
+} from "../types/request.types";
 
-type CreateRequestKind = "LEAVE" | "ATTENDANCE_CORRECTION" | "LATE_EARLY";
+type CreateRequestKind =
+  | "LEAVE"
+  | "ATTENDANCE_CORRECTION"
+  | "LATE_EARLY"
+  | "BONUS_PENALTY";
 type LateEarlyKind = "LATE_ARRIVAL" | "EARLY_LEAVE";
 
 type UserOption = {
@@ -274,7 +281,7 @@ type RequestFormModalProps = {
 
 export function RequestFormModal({ open, onClose, onSuccess, requestKind }: RequestFormModalProps) {
   const { user } = useAuth();
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<RequestEmployeeOption[]>([]);
   const [title, setTitle] = useState("");
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>("PARALLEL");
   const [approverIds, setApproverIds] = useState<string[]>([]);
@@ -299,6 +306,11 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [lateEarlyReason, setLateEarlyReason] = useState("");
+  const [bonusPenaltyEmployeeId, setBonusPenaltyEmployeeId] = useState("");
+  const [bonusPenaltyMonth, setBonusPenaltyMonth] = useState("");
+  const [bonusPenaltyIsBonus, setBonusPenaltyIsBonus] = useState(true);
+  const [bonusPenaltyAmount, setBonusPenaltyAmount] = useState("");
+  const [bonusPenaltyReason, setBonusPenaltyReason] = useState("");
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
@@ -313,6 +325,15 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
         }))
         .filter((option): option is UserOption => Boolean(option.id) && option.id !== user?.id),
     [employees, user?.id],
+  );
+
+  const employeeOptions = useMemo(
+    () =>
+      employees.map((employee) => ({
+        value: employee.id,
+        label: `${employee.employeeId} - ${employee.name} - ${employee.email}`,
+      })),
+    [employees],
   );
 
   // Reset state when modal opens/closes
@@ -334,14 +355,19 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
       setLateEarlyReason("");
       setStartTime("");
       setEndTime("");
+      setBonusPenaltyEmployeeId("");
+      setBonusPenaltyMonth("");
+      setBonusPenaltyIsBonus(true);
+      setBonusPenaltyAmount("");
+      setBonusPenaltyReason("");
     }
   }, [open]);
 
   useEffect(() => {
     setIsLoadingOptions(true);
-    employeeService
-      .getEmployees({ page: 1, limit: -1, search: "" })
-      .then((result) => setEmployees(result.items ?? []))
+    requestService
+      .getEmployeeOptions()
+      .then((items) => setEmployees(items))
       .catch((error) => {
         setErrorMessage(getErrorMessage(error, "Không tải được danh sách nhân viên"));
       })
@@ -445,6 +471,13 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
       if (!lateEarlyWorkShiftId) return "Vui lòng chọn ca làm.";
       if (!lateEarlyReason.trim()) return "Vui lòng nhập lý do.";
     }
+    if (requestKind === "BONUS_PENALTY") {
+      const amount = Number(bonusPenaltyAmount);
+      if (!bonusPenaltyEmployeeId) return "Vui lòng chọn nhân viên.";
+      if (!bonusPenaltyMonth) return "Vui lòng chọn kỳ lương.";
+      if (!Number.isFinite(amount) || amount <= 0) return "Vui lòng nhập số tiền lớn hơn 0.";
+      if (!bonusPenaltyReason.trim()) return "Vui lòng nhập lý do thưởng phạt.";
+    }
     return null;
   };
 
@@ -499,6 +532,17 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
         });
       }
 
+      if (requestKind === "BONUS_PENALTY") {
+        await requestService.createBonusPenaltyRequest({
+          ...approvalFields,
+          employeeId: bonusPenaltyEmployeeId,
+          month: bonusPenaltyMonth,
+          amount: Number(bonusPenaltyAmount),
+          isBonus: bonusPenaltyIsBonus,
+          reason: bonusPenaltyReason.trim(),
+        });
+      }
+
       onSuccess();
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Không thể gửi yêu cầu"));
@@ -510,7 +554,8 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
   const titles: Record<CreateRequestKind, string> = {
     LEAVE: "Tạo Đơn xin nghỉ phép",
     ATTENDANCE_CORRECTION: "Tạo Đơn đề xuất cộng công",
-    LATE_EARLY: "Tạo Đơn đi muộn/về sớm"
+    LATE_EARLY: "Tạo Đơn đi muộn/về sớm",
+    BONUS_PENALTY: "Tạo yêu cầu thưởng phạt"
   };
 
   return (
@@ -629,6 +674,57 @@ export function RequestFormModal({ open, onClose, onSuccess, requestKind }: Requ
             <label className="md:col-span-2">
               <span className={labelClass}>Lý do <span className="text-[#f04438]">*</span></span>
               <input className={fieldClass} value={lateEarlyReason} placeholder="Nhập lý do đi muộn/về sớm" onChange={(e) => setLateEarlyReason(e.target.value)} />
+            </label>
+          </div>
+        ) : null}
+
+        {requestKind === "BONUS_PENALTY" ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="md:col-span-2">
+              <span className={labelClass}>Nhân viên <span className="text-[#f04438]">*</span></span>
+              <SearchableSelect
+                className="w-full"
+                value={bonusPenaltyEmployeeId}
+                onChange={(value) => setBonusPenaltyEmployeeId(value ?? "")}
+                options={[
+                  { value: "", label: "-- Chọn nhân viên --" },
+                  ...employeeOptions,
+                ]}
+                placeholder="Tìm kiếm nhân viên"
+              />
+            </label>
+            <label>
+              <span className={labelClass}>Kỳ lương <span className="text-[#f04438]">*</span></span>
+              <DatePicker
+                className={`${fieldClass} !py-2`}
+                picker="month"
+                format="MM/YYYY"
+                value={bonusPenaltyMonth ? dayjs(`${bonusPenaltyMonth}-01`) : null}
+                onChange={(date) => setBonusPenaltyMonth(date ? date.format("YYYY-MM") : "")}
+              />
+            </label>
+            <label>
+              <span className={labelClass}>Loại <span className="text-[#f04438]">*</span></span>
+              <select className={fieldClass} value={bonusPenaltyIsBonus ? "bonus" : "penalty"} onChange={(e) => setBonusPenaltyIsBonus(e.target.value === "bonus")}>
+                <option value="bonus">Thưởng</option>
+                <option value="penalty">Phạt</option>
+              </select>
+            </label>
+            <label className="md:col-span-2">
+              <span className={labelClass}>Số tiền <span className="text-[#f04438]">*</span></span>
+              <input
+                className={fieldClass}
+                type="number"
+                min="0"
+                step="1000"
+                value={bonusPenaltyAmount}
+                placeholder="Nhập số tiền"
+                onChange={(e) => setBonusPenaltyAmount(e.target.value)}
+              />
+            </label>
+            <label className="md:col-span-2">
+              <span className={labelClass}>Lý do <span className="text-[#f04438]">*</span></span>
+              <input className={fieldClass} value={bonusPenaltyReason} placeholder="Nhập lý do thưởng phạt" onChange={(e) => setBonusPenaltyReason(e.target.value)} />
             </label>
           </div>
         ) : null}

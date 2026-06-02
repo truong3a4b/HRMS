@@ -15,6 +15,7 @@ export type RequestType =
   | "OVERTIME"
   | "SCHEDULE_APPROVAL"
   | "PAYROLL_APPROVAL"
+  | "BONUS_PENALTY"
   | "TERMINATION";
 
 export type ApprovalMode = "PARALLEL" | "SEQUENTIAL";
@@ -41,6 +42,18 @@ export type RequestUser = {
     id: string;
     employeeId: string;
     name: string;
+  } | null;
+};
+
+export type RequestEmployeeOption = {
+  id: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  user?: {
+    id: string;
+    email: string;
+    role: string;
   } | null;
 };
 
@@ -123,6 +136,31 @@ export type PayrollApprovalRequestDetail = {
   } | null;
 };
 
+export type BonusPenaltyRequestDetail = {
+  id: string;
+  requestId: string;
+  employeeId: string;
+  month: string;
+  amount: string | number;
+  isBonus: boolean;
+  reason: string;
+  bonusPenaltyId?: string | null;
+  appliedAt?: string | null;
+  employee?: {
+    id: string;
+    employeeId: string;
+    name: string;
+  } | null;
+  bonusPenalty?: {
+    id: string;
+    month: string;
+    amount: string | number;
+    isBonus: boolean;
+    reason?: string | null;
+    status: string;
+  } | null;
+};
+
 export type RequestItem = {
   id: string;
   type: RequestType;
@@ -139,6 +177,7 @@ export type RequestItem = {
   attendanceCorrectionRequest?: AttendanceCorrectionRequestDetail | null;
   workScheduleRequest?: WorkScheduleRequestDetail | null;
   payrollApprovalRequest?: PayrollApprovalRequestDetail | null;
+  bonusPenaltyRequest?: BonusPenaltyRequestDetail | null;
   currentStep?: number | null;
   processingAt?: string | null;
   approvedAt?: string | null;
@@ -197,6 +236,19 @@ export type CreateLateEarlyRequestPayload = {
 export type CreateAttendanceCorrectionRequestPayload = {
   attendanceDate: string;
   workShiftId: string;
+  reason: string;
+  title: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
+export type CreateBonusPenaltyRequestPayload = {
+  employeeId: string;
+  month: string;
+  amount: number;
+  isBonus: boolean;
   reason: string;
   title: string;
   description?: string;

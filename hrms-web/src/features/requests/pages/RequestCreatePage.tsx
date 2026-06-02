@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarOff, PlusCircle, Clock3 } from "lucide-react";
+import { BadgeDollarSign, CalendarOff, PlusCircle, Clock3 } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { paths } from "../../../app/router/paths";
 import { RequestFormModal } from "../components/RequestFormModal";
 
-type CreateRequestKind = "LEAVE" | "ATTENDANCE_CORRECTION" | "LATE_EARLY";
+type CreateRequestKind =
+  | "LEAVE"
+  | "ATTENDANCE_CORRECTION"
+  | "LATE_EARLY"
+  | "BONUS_PENALTY";
 
 const requestKinds: Array<{
   key: CreateRequestKind;
@@ -43,6 +47,15 @@ const requestKinds: Array<{
     bgColor: "bg-emerald-50",
     borderColor: "border-emerald-200"
   },
+  {
+    key: "BONUS_PENALTY",
+    title: "Yêu cầu thưởng phạt",
+    description: "Đề xuất phiếu thưởng hoặc phạt cho nhân viên theo kỳ lương.",
+    icon: BadgeDollarSign,
+    color: "text-violet-600",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-200"
+  },
 ];
 
 export function RequestCreatePage() {
@@ -75,7 +88,7 @@ export function RequestCreatePage() {
             </h1>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-6 mt-4 w-full max-w-6xl mx-auto">
+          <div className="grid gap-6 mt-4 w-full max-w-6xl mx-auto md:grid-cols-2">
             {requestKinds.map((item) => {
               const Icon = item.icon;
               return (

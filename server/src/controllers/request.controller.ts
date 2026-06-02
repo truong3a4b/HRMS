@@ -115,6 +115,19 @@ type CreateAttendanceCorrectionRequestBody = {
   watcherIds?: string[];
 };
 
+type CreateBonusPenaltyRequestBody = {
+  employeeId: string;
+  month: string;
+  amount: string | number;
+  isBonus: boolean;
+  reason: string;
+  title: string;
+  description?: string;
+  approvalMode?: ApprovalMode;
+  approverIds: string[];
+  watcherIds?: string[];
+};
+
 type DecisionBody = {
   decision: RequestApprovalStatus;
   note?: string;
@@ -277,6 +290,21 @@ export const requestController = {
     }
   },
 
+  async getEmployeeOptions(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await requestService.getEmployeeOptions();
+
+      return sendResponse(
+        res,
+        200,
+        "Request employee options fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async createRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireUser(req);
@@ -348,6 +376,30 @@ export const requestController = {
         res,
         201,
         "Attendance correction request created successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createBonusPenaltyRequest(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const user = requireUser(req);
+      const body = req.body as CreateBonusPenaltyRequestBody;
+      const result = await requestService.createBonusPenaltyRequest(
+        user.id,
+        body,
+      );
+
+      return sendResponse(
+        res,
+        201,
+        "Bonus/penalty request created successfully",
         result,
       );
     } catch (error) {

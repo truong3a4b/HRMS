@@ -14,6 +14,7 @@ enum RequestType {
   overtime,
   scheduleApproval,
   payrollApproval,
+  bonusPenalty,
   termination,
 }
 
@@ -281,6 +282,8 @@ extension RequestTypeX on RequestType {
         return 'SCHEDULE_APPROVAL';
       case RequestType.payrollApproval:
         return 'PAYROLL_APPROVAL';
+      case RequestType.bonusPenalty:
+        return 'BONUS_PENALTY';
       case RequestType.termination:
         return 'TERMINATION';
     }
@@ -300,6 +303,8 @@ extension RequestTypeX on RequestType {
         return 'Duyệt lịch';
       case RequestType.payrollApproval:
         return 'Duyệt kỳ lương';
+      case RequestType.bonusPenalty:
+        return 'Yêu cầu thưởng phạt';
       case RequestType.termination:
         return 'Nghỉ việc';
     }

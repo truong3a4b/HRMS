@@ -456,6 +456,12 @@ router.post(
   validate(assignAllowancePolicySchema),
   payrollPolicyController.assignAllowancePolicy,
 );
+router.post(
+  "/allowances/unassign",
+  ...canSetupPayrollPolicies,
+  validate(assignAllowancePolicySchema),
+  payrollPolicyController.unassignAllowancePolicy,
+);
 
 router.get(
   "/auto-penalties",
@@ -494,6 +500,12 @@ router.post(
   ...canSetupPayrollPolicies,
   validate(assignAutoPenaltyPolicySchema),
   payrollPolicyController.assignAutoPenaltyPolicy,
+);
+router.post(
+  "/auto-penalties/unassign",
+  ...canSetupPayrollPolicies,
+  validate(assignAutoPenaltyPolicySchema),
+  payrollPolicyController.unassignAutoPenaltyPolicy,
 );
 
 router.get(

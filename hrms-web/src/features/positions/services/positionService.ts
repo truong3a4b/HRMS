@@ -49,7 +49,7 @@ export function extractPermissionKeys(position: Position): PermissionKey[] {
         return item;
       }
 
-      return item.permission?.key;
+      return item.key ?? item.permissionKey ?? item.permission?.key;
     })
     .filter((key): key is PermissionKey => Boolean(key));
 }

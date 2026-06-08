@@ -483,6 +483,26 @@ export const payrollPolicyController = {
     }
   },
 
+  async unassignAllowancePolicy(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.allowancePolicies.unassign(
+        req.body,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Allowance policy unassigned successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getAutoPenaltyPolicies(
     req: Request,
     res: Response,
@@ -632,6 +652,26 @@ export const payrollPolicyController = {
         res,
         200,
         "Auto penalty policy assigned successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async unassignAutoPenaltyPolicy(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollPolicyService.autoPenaltyPolicies.unassign(
+        req.body,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Auto penalty policy unassigned successfully",
         result,
       );
     } catch (error) {

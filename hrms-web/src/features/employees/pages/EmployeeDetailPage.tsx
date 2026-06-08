@@ -839,16 +839,44 @@ function PayrollPolicyAssignModal({
   const [submitting, setSubmitting] = useState(false);
 
   const options = useMemo(() => {
-    if (type === "insurance") return insurancePolicies;
-    if (type === "tax") return taxPolicies;
-    if (type === "attendanceBonus") return attendanceBonusPolicies;
-    if (type === "allowance") return allowancePolicies;
-    if (type === "autoPenalty") return autoPenaltyPolicies;
+    const mergeById = <T extends { id: string }>(items: Array<T | null | undefined>) =>
+      Array.from(
+        items.filter(Boolean).reduce((map, item) => {
+          map.set(item!.id, item!);
+          return map;
+        }, new Map<string, T>()).values(),
+      );
+
+    if (type === "insurance") {
+      return mergeById([employee?.payrollProfile?.insurancePolicy, ...insurancePolicies]);
+    }
+    if (type === "tax") {
+      return mergeById([employee?.payrollProfile?.taxPolicy, ...taxPolicies]);
+    }
+    if (type === "attendanceBonus") {
+      return mergeById([
+        employee?.payrollProfile?.attendanceBonusPolicy,
+        ...attendanceBonusPolicies,
+      ]);
+    }
+    if (type === "allowance") {
+      return mergeById([
+        ...(employee?.allowances?.map((item) => item.allowancePolicy) ?? []),
+        ...allowancePolicies,
+      ]);
+    }
+    if (type === "autoPenalty") {
+      return mergeById([
+        ...(employee?.autoPenaltyPolicies?.map((item) => item.autoPenaltyPolicy) ?? []),
+        ...autoPenaltyPolicies,
+      ]);
+    }
     return [];
   }, [
     allowancePolicies,
     attendanceBonusPolicies,
     autoPenaltyPolicies,
+    employee,
     insurancePolicies,
     taxPolicies,
     type,
@@ -862,6 +890,17 @@ function PayrollPolicyAssignModal({
     autoPenalty: "Áp dụng phạt tự động",
   }[type ?? "insurance"];
 
+  const currentAssignedPolicyId = useMemo(() => {
+    if (!employee || !type) return "";
+    const profile = employee.payrollProfile;
+    if (type === "insurance") return profile?.insurancePolicyId ?? "";
+    if (type === "tax") return profile?.taxPolicyId ?? "";
+    if (type === "attendanceBonus") return profile?.attendanceBonusPolicyId ?? "";
+    if (type === "allowance") return employee.allowances?.[0]?.allowancePolicyId ?? "";
+    if (type === "autoPenalty") return employee.autoPenaltyPolicies?.[0]?.autoPenaltyPolicyId ?? "";
+    return "";
+  }, [employee, type]);
+
   useEffect(() => {
     if (!open || !employee || !type) return;
 
@@ -873,7 +912,7 @@ function PayrollPolicyAssignModal({
           ? (profile?.taxPolicyId ?? "")
           : type === "attendanceBonus"
             ? (profile?.attendanceBonusPolicyId ?? "")
-            : "",
+            : currentAssignedPolicyId,
     );
     setInsuranceSalary(
       profile?.insuranceSalary != null ? String(profile.insuranceSalary) : "",
@@ -881,7 +920,7 @@ function PayrollPolicyAssignModal({
     setTaxCode(profile?.taxCode ?? "");
     setDependentCount(String(profile?.dependentCount ?? 0));
     setError(null);
-  }, [employee, open, type]);
+  }, [currentAssignedPolicyId, employee, open, type]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -924,6 +963,63 @@ function PayrollPolicyAssignModal({
         });
       } else if (type === "autoPenalty") {
         await payrollPolicyService.assignAutoPenaltyPolicy({
+          ...target,
+          autoPenaltyPolicyId: policyId,
+        });
+      }
+
+      await onAssigned();
+      onClose();
+    } catch (submitError) {
+      setError(getErrorMessage(submitError));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const removePolicy = async () => {
+    if (!employee || !type || !currentAssignedPolicyId) return;
+
+    const target = { employeeIds: [employee.id] };
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (type === "insurance") {
+        await payrollPolicyService.assignPayrollPolicies({
+          ...target,
+          insurancePolicyId: null,
+          isInsuranceApplicable: false,
+          insuranceSalary: null,
+        });
+      } else if (type === "tax") {
+        await payrollPolicyService.assignPayrollPolicies({
+          ...target,
+          taxPolicyId: null,
+          isTaxApplicable: false,
+          taxCode: null,
+          dependentCount: 0,
+        });
+      } else if (type === "attendanceBonus") {
+        await payrollPolicyService.assignPayrollPolicies({
+          ...target,
+          attendanceBonusPolicyId: null,
+          isAttendanceBonusApplicable: false,
+        });
+      } else if (type === "allowance") {
+        if (!policyId) {
+          setError("Vui lòng chọn phụ cấp cần gỡ.");
+          return;
+        }
+        await payrollPolicyService.unassignAllowancePolicy({
+          ...target,
+          allowancePolicyId: policyId,
+        });
+      } else if (type === "autoPenalty") {
+        if (!policyId) {
+          setError("Vui lòng chọn chính sách phạt cần gỡ.");
+          return;
+        }
+        await payrollPolicyService.unassignAutoPenaltyPolicy({
           ...target,
           autoPenaltyPolicyId: policyId,
         });
@@ -1006,21 +1102,31 @@ function PayrollPolicyAssignModal({
           </div>
         ) : null}
 
-        <div className="flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f5] pt-4">
           <button
-            className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
+            className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
             type="button"
-            onClick={onClose}
+            onClick={() => void removePolicy()}
+            disabled={submitting || !currentAssignedPolicyId}
           >
-            Hủy
+            {submitting ? "Đang gỡ..." : "Gỡ chính sách"}
           </button>
-          <button
-            className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:opacity-60"
-            type="submit"
-            disabled={submitting}
-          >
-            {submitting ? "Đang áp dụng..." : "Áp dụng"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              className="rounded-lg border border-[#d0d5dd] px-4 py-2 text-sm font-medium text-[#344054] transition-colors hover:bg-[#f9fafb]"
+              type="button"
+              onClick={onClose}
+            >
+              Hủy
+            </button>
+            <button
+              className="rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! transition-colors hover:bg-[#0055a8] disabled:opacity-60"
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting ? "Đang áp dụng..." : "Áp dụng"}
+            </button>
+          </div>
         </div>
       </form>
     </Modal>

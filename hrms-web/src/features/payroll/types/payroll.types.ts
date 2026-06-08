@@ -15,6 +15,8 @@ export type PayrollPeriodStatus =
   | "APPROVED"
   | "CANCELLED";
 
+export type PayrollPaymentMode = "AMOUNT" | "PERCENT" | "REMAINING";
+
 export type PayrollEmployee = {
   id: string;
   employeeId: string;
@@ -211,4 +213,53 @@ export type CreatePayrollByTargetsResult = {
   updatedCount?: number;
   skippedCount: number;
   payrolls: PayrollSummary[];
+};
+
+export type CreatePayrollPaymentBatchPayload = {
+  periodId?: string;
+  month?: number;
+  year?: number;
+  employeeIds: string[];
+  mode: PayrollPaymentMode;
+  amount?: MoneyValue;
+  percent?: MoneyValue;
+  paymentDate?: string;
+  note?: string | null;
+};
+
+export type PayrollPayment = {
+  id: string;
+  batchId: string;
+  payrollId: string;
+  employeeId: string;
+  mode: PayrollPaymentMode;
+  requestedAmount?: MoneyValue | null;
+  requestedPercent?: MoneyValue | null;
+  amount: MoneyValue;
+  remainingBefore: MoneyValue;
+  remainingAfter: MoneyValue;
+  payrollNetSalary: MoneyValue;
+  payrollPaidBefore: MoneyValue;
+  paymentDate: string;
+  note?: string | null;
+  payroll?: PayrollSummary | null;
+  employee?: PayrollEmployee | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PayrollPaymentBatch = {
+  id: string;
+  periodId: string;
+  month: number;
+  year: number;
+  mode: PayrollPaymentMode;
+  amount?: MoneyValue | null;
+  percent?: MoneyValue | null;
+  totalAmount: MoneyValue;
+  paymentDate: string;
+  note?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  payments: PayrollPayment[];
 };

@@ -1559,14 +1559,17 @@ const calculatePayrollForEmployee = async (
             data.occurredAt = violation?.occurredAt ?? start;
             data.reason = `${policy.name} - ${violation?.detail ?? "vi pham"} - ngay ${getDateKey(violation?.occurredAt ?? start)}, ca ${violation?.workShiftName ?? "Khong ro ca"}`;
 
-            return existingOccurrence
-              ? prisma.payrollBonusPenalty.update({
-                  where: { id: existingOccurrence.id },
-                  data,
-                })
-              : prisma.payrollBonusPenalty.create({
-                  data,
-                });
+            return prisma.payrollBonusPenalty.upsert({
+              where: {
+                employeeId_autoPenaltyPolicyId_occurrenceKey: {
+                  employeeId,
+                  autoPenaltyPolicyId: policy.id,
+                  occurrenceKey,
+                },
+              },
+              update: data,
+              create: data,
+            });
           }),
         );
       }),

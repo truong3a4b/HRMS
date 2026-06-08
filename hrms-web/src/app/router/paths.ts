@@ -60,6 +60,7 @@ export const paths = {
   salarySlips: '/salary/slips',
   salaryHistory: '/salary/history',
   payrollManagement: '/salary/payrolls',
+  payrollPayments: '/salary/payments',
   payrollPeriodOverview: (periodId: string) => `/salary/payrolls/${periodId}`,
   payrollEmployeeDetail: (periodId: string, employeeId: string) =>
     `/salary/payrolls/${periodId}/employees/${employeeId}`,

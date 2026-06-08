@@ -36,6 +36,8 @@ export type PermissionCatalogItem = {
 };
 
 export type PositionPermissionRelation = {
+  key?: PermissionKey;
+  permissionKey?: PermissionKey;
   permission?: PermissionCatalogItem;
 };
 

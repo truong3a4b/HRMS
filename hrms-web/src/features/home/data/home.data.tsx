@@ -203,6 +203,11 @@ export function getDrawerItems(
             path: paths.payrollManagement,
           },
           {
+            key: "payroll-payments",
+            label: "Đợt trả lương",
+            path: paths.payrollPayments,
+          },
+          {
             key: "payroll-bonus-penalties",
             label: "Phiếu thưởng/phạt",
             path: paths.payrollBonusPenalties,

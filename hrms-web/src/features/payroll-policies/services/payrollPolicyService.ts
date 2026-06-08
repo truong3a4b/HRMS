@@ -256,6 +256,15 @@ export const payrollPolicyService = {
     return response.data.data ?? [];
   },
 
+  async unassignAllowancePolicy(payload: AllowanceAssignmentPayload) {
+    const response = await apiClient.post<ApiResponse<EmployeeAllowance[]>>(
+      "/payroll-policies/allowances/unassign",
+      payload,
+    );
+
+    return response.data.data ?? [];
+  },
+
   async getAutoPenaltyPolicies(status: PolicyStatusFilter) {
     const response = await apiClient.get<ApiResponse<AutoPenaltyPolicy[]>>(
       "/payroll-policies/auto-penalties",
@@ -308,6 +317,14 @@ export const payrollPolicyService = {
     const response = await apiClient.post<
       ApiResponse<EmployeeAutoPenaltyPolicy[]>
     >("/payroll-policies/auto-penalties/assign", payload);
+
+    return response.data.data ?? [];
+  },
+
+  async unassignAutoPenaltyPolicy(payload: AutoPenaltyAssignmentPayload) {
+    const response = await apiClient.post<
+      ApiResponse<EmployeeAutoPenaltyPolicy[]>
+    >("/payroll-policies/auto-penalties/unassign", payload);
 
     return response.data.data ?? [];
   },

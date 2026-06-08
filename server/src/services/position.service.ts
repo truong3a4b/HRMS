@@ -107,9 +107,25 @@ export const positionService = {
   async getAll() {
     await ensurePermissionCatalog();
 
-    return prisma.position.findMany({
+    const positions = await prisma.position.findMany({
       orderBy: { createdAt: "desc" },
+      include: {
+        permissions: {
+          select: {
+            permission: {
+              select: {
+                key: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    return positions.map((position) => ({
+      ...position,
+      permissions: position.permissions.map((item) => item.permission.key),
+    }));
   },
 
   async getPermissionCatalog() {

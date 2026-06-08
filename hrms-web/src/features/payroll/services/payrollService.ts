@@ -2,9 +2,11 @@ import { apiClient } from "../../../services/http/apiClient";
 import type { ApiResponse } from "../../auth/types/auth.types";
 import type {
   CreatePayrollPayload,
+  CreatePayrollPaymentBatchPayload,
   CreatePayrollByTargetsPayload,
   CreatePayrollByTargetsResult,
   PayrollDetail,
+  PayrollPaymentBatch,
   PayrollPeriod,
   PayrollPeriodOverview,
   PayrollQuery,
@@ -141,6 +143,34 @@ export const payrollService = {
   async pay(id: string) {
     const response = await apiClient.post<ApiResponse<PayrollDetail>>(
       `/payrolls/${id}/pay`,
+    );
+
+    return response.data.data;
+  },
+
+  async createPaymentBatch(payload: CreatePayrollPaymentBatchPayload) {
+    const response = await apiClient.post<ApiResponse<PayrollPaymentBatch>>(
+      "/payrolls/payments",
+      payload,
+    );
+
+    return response.data.data;
+  },
+
+  async getPaymentBatches(
+    query: Pick<PayrollQuery, "periodId" | "employeeId" | "month" | "year"> = {},
+  ) {
+    const response = await apiClient.get<ApiResponse<PayrollPaymentBatch[]>>(
+      "/payrolls/payments",
+      { params: removeEmptyParams(query) },
+    );
+
+    return response.data.data ?? [];
+  },
+
+  async getPaymentBatchById(id: string) {
+    const response = await apiClient.get<ApiResponse<PayrollPaymentBatch>>(
+      `/payrolls/payments/${id}`,
     );
 
     return response.data.data;

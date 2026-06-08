@@ -1370,6 +1370,28 @@ export const payrollPolicyService = {
       });
     },
 
+    async unassign(data: AssignAllowancePolicyInput) {
+      await this.getById(data.allowancePolicyId);
+
+      const employeeIds = await getTargetEmployeeIds(data);
+
+      await prisma.employeeAllowance.deleteMany({
+        where: {
+          allowancePolicyId: data.allowancePolicyId,
+          employeeId: { in: employeeIds },
+        },
+      });
+
+      return prisma.employeeAllowance.findMany({
+        where: {
+          allowancePolicyId: data.allowancePolicyId,
+          employeeId: { in: employeeIds },
+        },
+        include: employeeAllowanceInclude,
+        orderBy: { employee: { name: "asc" } },
+      });
+    },
+
     getAssignments(query: EmployeeAllowanceQuery) {
       return prisma.employeeAllowance.findMany({
         where: {
@@ -1524,6 +1546,28 @@ export const payrollPolicyService = {
           autoPenaltyPolicyId: data.autoPenaltyPolicyId,
         })),
         skipDuplicates: true,
+      });
+
+      return prisma.employeeAutoPenaltyPolicy.findMany({
+        where: {
+          autoPenaltyPolicyId: data.autoPenaltyPolicyId,
+          employeeId: { in: employeeIds },
+        },
+        include: employeeAutoPenaltyPolicyInclude,
+        orderBy: { employee: { name: "asc" } },
+      });
+    },
+
+    async unassign(data: AssignAutoPenaltyPolicyInput) {
+      await this.getById(data.autoPenaltyPolicyId);
+
+      const employeeIds = await getTargetEmployeeIds(data);
+
+      await prisma.employeeAutoPenaltyPolicy.deleteMany({
+        where: {
+          autoPenaltyPolicyId: data.autoPenaltyPolicyId,
+          employeeId: { in: employeeIds },
+        },
       });
 
       return prisma.employeeAutoPenaltyPolicy.findMany({
@@ -1976,19 +2020,23 @@ export const payrollPolicyService = {
                 payload.occurredAt = violation?.occurredAt ?? start;
                 payload.reason = `${policy.name} - ${violation?.detail ?? "vi pham"} - ngay ${getDateKey(violation?.occurredAt ?? start)}, ca ${violation?.workShiftName ?? "Khong ro ca"}`;
 
-                if (existing) {
-                  await prisma.payrollBonusPenalty.update({
-                    where: { id: existing.id },
-                    data: payload,
-                  });
-                  updatedCount += 1;
-                  return;
-                }
-
-                await prisma.payrollBonusPenalty.create({
-                  data: payload,
+                await prisma.payrollBonusPenalty.upsert({
+                  where: {
+                    employeeId_autoPenaltyPolicyId_occurrenceKey: {
+                      employeeId: employee.id,
+                      autoPenaltyPolicyId: policy.id,
+                      occurrenceKey,
+                    },
+                  },
+                  update: payload,
+                  create: payload,
                 });
-                createdCount += 1;
+
+                if (existing) {
+                  updatedCount += 1;
+                } else {
+                  createdCount += 1;
+                }
               }),
             );
           });

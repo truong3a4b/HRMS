@@ -14,6 +14,7 @@ import { HomePage } from "../../features/home/pages/HomePage";
 import { HolidayListPage } from "../../features/categories/pages/HolidayListPage";
 import { PayrollEmployeeDetailPage } from "../../features/payroll/pages/PayrollEmployeeDetailPage";
 import { PayrollBonusPenaltyPage } from "../../features/payroll/pages/PayrollBonusPenaltyPage";
+import { PayrollPaymentBatchPage } from "../../features/payroll/pages/PayrollPaymentBatchPage";
 import { PayrollPage } from "../../features/payroll/pages/PayrollPage";
 import { PayrollPeriodListPage } from "../../features/payroll/pages/PayrollPeriodListPage";
 import { PayrollPeriodOverviewPage } from "../../features/payroll/pages/PayrollPeriodOverviewPage";
@@ -278,6 +279,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute>
             <PayrollEmployeeDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={paths.payrollPayments}
+        element={
+          <ProtectedRoute>
+            <PayrollPaymentBatchPage />
           </ProtectedRoute>
         }
       />

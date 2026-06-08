@@ -1,5 +1,5 @@
 import { Modal, Pagination } from "antd";
-import { ArrowLeft, BadgeCheck, Banknote, Calculator, Coins, Eye, FilePlus2, RefreshCcw, Search, Send, Trash2, WalletCards, XCircle } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Banknote, Calculator, Coins, CreditCard, Eye, FilePlus2, RefreshCcw, Search, Send, Trash2, WalletCards, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { paths } from "../../../app/router/paths";
@@ -9,7 +9,8 @@ import { employeeService } from "../../employees/services/employeeService";
 import type { Employee, EmployeeOption } from "../../employees/types/employee.types";
 import type { ApprovalMode } from "../../requests/types/request.types";
 import { payrollService } from "../services/payrollService";
-import type { PayrollPeriodOverview } from "../types/payroll.types";
+import type { PayrollPaymentMode, PayrollPeriodOverview, PayrollSummary } from "../types/payroll.types";
+import { MultiSelectDropdown, SelectedTags } from "../../../shared/ui/MultiSelectDropdown";
 
 const statusLabel: Record<string, string> = {
   DRAFT: "Nháp",
@@ -48,6 +49,13 @@ function formatNumber(value?: string | number | null) {
   return new Intl.NumberFormat("vi-VN", {
     maximumFractionDigits: 2,
   }).format(toNumber(value));
+}
+
+function todayInputValue() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }
 
 function getInsuranceTotal(payroll: {
@@ -133,8 +141,6 @@ function PayrollApprovalRequestModal({
     setErrorMessage(null);
   }, [open, overview]);
 
-  const readSelectedOptions = (select: HTMLSelectElement) =>
-    Array.from(select.selectedOptions).map((option) => option.value);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -197,22 +203,46 @@ function PayrollApprovalRequestModal({
               <option value="SEQUENTIAL">Duyệt tuần tự</option>
             </select>
           </label>
-          <label>
-            <span className={labelClass}>Người duyệt <span className="text-[#f04438]">*</span></span>
-            <select className={`${fieldClass} min-h-28`} multiple value={approverIds} onChange={(event) => setApproverIds(readSelectedOptions(event.currentTarget))}>
-              {userOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className={labelClass}>Người theo dõi</span>
-            <select className={`${fieldClass} min-h-24`} multiple value={watcherIds} onChange={(event) => setWatcherIds(readSelectedOptions(event.currentTarget))}>
-              {userOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
+          <div>
+            <MultiSelectDropdown
+              label="Người duyệt *"
+              placeholder="Chọn người duyệt..."
+              options={userOptions}
+              selected={approverIds}
+              onChange={setApproverIds}
+            />
+            {approverIds.length > 0 && (
+              <div className="mt-2 min-w-0 max-w-full">
+                <SelectedTags
+                  ids={approverIds}
+                  options={userOptions}
+                  onRemove={(id) =>
+                    setApproverIds((cur) => cur.filter((v) => v !== id))
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <div>
+            <MultiSelectDropdown
+              label="Người theo dõi"
+              placeholder="Chọn người theo dõi..."
+              options={userOptions}
+              selected={watcherIds}
+              onChange={setWatcherIds}
+            />
+            {watcherIds.length > 0 && (
+              <div className="mt-2 min-w-0 max-w-full">
+                <SelectedTags
+                  ids={watcherIds}
+                  options={userOptions}
+                  onRemove={(id) =>
+                    setWatcherIds((cur) => cur.filter((v) => v !== id))
+                  }
+                />
+              </div>
+            )}
+          </div>
         </div>
         <div className="mt-4 flex shrink-0 items-center justify-end gap-3 border-t border-[#e2e8f0] pt-4">
           <button className="rounded-xl border border-[#d0d5dd] bg-white px-5 py-2.5 text-sm font-semibold text-[#344054] shadow-sm transition-all hover:bg-[#f9fafb] hover:text-[#101828]" type="button" onClick={onClose} disabled={submitting}>
@@ -406,6 +436,203 @@ function AddSinglePayrollModal({
   );
 }
 
+function PayrollPaymentModal({
+  open,
+  overview,
+  payrolls,
+  initialEmployeeIds,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  overview: PayrollPeriodOverview | null;
+  payrolls: PayrollSummary[];
+  initialEmployeeIds: string[];
+  onClose: () => void;
+  onSubmit: (payload: {
+    employeeIds: string[];
+    mode: PayrollPaymentMode;
+    amount?: string;
+    percent?: string;
+    paymentDate: string;
+    note?: string | null;
+  }) => Promise<void>;
+}) {
+  const [employeeIds, setEmployeeIds] = useState<string[]>([]);
+  const [mode, setMode] = useState<PayrollPaymentMode>("REMAINING");
+  const [amount, setAmount] = useState("");
+  const [percent, setPercent] = useState("100");
+  const [paymentDate, setPaymentDate] = useState(todayInputValue());
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setEmployeeIds(initialEmployeeIds);
+    setMode("REMAINING");
+    setAmount("");
+    setPercent("100");
+    setPaymentDate(todayInputValue());
+    setNote("");
+    setErrorMessage(null);
+  }, [initialEmployeeIds, open]);
+
+  const selectedPayrolls = payrolls.filter((payroll) =>
+    employeeIds.includes(payroll.employeeId),
+  );
+  const selectedRemaining = selectedPayrolls.reduce(
+    (total, payroll) =>
+      total +
+      Math.max(
+        toNumber(payroll.remainingAmount) ||
+          toNumber(payroll.netSalary) - toNumber(payroll.paidAmount),
+        0,
+      ),
+    0,
+  );
+  const allSelected = payrolls.length > 0 && employeeIds.length === payrolls.length;
+
+  const toggleEmployee = (employeeId: string) => {
+    setEmployeeIds((current) =>
+      current.includes(employeeId)
+        ? current.filter((value) => value !== employeeId)
+        : [...current, employeeId],
+    );
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!overview) return;
+    const normalizedAmount = amount.replace(/[^\d]/g, "");
+    const normalizedPercent = percent.replace(",", ".");
+    if (employeeIds.length === 0) {
+      setErrorMessage("Vui lòng chọn ít nhất một nhân viên để chi trả.");
+      return;
+    }
+    if (mode === "AMOUNT" && toNumber(normalizedAmount) <= 0) {
+      setErrorMessage("Vui lòng nhập số tiền chi trả lớn hơn 0.");
+      return;
+    }
+    if (mode === "PERCENT" && (toNumber(normalizedPercent) <= 0 || toNumber(normalizedPercent) > 100)) {
+      setErrorMessage("Tỷ lệ chi trả phải nằm trong khoảng 1-100%.");
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await onSubmit({
+        employeeIds,
+        mode,
+        amount: mode === "AMOUNT" ? String(toNumber(normalizedAmount)) : undefined,
+        percent: mode === "PERCENT" ? String(toNumber(normalizedPercent)) : undefined,
+        paymentDate,
+        note: note.trim() || null,
+      });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Không thể tạo đợt chi trả lương."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal open={open} title="Chi trả lương" onCancel={onClose} footer={null} width={820} centered>
+      <form className="grid gap-4" onSubmit={submit}>
+        {errorMessage ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+          <label>
+            <span className={labelClass}>Phương thức trả</span>
+            <select className={fieldClass} value={mode} onChange={(event) => setMode(event.target.value as PayrollPaymentMode)}>
+              <option value="REMAINING">Trả toàn bộ còn lại</option>
+              <option value="AMOUNT">Trả số tiền cố định</option>
+              <option value="PERCENT">Trả theo tỷ lệ</option>
+            </select>
+          </label>
+          {mode === "AMOUNT" ? (
+            <label>
+              <span className={labelClass}>Số tiền mỗi nhân viên</span>
+              <input className={fieldClass} inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="VD: 5000000" />
+            </label>
+          ) : null}
+          {mode === "PERCENT" ? (
+            <label>
+              <span className={labelClass}>Tỷ lệ trả (%)</span>
+              <input className={fieldClass} inputMode="decimal" value={percent} onChange={(event) => setPercent(event.target.value)} placeholder="VD: 50" />
+            </label>
+          ) : null}
+          <label>
+            <span className={labelClass}>Ngày chi trả</span>
+            <input className={fieldClass} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+          </label>
+        </div>
+
+        <label>
+          <span className={labelClass}>Ghi chú</span>
+          <textarea className={fieldClass} rows={2} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Nội dung chuyển khoản, ghi chú đợt trả..." />
+        </label>
+
+        <section className="rounded-lg border border-[#e2e8f0]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-[#f8fafc] px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-[#344054]">
+              <input checked={allSelected} type="checkbox" onChange={(event) => setEmployeeIds(event.target.checked ? payrolls.map((payroll) => payroll.employeeId) : [])} />
+              Chọn tất cả nhân viên còn lương
+            </label>
+            <div className="text-sm font-semibold text-[#1e293b]">
+              Đã chọn {employeeIds.length}/{payrolls.length} · Còn phải trả {formatMoney(selectedRemaining)} ₫
+            </div>
+          </div>
+          <div className="max-h-72 overflow-auto">
+            {payrolls.length ? (
+              payrolls.map((payroll) => {
+                const remaining =
+                  toNumber(payroll.remainingAmount) ||
+                  Math.max(toNumber(payroll.netSalary) - toNumber(payroll.paidAmount), 0);
+
+                return (
+                  <label className="flex items-center justify-between gap-3 border-b border-[#f1f5f9] px-4 py-3 text-sm last:border-b-0" key={payroll.id}>
+                    <span className="flex min-w-0 items-center gap-3">
+                      <input checked={employeeIds.includes(payroll.employeeId)} type="checkbox" onChange={() => toggleEmployee(payroll.employeeId)} />
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-[#1e293b]">{payroll.employee?.name ?? "-"}</span>
+                        <span className="block text-xs text-[#64748b]">{payroll.employee?.employeeId ?? "-"}</span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block font-bold text-[#006fd5]">{formatMoney(remaining)} ₫</span>
+                      <span className="text-xs text-[#64748b]">đã trả {formatMoney(payroll.paidAmount)} ₫</span>
+                    </span>
+                  </label>
+                );
+              })
+            ) : (
+              <div className="px-4 py-8 text-center text-sm text-[#667085]">
+                Không có bảng lương nào đủ điều kiện chi trả.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <div className="flex justify-end gap-3 border-t border-[#edf0f5] pt-4">
+          <button className="rounded-lg border border-[#d0d5dd] px-5 py-2 text-sm font-semibold" type="button" onClick={onClose}>
+            Đóng
+          </button>
+          <button className="inline-flex items-center gap-2 rounded-lg bg-[#006fd5] px-5 py-2 text-sm font-semibold text-white!" disabled={submitting || !payrolls.length} type="submit">
+            <CreditCard className="h-4 w-4" />
+            {submitting ? "Đang chi trả..." : "Tạo đợt chi trả"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function PayrollPeriodOverviewPage() {
   const { periodId = "" } = useParams();
   const navigate = useNavigate();
@@ -414,6 +641,7 @@ export function PayrollPeriodOverviewPage() {
   const permissions = user?.permissions ?? [];
   const canManage = isAdmin || permissions.includes("PAYROLL_MANAGE");
   const canApprove = isAdmin || permissions.includes("PAYROLL_APPROVE");
+  const canPay = isAdmin || permissions.includes("PAYROLL_PAY");
   const [overview, setOverview] = useState<PayrollPeriodOverview | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<EmployeeOption[]>([]);
@@ -422,6 +650,8 @@ export function PayrollPeriodOverviewPage() {
   const [recalculateOpen, setRecalculateOpen] = useState(false);
   const [singleAddOpen, setSingleAddOpen] = useState(false);
   const [approvalRequestOpen, setApprovalRequestOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentEmployeeIds, setPaymentEmployeeIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -499,6 +729,25 @@ export function PayrollPeriodOverviewPage() {
     () => new Set((overview?.payrolls ?? []).map((payroll) => payroll.employeeId)),
     [overview?.payrolls],
   );
+
+  const payablePayrolls = useMemo(
+    () =>
+      (overview?.payrolls ?? []).filter(
+        (payroll) =>
+          (payroll.status === "APPROVED" || payroll.status === "PARTIALLY_PAID") &&
+          Math.max(
+            toNumber(payroll.remainingAmount) ||
+              toNumber(payroll.netSalary) - toNumber(payroll.paidAmount),
+            0,
+          ) > 0,
+      ),
+    [overview?.payrolls],
+  );
+
+  const openPaymentModal = (employeeIds?: string[]) => {
+    setPaymentEmployeeIds(employeeIds?.length ? employeeIds : payablePayrolls.map((payroll) => payroll.employeeId));
+    setPaymentOpen(true);
+  };
 
   const requestPeriodApproval = async (payload: {
     title?: string;
@@ -630,6 +879,28 @@ export function PayrollPeriodOverviewPage() {
     });
   };
 
+  const createPaymentBatch = async (payload: {
+    employeeIds: string[];
+    mode: PayrollPaymentMode;
+    amount?: string;
+    percent?: string;
+    paymentDate: string;
+    note?: string | null;
+  }) => {
+    if (!overview) return;
+
+    const batch = await payrollService.createPaymentBatch({
+      periodId: overview.period.id,
+      ...payload,
+    });
+    setOverview(await payrollService.getPeriodOverview(overview.period.id));
+    setPaymentOpen(false);
+    Modal.success({
+      title: "Đã tạo đợt chi trả lương",
+      content: `Đã chi trả ${formatMoney(batch?.totalAmount)} ₫ cho ${batch?.payments?.length ?? payload.employeeIds.length} nhân viên.`,
+    });
+  };
+
   return (
     <AppLayout>
       <main className="h-full overflow-y-auto bg-[#f1f5f9]">
@@ -674,6 +945,12 @@ export function PayrollPeriodOverviewPage() {
                 <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-md active:scale-95" type="button" onClick={cancelPeriod}>
                   <XCircle className="h-4 w-4" />
                   Hủy kỳ lương
+                </button>
+              ) : null}
+              {overview?.period.status === "APPROVED" && canPay ? (
+                <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-lg active:scale-95 disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={!payablePayrolls.length} onClick={() => openPaymentModal()}>
+                  <CreditCard className="h-4 w-4" />
+                  Chi trả lương
                 </button>
               ) : null}
             </div>
@@ -787,6 +1064,18 @@ export function PayrollPeriodOverviewPage() {
                               <button className="grid h-8 w-8 place-items-center rounded-lg bg-[#f0f7ff] text-[#006fd5] transition-all hover:-translate-y-0.5 hover:bg-[#006fd5] hover:text-white hover:shadow-md active:scale-95" type="button" title="Xem chi tiết" onClick={() => navigate(paths.payrollEmployeeDetail(overview.period.id, payroll.employeeId))}>
                                 <Eye className="h-4 w-4" />
                               </button>
+                              {canPay &&
+                              overview.period.status === "APPROVED" &&
+                              (payroll.status === "APPROVED" || payroll.status === "PARTIALLY_PAID") &&
+                              Math.max(
+                                toNumber(payroll.remainingAmount) ||
+                                  toNumber(payroll.netSalary) - toNumber(payroll.paidAmount),
+                                0,
+                              ) > 0 ? (
+                                <button className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white hover:shadow-md active:scale-95" type="button" title="Chi trả lương" onClick={() => openPaymentModal([payroll.employeeId])}>
+                                  <CreditCard className="h-4 w-4" />
+                                </button>
+                              ) : null}
                               {canEditPeriod && canManage ? (
                                 <button className="grid h-8 w-8 place-items-center rounded-lg bg-rose-50 text-rose-600 transition-all hover:-translate-y-0.5 hover:bg-rose-600 hover:text-white hover:shadow-md active:scale-95" type="button" title="Xóa khỏi kỳ" onClick={() => removeEmployeeFromPeriod(payroll.employeeId, payroll.employee?.name)}>
                                   <Trash2 className="h-4 w-4" />
@@ -851,6 +1140,14 @@ export function PayrollPeriodOverviewPage() {
         positions={positions}
         onClose={() => setPayrollModalMode(null)}
         onSubmit={payrollModalMode === "recalculate" ? createPayrollsForPeriod : addPayrollsToPeriod}
+      />
+      <PayrollPaymentModal
+        open={paymentOpen}
+        overview={overview}
+        payrolls={payablePayrolls}
+        initialEmployeeIds={paymentEmployeeIds}
+        onClose={() => setPaymentOpen(false)}
+        onSubmit={createPaymentBatch}
       />
     </AppLayout>
   );

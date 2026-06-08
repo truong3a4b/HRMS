@@ -57,6 +57,7 @@ extension RequestItemMapper on RequestItemDto {
       approvalMode: approvalMode == 'SEQUENTIAL'
           ? ApprovalMode.sequential
           : ApprovalMode.parallel,
+      currentStep: currentStep,
       requesterId: requesterId,
       requester: requester?.toEntity(),
       approvals: approvals.map((item) => item.toEntity()).toList(),

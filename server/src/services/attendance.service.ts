@@ -9,6 +9,10 @@ import {
 import { prisma } from "../config/prisma";
 import { PERMISSIONS, PermissionKey } from "../constants/permissions";
 import { requestService } from "./request.service";
+import {
+  getInitialRequestRecipientIds,
+  notifyRequestWorkflow,
+} from "./request-notification.service";
 import { ApiError } from "../utils/apiError";
 
 const normalizeIds = (values: string[]) =>
@@ -777,6 +781,18 @@ export const attendanceService = {
       });
 
       return createdRequest;
+    });
+
+    await notifyRequestWorkflow({
+      userIds: getInitialRequestRecipientIds(
+        input.approvalMode ?? ApprovalMode.PARALLEL,
+        approverIds,
+        watcherIds,
+      ),
+      title: "Yêu cầu mới",
+      message: `Yêu cầu "${request.title}" đang chờ xử lý.`,
+      request,
+      senderId: requester.id,
     });
 
     return requestService.getRequestById(

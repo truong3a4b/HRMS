@@ -28,12 +28,6 @@ type HomeRoleContentProps = {
   data: HomeData;
 };
 
-const dateFormatter = new Intl.DateTimeFormat("vi-VN", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
-
 function formatDate(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);

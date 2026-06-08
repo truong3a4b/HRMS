@@ -6,6 +6,10 @@ import {
 } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { ApiError } from "../utils/apiError";
+import {
+  getInitialRequestRecipientIds,
+  notifyRequestWorkflow,
+} from "./request-notification.service";
 
 type ScheduleDetail = {
   date: string;
@@ -531,6 +535,18 @@ export const scheduleAssignmentService = {
       });
 
       return createdRequest;
+    });
+
+    await notifyRequestWorkflow({
+      userIds: getInitialRequestRecipientIds(
+        request.approvalMode,
+        approverIds,
+        watcherIds,
+      ),
+      title: "Yêu cầu mới",
+      message: `Yêu cầu "${request.title}" đang chờ xử lý.`,
+      request,
+      senderId: requesterId,
     });
 
     return request;

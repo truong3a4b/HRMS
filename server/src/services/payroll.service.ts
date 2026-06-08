@@ -15,6 +15,10 @@ import {
 import { prisma } from "../config/prisma";
 import { PERMISSIONS, PermissionKey } from "../constants/permissions";
 import { ApiError } from "../utils/apiError";
+import {
+  getInitialRequestRecipientIds,
+  notifyRequestWorkflow,
+} from "./request-notification.service";
 
 type DecimalInput = string | number;
 
@@ -2290,8 +2294,8 @@ export const payrollService = {
       approvalInput.title?.trim() ||
       `Duyệt kỳ lương tháng ${period.month}/${period.year}`;
 
-    await prisma.$transaction(async (tx) => {
-      await tx.request.create({
+    const approvalRequest = await prisma.$transaction(async (tx) => {
+      const createdRequest = await tx.request.create({
         data: {
           type: RequestType.PAYROLL_APPROVAL,
           title,
@@ -2337,6 +2341,20 @@ export const payrollService = {
           cancelledAt: null,
         },
       });
+
+      return createdRequest;
+    });
+
+    await notifyRequestWorkflow({
+      userIds: getInitialRequestRecipientIds(
+        approvalInput.approvalMode ?? ApprovalMode.PARALLEL,
+        approverIds,
+        watcherIds,
+      ),
+      title: "Yêu cầu mới",
+      message: `Yêu cầu "${approvalRequest.title}" đang chờ xử lý.`,
+      request: approvalRequest,
+      senderId: user.id,
     });
 
     return this.getPeriodOverview(user, { ...data, periodId: period.id });

@@ -172,6 +172,7 @@ class RequestItem {
   final String? description;
   final RequestStatus status;
   final ApprovalMode approvalMode;
+  final int currentStep;
   final String requesterId;
   final RequestUser? requester;
   final List<RequestApproval> approvals;
@@ -190,6 +191,7 @@ class RequestItem {
     this.description,
     required this.status,
     required this.approvalMode,
+    required this.currentStep,
     required this.requesterId,
     this.requester,
     required this.approvals,

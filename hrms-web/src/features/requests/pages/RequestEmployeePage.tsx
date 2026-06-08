@@ -117,7 +117,11 @@ export function RequestEmployeePage() {
 
   const canDecideRequest = (request: RequestItem) =>
     request.approvals.some(
-      (approval) => approval.approverId === user?.id && approval.status === "PENDING",
+      (approval) =>
+        approval.approverId === user?.id &&
+        approval.status === "PENDING" &&
+        (request.approvalMode !== "SEQUENTIAL" ||
+          approval.stepOrder === request.currentStep),
     ) && !finalStatuses.has(request.status);
 
   const activeDescription =

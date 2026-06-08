@@ -93,7 +93,10 @@ const createBonusPenaltyRequestSchema = z.object({
 });
 
 const decisionSchema = z.object({
-  decision: z.nativeEnum(RequestApprovalStatus),
+  decision: z.enum([
+    RequestApprovalStatus.APPROVED,
+    RequestApprovalStatus.REJECTED,
+  ]),
   note: z.string().optional(),
 });
 

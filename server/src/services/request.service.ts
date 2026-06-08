@@ -8,6 +8,7 @@ import {
   PayrollPeriodStatus,
   PayrollStatus,
   LeaveType,
+  NotificationType,
   Prisma,
   RequestApprovalStatus,
   RequestStatus,
@@ -16,6 +17,7 @@ import {
 } from "../../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { applyScheduleAssignments } from "./schedule-assignment.service";
+import { notificationService } from "./notification.service";
 import { ApiError } from "../utils/apiError";
 
 const userSummarySelect = {
@@ -188,7 +190,20 @@ const finalRequestStatuses = new Set<RequestStatus>([
   RequestStatus.REJECTED,
   RequestStatus.CANCELLED,
   RequestStatus.APPROVED,
+  RequestStatus.FAILED,
 ]);
+
+const SERIALIZABLE_RETRY_LIMIT = 3;
+
+class RequestExecutionError extends Error {
+  constructor(
+    readonly requestId: string,
+    readonly cause: unknown,
+  ) {
+    super("Failed to apply approved request");
+    Object.setPrototypeOf(this, RequestExecutionError.prototype);
+  }
+}
 
 const leaveTypes = new Set<LeaveType>(Object.values(LeaveType));
 const paidLeaveStatus = "PAID_LEAVE" as AttendanceStatus;
@@ -334,6 +349,86 @@ const addUtcDays = (date: Date, days: number) =>
       date.getUTCMonth(),
       date.getUTCDate() + days,
     ),
+  );
+
+const isTransactionConflict = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2034";
+
+const runSerializableTransaction = async <T>(
+  operation: (tx: Prisma.TransactionClient) => Promise<T>,
+) => {
+  for (let attempt = 1; attempt <= SERIALIZABLE_RETRY_LIMIT; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      if (!isTransactionConflict(error) || attempt === SERIALIZABLE_RETRY_LIMIT) {
+        throw error;
+      }
+    }
+  }
+
+  throw new ApiError(409, "Request was updated concurrently. Please retry.");
+};
+
+const notifyRequestUsers = async (
+  userIds: string[],
+  title: string,
+  message: string,
+  request: Pick<RequestWithDetails, "id" | "type" | "status">,
+  senderId?: string,
+) => {
+  const recipients = normalizeIds(userIds).filter(
+    (userId) => userId !== senderId,
+  );
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  try {
+    await notificationService.createForUsers({
+      userIds: recipients,
+      title,
+      message,
+      type: NotificationType.EMPLOYEE,
+      senderId,
+      data: {
+        requestId: request.id,
+        requestType: request.type,
+        requestStatus: request.status,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to send request workflow notification:", error);
+  }
+};
+
+const getInitialRequestNotificationRecipients = (
+  request: RequestWithDetails,
+) => {
+  const approverIds =
+    request.approvalMode === ApprovalMode.SEQUENTIAL
+      ? request.approvals
+          .filter((approval) => approval.stepOrder === request.currentStep)
+          .map((approval) => approval.approverId)
+      : request.approvals.map((approval) => approval.approverId);
+
+  return [
+    ...approverIds,
+    ...request.watchers.map((watcher) => watcher.userId),
+  ];
+};
+
+const notifyRequestCreated = (request: RequestWithDetails) =>
+  notifyRequestUsers(
+    getInitialRequestNotificationRecipients(request),
+    "Yêu cầu mới",
+    `Yêu cầu "${request.title}" đang chờ xử lý.`,
+    request,
+    request.requesterId,
   );
 
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
@@ -897,7 +992,9 @@ const createRequestWithApprovals = async (
     return createdRequest;
   });
 
-  return sortApprovals(request);
+  const sortedRequest = sortApprovals(request);
+  await notifyRequestCreated(sortedRequest);
+  return sortedRequest;
 };
 
 const sortApprovals = (request: RequestWithDetails) => ({
@@ -1068,12 +1165,7 @@ const assertCanViewRequest = (
 const assertCanActAsApprover = (
   request: RequestWithDetails,
   userId: string,
-  isAdmin: boolean,
 ) => {
-  if (isAdmin) {
-    return;
-  }
-
   const isAssignedApprover = request.approvals.some(
     (approval) => approval.approverId === userId,
   );
@@ -1093,21 +1185,6 @@ const assertCanCompleteOrCancel = (
   }
 
   throw new ApiError(403, "You can only manage your own request");
-};
-
-const updateRequestWithDetails = async (
-  requestId: string,
-  data: Prisma.RequestUpdateInput,
-) => {
-  const updatedRequest = await prisma.request.update({
-    where: {
-      id: requestId,
-    },
-    data,
-    include: requestInclude,
-  });
-
-  return sortApprovals(updatedRequest);
 };
 
 const getNextSequentialStep = (
@@ -1477,15 +1554,6 @@ const executeAttendanceCorrectionLogic = async (
     );
   }
 
-  await tx.attendanceCorrectionRequest.update({
-    where: {
-      requestId: request.id,
-    },
-    data: {
-      appliedAt: decidedAt,
-    },
-  });
-
   const attendanceRecord = await tx.attendanceRecord.findUnique({
     where: {
       employeeId_date: {
@@ -1499,7 +1567,11 @@ const executeAttendanceCorrectionLogic = async (
   });
 
   if (!attendanceRecord) {
-    return;
+    throw new ApiError(
+      409,
+      "Attendance record does not exist for the selected date",
+      "ATTENDANCE_RECORD_NOT_FOUND",
+    );
   }
 
   const details = attendanceRecord.details.filter((detail) => {
@@ -1512,6 +1584,14 @@ const executeAttendanceCorrectionLogic = async (
       : true;
   });
 
+  if (details.length === 0) {
+    throw new ApiError(
+      409,
+      "No attendance detail can be corrected for the selected shift",
+      "ATTENDANCE_DETAIL_NOT_FOUND",
+    );
+  }
+
   for (const detail of details) {
     await tx.attendanceRecordDetail.update({
       where: {
@@ -1522,6 +1602,15 @@ const executeAttendanceCorrectionLogic = async (
       },
     });
   }
+
+  await tx.attendanceCorrectionRequest.update({
+    where: {
+      requestId: request.id,
+    },
+    data: {
+      appliedAt: decidedAt,
+    },
+  });
 };
 
 /**
@@ -1815,8 +1904,6 @@ export const requestService = {
       approverIds: input.approverIds,
       watcherIds: input.watcherIds,
       createExtra: async (tx, requestId) => {
-        await cancelAutoPenaltyVouchersForLeave(tx, employee.id, occurrences);
-
         await tx.leaveRequest.create({
           data: {
             requestId,
@@ -1993,37 +2080,72 @@ export const requestService = {
   },
 
   async startReview(requestId: string, userId: string, role: UserRole) {
-    const request = await getRequestByIdWithDetails(requestId);
-    assertCanActAsApprover(request, userId, role === UserRole.ADMIN);
+    void role;
 
-    if (finalRequestStatuses.has(request.status)) {
-      throw new ApiError(
-        400,
-        "Request is already finished",
-        "REQUEST_ALREADY_FINAL",
-      );
-    }
-
-    const approver = request.approvals.find(
-      (approval) => approval.approverId === userId,
-    );
-
-    if (!approver) {
-      throw new ApiError(403, "You are not assigned to this request");
-    }
-
-    if (approver.status !== RequestApprovalStatus.PENDING) {
-      throw new ApiError(400, "You have already reviewed this request");
-    }
-
-    if (request.status === RequestStatus.PENDING) {
-      return updateRequestWithDetails(requestId, {
-        status: RequestStatus.PROCESSING,
-        processingAt: new Date(),
+    return runSerializableTransaction(async (tx) => {
+      const request = await tx.request.findUnique({
+        where: { id: requestId },
+        include: requestInclude,
       });
-    }
 
-    return request;
+      if (!request) {
+        throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
+      }
+
+      assertCanActAsApprover(request, userId);
+
+      if (finalRequestStatuses.has(request.status)) {
+        throw new ApiError(
+          400,
+          "Request is already finished",
+          "REQUEST_ALREADY_FINAL",
+        );
+      }
+
+      const approver = request.approvals.find(
+        (approval) => approval.approverId === userId,
+      );
+
+      if (!approver) {
+        throw new ApiError(403, "You are not assigned to this request");
+      }
+
+      if (approver.status !== RequestApprovalStatus.PENDING) {
+        throw new ApiError(400, "You have already reviewed this request");
+      }
+
+      if (
+        request.approvalMode === ApprovalMode.SEQUENTIAL &&
+        approver.stepOrder !== request.currentStep
+      ) {
+        throw new ApiError(
+          409,
+          "It is not your turn to review this request",
+          "REQUEST_APPROVAL_OUT_OF_ORDER",
+        );
+      }
+
+      if (request.status === RequestStatus.PENDING) {
+        await tx.request.update({
+          where: { id: requestId },
+          data: {
+            status: RequestStatus.PROCESSING,
+            processingAt: new Date(),
+          },
+        });
+      }
+
+      const updatedRequest = await tx.request.findUnique({
+        where: { id: requestId },
+        include: requestInclude,
+      });
+
+      if (!updatedRequest) {
+        throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
+      }
+
+      return sortApprovals(updatedRequest);
+    });
   },
 
   async decideRequest(
@@ -2032,52 +2154,71 @@ export const requestService = {
     role: UserRole,
     input: ReviewDecisionInput,
   ) {
-    const request = await getRequestByIdWithDetails(requestId);
-    assertCanActAsApprover(request, userId, role === UserRole.ADMIN);
+    void role;
 
-    if (finalRequestStatuses.has(request.status)) {
+    if (
+      input.decision !== RequestApprovalStatus.APPROVED &&
+      input.decision !== RequestApprovalStatus.REJECTED
+    ) {
       throw new ApiError(
         400,
-        "Request is already finished",
-        "REQUEST_ALREADY_FINAL",
+        "Decision must be APPROVED or REJECTED",
+        "INVALID_REQUEST_DECISION",
       );
     }
 
-    const approval = request.approvals.find(
-      (item) => item.approverId === userId,
-    );
-
-    if (!approval) {
-      throw new ApiError(403, "You are not assigned to this request");
-    }
-
-    if (approval.status !== RequestApprovalStatus.PENDING) {
-      throw new ApiError(400, "You have already reviewed this request");
-    }
-
     // Chuyển sang PROCESSING nếu còn ở PENDING
-    if (request.status === RequestStatus.PENDING) {
-      await prisma.request.update({
-        where: {
-          id: requestId,
-        },
-        data: {
-          status: RequestStatus.PROCESSING,
-          processingAt: new Date(),
-        },
-      });
-    }
-
     const decidedAt = new Date();
+    let result: RequestWithDetails;
 
-    return prisma.$transaction(async (tx) => {
+    try {
+      result = await runSerializableTransaction(async (tx) => {
+      const transactionRequest = await tx.request.findUnique({
+        where: { id: requestId },
+        include: requestInclude,
+      });
+
+      if (!transactionRequest) {
+        throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
+      }
+
+      assertCanActAsApprover(transactionRequest, userId);
+
+      if (finalRequestStatuses.has(transactionRequest.status)) {
+        throw new ApiError(
+          400,
+          "Request is already finished",
+          "REQUEST_ALREADY_FINAL",
+        );
+      }
+
+      const transactionApproval = transactionRequest.approvals.find(
+        (item) => item.approverId === userId,
+      );
+
+      if (
+        !transactionApproval ||
+        transactionApproval.status !== RequestApprovalStatus.PENDING
+      ) {
+        throw new ApiError(400, "You have already reviewed this request");
+      }
+
+      if (
+        transactionRequest.approvalMode === ApprovalMode.SEQUENTIAL &&
+        transactionApproval.stepOrder !== transactionRequest.currentStep
+      ) {
+        throw new ApiError(
+          409,
+          "It is not your turn to review this request",
+          "REQUEST_APPROVAL_OUT_OF_ORDER",
+        );
+      }
       // Cập nhật quyết định của approver
-      await tx.requestApproval.update({
+      const claimedApproval = await tx.requestApproval.updateMany({
         where: {
-          requestId_approverId: {
-            requestId,
-            approverId: userId,
-          },
+          requestId,
+          approverId: userId,
+          status: RequestApprovalStatus.PENDING,
         },
         data: {
           status: input.decision,
@@ -2085,6 +2226,24 @@ export const requestService = {
           decidedAt,
         },
       });
+
+      if (claimedApproval.count !== 1) {
+        throw new ApiError(
+          409,
+          "This approval was already updated",
+          "REQUEST_APPROVAL_CONFLICT",
+        );
+      }
+
+      if (transactionRequest.status === RequestStatus.PENDING) {
+        await tx.request.update({
+          where: { id: requestId },
+          data: {
+            status: RequestStatus.PROCESSING,
+            processingAt: decidedAt,
+          },
+        });
+      }
 
       const latestRequest = await tx.request.findUnique({
         where: {
@@ -2122,7 +2281,7 @@ export const requestService = {
       if (latestRequest.approvalMode === ApprovalMode.SEQUENTIAL) {
         const nextStep = getNextSequentialStep(
           latestRequest,
-          approval.stepOrder,
+          transactionApproval.stepOrder,
         );
 
         const updateData: Prisma.RequestUpdateInput = nextStep
@@ -2145,7 +2304,11 @@ export const requestService = {
 
         // Nếu đơn đã được duyệt hoàn toàn thì thực thi logic cụ thể
         if (updatedRequest.status === RequestStatus.APPROVED) {
-          await executeRequestLogic(tx, updatedRequest, decidedAt);
+          try {
+            await executeRequestLogic(tx, updatedRequest, decidedAt);
+          } catch (error) {
+            throw new RequestExecutionError(requestId, error);
+          }
         }
 
         return sortApprovals(updatedRequest);
@@ -2175,31 +2338,110 @@ export const requestService = {
 
       // Nếu đơn đã được duyệt hoàn toàn thì thực thi logic cụ thể
       if (updatedRequest.status === RequestStatus.APPROVED) {
-        await executeRequestLogic(tx, updatedRequest, decidedAt);
+        try {
+          await executeRequestLogic(tx, updatedRequest, decidedAt);
+        } catch (error) {
+          throw new RequestExecutionError(requestId, error);
+        }
       }
 
       return sortApprovals(updatedRequest);
-    });
+      });
+    } catch (error) {
+      if (error instanceof RequestExecutionError) {
+        await prisma.request.updateMany({
+          where: {
+            id: error.requestId,
+            status: {
+              in: [RequestStatus.PENDING, RequestStatus.PROCESSING],
+            },
+          },
+          data: {
+            status: RequestStatus.FAILED,
+          },
+        });
+
+        const failedRequest = await getRequestByIdWithDetails(error.requestId);
+        await notifyRequestUsers(
+          [
+            failedRequest.requesterId,
+            ...failedRequest.watchers.map((watcher) => watcher.userId),
+          ],
+          "Yêu cầu xử lý thất bại",
+          `Yêu cầu "${failedRequest.title}" không thể áp dụng dữ liệu nghiệp vụ.`,
+          failedRequest,
+        );
+
+        console.error("Failed to execute approved request:", error.cause);
+        throw new ApiError(
+          500,
+          "Request approval could not be applied",
+          "REQUEST_EXECUTION_FAILED",
+        );
+      }
+
+      throw error;
+    }
+
+    const sortedResult = sortApprovals(result);
+    const nextApproverIds =
+      sortedResult.approvalMode === ApprovalMode.SEQUENTIAL &&
+      sortedResult.status === RequestStatus.PROCESSING
+        ? sortedResult.approvals
+            .filter(
+              (item) =>
+                item.stepOrder === sortedResult.currentStep &&
+                item.status === RequestApprovalStatus.PENDING,
+            )
+            .map((item) => item.approverId)
+        : [];
+    const notificationTitle =
+      sortedResult.status === RequestStatus.APPROVED
+        ? "Yêu cầu đã được duyệt"
+        : sortedResult.status === RequestStatus.REJECTED
+          ? "Yêu cầu đã bị từ chối"
+          : "Yêu cầu đã được cập nhật";
+
+    await notifyRequestUsers(
+      [
+        sortedResult.requesterId,
+        ...sortedResult.watchers.map((watcher) => watcher.userId),
+        ...nextApproverIds,
+      ],
+      notificationTitle,
+      `Yêu cầu "${sortedResult.title}" hiện ở trạng thái ${sortedResult.status}.`,
+      sortedResult,
+      userId,
+    );
+
+    return sortedResult;
   },
 
   async cancelRequest(requestId: string, userId: string, role: UserRole) {
-    const request = await getRequestByIdWithDetails(requestId);
-    assertCanCompleteOrCancel(request, userId, role === UserRole.ADMIN);
-
-    if (
-      request.status === RequestStatus.CANCELLED ||
-      request.status === RequestStatus.REJECTED
-    ) {
-      throw new ApiError(
-        400,
-        "Request is already finished",
-        "REQUEST_ALREADY_FINAL",
-      );
-    }
-
     const cancelledAt = new Date();
+    const result = await runSerializableTransaction(async (tx) => {
+      const request = await tx.request.findUnique({
+        where: { id: requestId },
+        include: requestInclude,
+      });
 
-    return prisma.$transaction(async (tx) => {
+      if (!request) {
+        throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
+      }
+
+      assertCanCompleteOrCancel(request, userId, role === UserRole.ADMIN);
+
+      if (
+        request.status !== RequestStatus.PENDING &&
+        request.status !== RequestStatus.PROCESSING
+      ) {
+        throw new ApiError(
+          400,
+          "Only pending or processing requests can be cancelled",
+          "REQUEST_CANNOT_BE_CANCELLED",
+        );
+      }
+
       await revertPayrollApprovalLogic(tx, request);
       const updatedRequest = await tx.request.update({
         where: { id: requestId },
@@ -2210,7 +2452,21 @@ export const requestService = {
         include: requestInclude,
       });
 
-      return sortApprovals(updatedRequest);
+      return updatedRequest;
     });
+
+    const sortedResult = sortApprovals(result);
+    await notifyRequestUsers(
+      [
+        ...sortedResult.approvals.map((approval) => approval.approverId),
+        ...sortedResult.watchers.map((watcher) => watcher.userId),
+      ],
+      "Yêu cầu đã bị hủy",
+      `Yêu cầu "${sortedResult.title}" đã bị hủy.`,
+      sortedResult,
+      userId,
+    );
+
+    return sortedResult;
   },
 };

@@ -70,7 +70,9 @@ class _RequestDetailSheetState extends ConsumerState<RequestDetailSheet> {
         request.approvals.any(
           (approval) =>
               approval.approverId == userId &&
-              approval.status == RequestApprovalStatus.pending,
+              approval.status == RequestApprovalStatus.pending &&
+              (request.approvalMode != ApprovalMode.sequential ||
+                  approval.stepOrder == request.currentStep),
         ) &&
         !request.status.isFinal;
 

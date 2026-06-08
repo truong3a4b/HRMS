@@ -79,9 +79,14 @@
 - **POST** `/api/requests/leave` : Tạo đơn xin nghỉ phép.
 - **POST** `/api/requests/late-early` : Tạo đơn xin đi muộn / về sớm.
 - **POST** `/api/requests/attendance-correction` : Tạo đơn xin điều chỉnh giờ chấm công.
+- **POST** `/api/requests/bonus-penalty` : Tạo đề xuất thưởng / phạt.
+- **POST** `/api/requests` : Tạo yêu cầu chung theo loại nghiệp vụ.
 - **GET** `/api/requests/:id` : Xem chi tiết một đơn từ.
-- **POST** `/api/requests/:id/decision` : Quản lý Đưa ra quyết định (Duyệt / Từ chối).
-- **POST** `/api/requests/:id/cancel` : Người tạo tự hủy đơn khi chưa duyệt.
+- **POST** `/api/requests/:id/start-review` : Người duyệt bắt đầu xem xét, chuyển đơn sang `PROCESSING` nếu còn `PENDING`.
+- **POST** `/api/requests/:id/decision` : Người duyệt được phân công đưa ra quyết định. Body chỉ nhận `decision = APPROVED | REJECTED` và `note` tùy chọn; với duyệt tuần tự, người duyệt phải đúng `currentStep`.
+- **POST** `/api/requests/:id/cancel` : Người tạo hoặc quản trị viên hủy đơn khi trạng thái còn `PENDING` hoặc `PROCESSING`.
+
+Trạng thái yêu cầu: `PENDING`, `PROCESSING`, `APPROVED`, `REJECTED`, `CANCELLED`, `FAILED`. `FAILED` dùng khi đủ điều kiện duyệt nhưng bước áp dụng dữ liệu nghiệp vụ thất bại.
 
 ## 8. Module: PAYROLL & POLICY (Lương & Chính sách)
 - **GET / POST / PUT / DELETE** `/api/payroll-policies/insurance` : Quản lý chính sách Bảo hiểm.

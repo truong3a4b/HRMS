@@ -1,6 +1,5 @@
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import dayjs from "dayjs";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import type { Employee } from "../../employees/types/employee.types";
 import type { AttendanceHistoryData, AttendanceLog } from "../types/attendance.types";

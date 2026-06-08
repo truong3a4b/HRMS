@@ -1,6 +1,5 @@
 import { Pagination, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import dayjs from "dayjs";
 import { Fingerprint, Pencil, Wifi, WifiOff } from "lucide-react";
 import type { AttendanceDevice } from "../types/attendance.types";
 

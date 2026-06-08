@@ -1,6 +1,5 @@
 import { Modal, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import dayjs from "dayjs";
 import { Fingerprint, Trash2 } from "lucide-react";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import type { AttendanceDevice, EmployeeFingerprint } from "../types/attendance.types";

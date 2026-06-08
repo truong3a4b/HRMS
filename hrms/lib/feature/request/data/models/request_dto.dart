@@ -232,6 +232,7 @@ class RequestItemDto {
   final String? description;
   final String status;
   final String approvalMode;
+  final int currentStep;
   final String requesterId;
   final RequestUserDto? requester;
   final List<RequestApprovalDto> approvals;
@@ -250,6 +251,7 @@ class RequestItemDto {
     this.description,
     required this.status,
     required this.approvalMode,
+    required this.currentStep,
     required this.requesterId,
     this.requester,
     required this.approvals,
@@ -270,6 +272,7 @@ class RequestItemDto {
       description: json['description'] as String?,
       status: json['status'] as String? ?? 'PENDING',
       approvalMode: json['approvalMode'] as String? ?? 'PARALLEL',
+      currentStep: json['currentStep'] as int? ?? 1,
       requesterId: json['requesterId'] as String? ?? '',
       requester: json['requester'] is Map<String, dynamic>
           ? RequestUserDto.fromJson(json['requester'] as Map<String, dynamic>)

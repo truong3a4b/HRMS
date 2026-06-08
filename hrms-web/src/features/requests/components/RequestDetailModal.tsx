@@ -191,7 +191,12 @@ export function RequestDetailModal({
     !!request &&
     request.requesterId === user?.id &&
     !finalStatuses.has(request.status);
-  const canDecide = !!currentApproval && !!request && !finalStatuses.has(request.status);
+  const canDecide =
+    !!currentApproval &&
+    !!request &&
+    !finalStatuses.has(request.status) &&
+    (request.approvalMode !== "SEQUENTIAL" ||
+      currentApproval.stepOrder === request.currentStep);
 
   const runDecision = async (decision: RequestApprovalStatus) => {
     setSubmitting(true);

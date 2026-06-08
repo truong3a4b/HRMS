@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { useSearchParams } from "react-router-dom";
-import { Plus, RefreshCcw, Search } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCcw, Search } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { employeeService } from "../../employees/services/employeeService";
 import type { Employee } from "../../employees/types/employee.types";
@@ -9,6 +9,7 @@ import { AttendanceDeviceTab } from "../components/AttendanceDeviceTab";
 import { AttendanceHistoryTab } from "../components/AttendanceHistoryTab";
 import { AttendanceTimesheetTab } from "../components/AttendanceTimesheetTab";
 import { DeviceFormModal } from "../components/DeviceFormModal";
+import { EmployeeTimesheetOverviewTab } from "../components/EmployeeTimesheetOverviewTab";
 import { EmployeeFingerprintTab } from "../components/EmployeeFingerprintTab";
 import { RegisterFingerprintModal } from "../components/RegisterFingerprintModal";
 import { StandardWorkDaysTab } from "../components/StandardWorkDaysTab";
@@ -130,6 +131,10 @@ export function AttendanceManagementPage({
     useState<AttendanceTimesheetData | null>(null);
   const [employeeTimesheet, setEmployeeTimesheet] =
     useState<AttendanceTimesheetData | null>(null);
+  const [employeeTimesheetDetailOpen, setEmployeeTimesheetDetailOpen] =
+    useState(() => Boolean(searchParams.get("employeeId")));
+  const [employeeTimesheetRefreshKey, setEmployeeTimesheetRefreshKey] =
+    useState(0);
   const [standardWorkDaysRefreshKey, setStandardWorkDaysRefreshKey] =
     useState(0);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
@@ -269,7 +274,10 @@ export function AttendanceManagementPage({
   useEffect(() => {
     const queryEmployeeId = searchParams.get("employeeId");
     const queryMonth = searchParams.get("month");
-    if (queryEmployeeId !== null) setEmployeeId(queryEmployeeId);
+    if (queryEmployeeId !== null) {
+      setEmployeeId(queryEmployeeId);
+      setEmployeeTimesheetDetailOpen(Boolean(queryEmployeeId));
+    }
     if (queryMonth !== null) setEmployeeMonth(getMonthParam(queryMonth));
   }, [searchParams]);
 
@@ -290,8 +298,10 @@ export function AttendanceManagementPage({
 
   useEffect(() => {
     if (activeTab === "employeeLogs") void loadEmployeeHistory();
-    if (activeTab === "employeeTimesheet") void loadEmployeeTimesheet();
-  }, [activeTab, employeeId, employeeMonth]);
+    if (activeTab === "employeeTimesheet" && employeeTimesheetDetailOpen) {
+      void loadEmployeeTimesheet();
+    }
+  }, [activeTab, employeeId, employeeMonth, employeeTimesheetDetailOpen]);
 
   const renderContent = () => {
     if (activeTab === "devices") {
@@ -390,17 +400,51 @@ export function AttendanceManagementPage({
         />
       );
     }
+    if (!employeeTimesheetDetailOpen) {
+      return (
+        <EmployeeTimesheetOverviewTab
+          employees={employees}
+          month={employeeMonth}
+          refreshKey={employeeTimesheetRefreshKey}
+          onMonthChange={setEmployeeMonth}
+          onViewDetail={(targetEmployeeId) => {
+            setEmployeeTimesheet(null);
+            setEmployeeId(targetEmployeeId);
+            setEmployeeTimesheetDetailOpen(true);
+          }}
+        />
+      );
+    }
+
     return (
-      <AttendanceTimesheetTab
-        data={employeeTimesheet}
-        loading={loading}
-        employeeScoped={true}
-        employees={employees}
-        employeeId={employeeId}
-        month={employeeMonth}
-        onEmployeeChange={setEmployeeId}
-        onMonthChange={setEmployeeMonth}
-      />
+      <div className="grid gap-4">
+        <button
+          className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-semibold text-[#344054] transition-all hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5]"
+          type="button"
+          onClick={() => {
+            setEmployeeTimesheetDetailOpen(false);
+            setEmployeeTimesheet(null);
+          }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Quay lại bảng tổng hợp
+        </button>
+        <AttendanceTimesheetTab
+          data={employeeTimesheet}
+          loading={loading}
+          employeeScoped={true}
+          employees={employees}
+          employeeId={employeeId}
+          month={employeeMonth}
+          onEmployeeChange={(value) => {
+            setEmployeeId(value);
+            setEmployeeTimesheetDetailOpen(Boolean(value));
+          }}
+          onMonthChange={setEmployeeMonth}
+          showFilters={false}
+          showEmployeeCard
+        />
+      </div>
     );
   };
 
@@ -412,7 +456,13 @@ export function AttendanceManagementPage({
     if (activeTab === "myLogs") void loadMyHistory();
     if (activeTab === "myTimesheet") void loadMyTimesheet();
     if (activeTab === "employeeLogs") void loadEmployeeHistory();
-    if (activeTab === "employeeTimesheet") void loadEmployeeTimesheet();
+    if (activeTab === "employeeTimesheet") {
+      if (employeeTimesheetDetailOpen) {
+        void loadEmployeeTimesheet();
+      } else {
+        setEmployeeTimesheetRefreshKey((value) => value + 1);
+      }
+    }
     if (activeTab === "standardWorkDays") {
       setStandardWorkDaysRefreshKey((value) => value + 1);
     }

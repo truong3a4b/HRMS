@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Modal } from "antd";
+import { Modal, TimePicker } from "antd";
+import dayjs from "dayjs";
 import {
   Clock,
   Clock3,
@@ -18,6 +19,7 @@ const fieldClass =
   "w-full rounded-lg border border-[#d0d5dd] bg-white px-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10";
 
 const labelClass = "mb-1.5 block text-sm font-medium text-[#344054]";
+const timeFormat = "HH:mm";
 
 const emptyForm = {
   code: "",
@@ -110,9 +112,33 @@ function parseClockToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
+function toTimePickerValue(value: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  return dayjs()
+    .hour(Number(match[1]))
+    .minute(Number(match[2]))
+    .second(0)
+    .millisecond(0);
+}
+
 function isNonOvernightTimeRangeValid(startTime: string, endTime: string) {
   return parseClockToMinutes(endTime) > parseClockToMinutes(startTime);
 }
+
+type TimeFieldName =
+  | "startTime"
+  | "endTime"
+  | "breakStartTime"
+  | "breakEndTime"
+  | "checkInStartTime"
+  | "checkInEndTime"
+  | "checkOutStartTime"
+  | "checkOutEndTime";
 
 function WorkShiftFormModal({
   open,
@@ -223,8 +249,35 @@ function WorkShiftFormModal({
     }
   };
 
-  const timeInputClass =
-    "w-full rounded-lg border border-[#d0d5dd] bg-white pl-9 pr-3 py-2 text-sm text-[#344054] outline-none transition-colors focus:border-[#006fd5] focus:ring-2 focus:ring-[#006fd5]/10 [color-scheme:light]";
+  const timePickerClass =
+    "w-full !rounded-lg !border-[#d0d5dd] !bg-white !px-3 !py-1.5 text-sm [&_.ant-picker-input>input]:!text-[#344054] [&_.ant-picker-input>input]:!text-sm";
+
+  const renderTimePickerInput = (field: TimeFieldName) => (
+    <>
+      <TimePicker
+        allowClear
+        className={timePickerClass}
+        format={timeFormat}
+        minuteStep={5}
+        placeholder="HH:mm"
+        suffixIcon={<Clock className="h-4 w-4 text-[#667085]" />}
+        value={toTimePickerValue(form[field])}
+        onChange={(_, timeString) => {
+          const nextValue = Array.isArray(timeString)
+            ? timeString[0] ?? ""
+            : timeString;
+
+          setForm((current) => ({
+            ...current,
+            [field]: nextValue,
+          }));
+        }}
+      />
+      <span className="hidden">
+        Có thể gõ trực tiếp hoặc bấm biểu tượng đồng hồ để chọn.
+      </span>
+    </>
+  );
 
   const sectionTitle = (title: string, subtitle?: string) => (
     <div className="col-span-2 max-[680px]:col-span-1 mt-1">
@@ -280,16 +333,6 @@ function WorkShiftFormModal({
         </div>
       }
     >
-      <style>{`
-        input[type="time"]::-webkit-calendar-picker-indicator {
-          opacity: 0;
-          position: absolute;
-          right: 0;
-          width: 100%;
-          height: 100%;
-          cursor: pointer;
-        }
-      `}</style>
       <form id="workShiftForm" onSubmit={handleSubmit}>
         {error ? (
           <div className="mb-4 rounded-lg border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-sm text-[#b42318] flex items-start gap-2">
@@ -334,41 +377,13 @@ function WorkShiftFormModal({
             <span className={labelClass}>
               Giờ bắt đầu <span className="text-[#f04438]">*</span>
             </span>
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-              <input
-                className={timeInputClass}
-                type="time"
-                step="300"
-                value={form.startTime}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    startTime: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            {renderTimePickerInput("startTime")}
           </label>
           <label>
             <span className={labelClass}>
               Giờ kết thúc <span className="text-[#f04438]">*</span>
             </span>
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-              <input
-                className={timeInputClass}
-                type="time"
-                step="300"
-                value={form.endTime}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    endTime: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            {renderTimePickerInput("endTime")}
           </label>
 
           <label className="col-span-2 flex cursor-pointer items-center gap-3 rounded-lg border border-[#edf0f5] bg-[#fbfcff] px-4 py-3 transition-colors hover:bg-[#f0f7ff] max-[680px]:col-span-1">
@@ -436,39 +451,11 @@ function WorkShiftFormModal({
             <>
               <label>
                 <span className={labelClass}>Bắt đầu nghỉ</span>
-                <div className="relative">
-                  <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-                  <input
-                    className={timeInputClass}
-                    type="time"
-                    step="300"
-                    value={form.breakStartTime}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        breakStartTime: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
+                {renderTimePickerInput("breakStartTime")}
               </label>
               <label>
                 <span className={labelClass}>Kết thúc nghỉ</span>
-                <div className="relative">
-                  <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-                  <input
-                    className={timeInputClass}
-                    type="time"
-                    step="300"
-                    value={form.breakEndTime}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        breakEndTime: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
+                {renderTimePickerInput("breakEndTime")}
               </label>
             </>
           ) : (
@@ -481,75 +468,19 @@ function WorkShiftFormModal({
           {sectionTitle("Dung sai chấm công", "(để trống nếu không áp dụng)")}
           <label>
             <span className={labelClass}>Bắt đầu check-in</span>
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-              <input
-                className={timeInputClass}
-                type="time"
-                step="300"
-                value={form.checkInStartTime}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    checkInStartTime: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            {renderTimePickerInput("checkInStartTime")}
           </label>
           <label>
             <span className={labelClass}>Kết thúc check-in</span>
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-              <input
-                className={timeInputClass}
-                type="time"
-                step="300"
-                value={form.checkInEndTime}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    checkInEndTime: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            {renderTimePickerInput("checkInEndTime")}
           </label>
           <label>
             <span className={labelClass}>Bắt đầu check-out</span>
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-              <input
-                className={timeInputClass}
-                type="time"
-                step="300"
-                value={form.checkOutStartTime}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    checkOutStartTime: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            {renderTimePickerInput("checkOutStartTime")}
           </label>
           <label>
             <span className={labelClass}>Kết thúc check-out</span>
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
-              <input
-                className={timeInputClass}
-                type="time"
-                step="300"
-                value={form.checkOutEndTime}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    checkOutEndTime: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            {renderTimePickerInput("checkOutEndTime")}
           </label>
           <label>
             <span className={labelClass}>Cho phép đi muộn (phút)</span>
@@ -591,9 +522,9 @@ function WorkShiftFormModal({
             <input
               className={fieldClass}
               min={0}
-              step="0.25"
+              step="0.01"
               type="number"
-              placeholder="VD: 1"
+              placeholder="VD: 0.25, 0.5, 1, 1.25"
               value={form.workUnits}
               onChange={(event) =>
                 setForm((current) => ({

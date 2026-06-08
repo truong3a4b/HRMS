@@ -10,7 +10,8 @@ const rawArgs = new Map(
     .map(([key, value]) => [key, value]),
 );
 
-const employeeArg = rawArgs.get("employees") ?? rawArgs.get("employee") ?? "all";
+const employeeArg =
+  rawArgs.get("employees") ?? rawArgs.get("employee") ?? "all";
 const monthsArg = rawArgs.get("months") ?? "3";
 const shiftsArg = rawArgs.get("shifts") ?? rawArgs.get("shift");
 
@@ -18,11 +19,17 @@ const utcDateOnly = (year: number, month: number, day: number) =>
   new Date(Date.UTC(year, month, day));
 
 const addUtcDays = (date: Date, days: number) =>
-  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + days,
+    ),
+  );
 
 const isWeekend = (date: Date) => {
   const day = date.getUTCDay();
-  return day === 0 || day === 6;
+  return day === 0;
 };
 
 const parseClockToMinutes = (clock: string) => {
@@ -58,7 +65,12 @@ const clockOnDate = (date: Date, clock: string, dayOffset = 0) => {
   );
 };
 
-const offsetClockOnDate = (date: Date, clock: string, offsetMinutes: number, dayOffset = 0) => {
+const offsetClockOnDate = (
+  date: Date,
+  clock: string,
+  offsetMinutes: number,
+  dayOffset = 0,
+) => {
   const base = clockOnDate(date, clock, dayOffset);
   return new Date(base.getTime() + offsetMinutes * 60_000);
 };
@@ -67,17 +79,25 @@ const parseMonthValue = (month: string) => {
   const match = /^(\d{4})-(\d{2})$/.exec(month.trim());
 
   if (!match) {
-    throw new Error(`Invalid month "${month}". Use YYYY-MM, for example 2026-05`);
+    throw new Error(
+      `Invalid month "${month}". Use YYYY-MM, for example 2026-05`,
+    );
   }
 
   const year = Number(match[1]);
   const monthNumber = Number(match[2]);
 
   if (monthNumber < 1 || monthNumber > 12) {
-    throw new Error(`Invalid month "${month}". Use YYYY-MM, for example 2026-05`);
+    throw new Error(
+      `Invalid month "${month}". Use YYYY-MM, for example 2026-05`,
+    );
   }
 
-  return { year, month: monthNumber - 1, key: `${year}-${String(monthNumber).padStart(2, "0")}` };
+  return {
+    year,
+    month: monthNumber - 1,
+    key: `${year}-${String(monthNumber).padStart(2, "0")}`,
+  };
 };
 
 const getTargetMonths = () => {
@@ -91,11 +111,17 @@ const getTargetMonths = () => {
     const now = new Date();
     return Array.from({ length: count }, (_, index) => {
       const offset = count - index;
-      const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
+      const target = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1),
+      );
       const year = target.getUTCFullYear();
       const month = target.getUTCMonth();
 
-      return { year, month, key: `${year}-${String(month + 1).padStart(2, "0")}` };
+      return {
+        year,
+        month,
+        key: `${year}-${String(month + 1).padStart(2, "0")}`,
+      };
     });
   }
 
@@ -138,7 +164,9 @@ const getRandomStatus = () => {
       AttendanceStatus.EARLY_LEAVE,
       AttendanceStatus.LATE_AND_EARLY_LEAVE,
     ];
-    return lateEarlyStatuses[Math.floor(Math.random() * lateEarlyStatuses.length)];
+    return lateEarlyStatuses[
+      Math.floor(Math.random() * lateEarlyStatuses.length)
+    ];
   }
 
   const leaveOrAbsentStatuses = [
@@ -146,7 +174,9 @@ const getRandomStatus = () => {
     AttendanceStatus.UNPAID_LEAVE,
     AttendanceStatus.ABSENT,
   ];
-  return leaveOrAbsentStatuses[Math.floor(Math.random() * leaveOrAbsentStatuses.length)];
+  return leaveOrAbsentStatuses[
+    Math.floor(Math.random() * leaveOrAbsentStatuses.length)
+  ];
 };
 
 const getCheckTimes = (
@@ -168,7 +198,8 @@ const getCheckTimes = (
   }
 
   const isLate =
-    status === AttendanceStatus.LATE || status === AttendanceStatus.LATE_AND_EARLY_LEAVE;
+    status === AttendanceStatus.LATE ||
+    status === AttendanceStatus.LATE_AND_EARLY_LEAVE;
   const isEarly =
     status === AttendanceStatus.EARLY_LEAVE ||
     status === AttendanceStatus.LATE_AND_EARLY_LEAVE;
@@ -176,7 +207,12 @@ const getCheckTimes = (
 
   return {
     checkInTime: offsetClockOnDate(date, shift.startTime, isLate ? 25 : -4),
-    checkOutTime: offsetClockOnDate(date, shift.endTime, isEarly ? -25 : 4, checkoutDayOffset),
+    checkOutTime: offsetClockOnDate(
+      date,
+      shift.endTime,
+      isEarly ? -25 : 4,
+      checkoutDayOffset,
+    ),
   };
 };
 
@@ -228,7 +264,11 @@ async function getRequiredWorkShifts() {
   return shiftCodes.map((code) => shifts.find((shift) => shift.code === code)!);
 }
 
-async function seedDay(employeeId: string, date: Date, shifts: WorkShiftSeedInfo[]) {
+async function seedDay(
+  employeeId: string,
+  date: Date,
+  shifts: WorkShiftSeedInfo[],
+) {
   const schedule = await prisma.workSchedule.upsert({
     where: {
       employeeId_date: {
@@ -333,7 +373,8 @@ async function seedMonth(
     }
 
     standardWorkUnits += shifts.reduce(
-      (total, shift) => (shift.isOvertime ? total : total + Number(shift.workUnits)),
+      (total, shift) =>
+        shift.isOvertime ? total : total + Number(shift.workUnits),
       0,
     );
 
@@ -366,7 +407,10 @@ async function seedMonth(
 
 async function main() {
   const targetMonths = getTargetMonths();
-  const [employees, shifts] = await Promise.all([getEmployees(), getRequiredWorkShifts()]);
+  const [employees, shifts] = await Promise.all([
+    getEmployees(),
+    getRequiredWorkShifts(),
+  ]);
 
   if (employees.length === 0) {
     throw new Error("No working employees found");
@@ -389,7 +433,9 @@ async function main() {
       seeded.push(`${targetMonth.key} (${standardWorkUnits} units)`);
     }
 
-    console.log(`${employee.employeeId} - ${employee.name}: ${seeded.join(", ")}`);
+    console.log(
+      `${employee.employeeId} - ${employee.name}: ${seeded.join(", ")}`,
+    );
   }
 }
 

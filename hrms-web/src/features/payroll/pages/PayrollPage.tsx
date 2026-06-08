@@ -4,16 +4,26 @@ import {
   Banknote,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Coins,
   Eye,
   FileCheck2,
   FilePlus2,
+  FileText,
+  MinusCircle,
+  PlusCircle,
   RefreshCcw,
+  Receipt,
   Search,
   Send,
+  ShieldAlert,
   WalletCards,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, Fragment, type FormEvent } from "react";
 import { AppLayout } from "../../../app/layouts";
+import { Avatar } from "../../../shared/ui/Avatar/Avatar";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { useAuth } from "../../auth/services/useAuth";
 import { employeeService } from "../../employees/services/employeeService";
@@ -108,6 +118,44 @@ function getRemainingAmount(payroll: PayrollSummary) {
 
 function getStatusLabel(status: PayrollStatus) {
   return statusOptions.find((item) => item.value === status)?.label ?? status;
+}
+
+function formatPercent(value?: string | number | null) {
+  if (value === undefined || value === null) return "";
+  return ` (${formatNumber(value)}%)`;
+}
+
+function getTaxableIncome(payroll: PayrollDetail) {
+  const profile = payroll.employee?.payrollProfile;
+  const policy = profile?.taxPolicy;
+  if (!profile?.isTaxApplicable || !policy) return 0;
+
+  const insuranceDeduction =
+    toNumber(payroll.socialInsurance) +
+    toNumber(payroll.healthInsurance) +
+    toNumber(payroll.unemploymentInsurance);
+
+  return Math.max(
+    0,
+    toNumber(payroll.grossSalary) -
+      insuranceDeduction -
+      toNumber(policy.personalDeduction) -
+      profile.dependentCount * toNumber(policy.dependentDeduction),
+  );
+}
+
+function getCurrentTaxRate(payroll: PayrollDetail) {
+  const brackets = payroll.employee?.payrollProfile?.taxPolicy?.brackets ?? [];
+  const taxableIncome = getTaxableIncome(payroll);
+  if (taxableIncome <= 0) return 0;
+
+  const bracket = brackets.find((item) => {
+    const from = toNumber(item.fromAmount);
+    const to = item.toAmount == null ? Number.POSITIVE_INFINITY : toNumber(item.toAmount);
+    return taxableIncome > from && taxableIncome <= to;
+  });
+
+  return bracket?.rate;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -645,13 +693,221 @@ function PayrollDetailModal({
   );
 }
 
-function MinePayrollDetailSection({
+type MineDetailDialog = "overtime" | "allowance" | "bonus" | "penalty" | null;
+
+function MineSummaryRow({
+  label,
+  value,
+  icon: Icon,
+  variant = "default",
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ElementType;
+  variant?: "default" | "income" | "deduction" | "total";
+  onClick?: () => void;
+}) {
+  const valueColor =
+    variant === "income"
+      ? "text-emerald-600"
+      : variant === "deduction"
+        ? "text-rose-600"
+        : variant === "total"
+          ? "text-[#006fd5] font-extrabold text-lg"
+          : "text-[#1e293b]";
+  return (
+    <tr
+      className={`group transition-colors ${onClick ? "cursor-pointer hover:bg-[#f8fafc]" : ""}`}
+      onClick={onClick}
+    >
+      <td className="px-5 py-3.5 text-[#475569]">
+        <div className="flex items-center gap-2.5">
+          {Icon ? (
+            <Icon
+              className={`h-4.5 w-4.5 ${
+                variant === "income"
+                  ? "text-emerald-500"
+                  : variant === "deduction"
+                    ? "text-rose-500"
+                    : "text-[#94a3b8]"
+              }`}
+            />
+          ) : null}
+          <span className="font-medium">{label}</span>
+        </div>
+      </td>
+      <td className={`px-5 py-3.5 text-right font-semibold ${valueColor}`}>
+        <span className="inline-flex items-center justify-end gap-2">
+          <span>{value}</span>
+          {onClick ? <ChevronRight className="h-4 w-4 text-[#94a3b8]" /> : null}
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+function MineDetailModal({
   payroll,
+  dialog,
+  onClose,
+}: {
+  payroll: PayrollDetail;
+  dialog: MineDetailDialog;
+  onClose: () => void;
+}) {
+  const bonusLines = payroll.bonusPenaltyLines.filter((line) => line.isBonus);
+  const penaltyLines = payroll.bonusPenaltyLines.filter((line) => !line.isBonus);
+  const moneyRows =
+    dialog === "allowance"
+      ? payroll.allowanceLines.map((line) => ({
+          id: line.id,
+          name: line.allowanceName,
+          amount: line.amount,
+        }))
+      : (dialog === "bonus" ? bonusLines : penaltyLines).map((line) => ({
+          id: line.id,
+          name:
+            line.autoPenaltyPolicy?.name ||
+            line.payrollBonusPenalty?.reason ||
+            line.reason ||
+            "-",
+          amount: line.amount,
+        }));
+
+  const config = {
+    overtime: {
+      title: "Chi tiết tăng ca",
+      total: payroll.totalOvertimePay,
+      countLabel: "Tổng công OT",
+      countValue: `${formatNumber(payroll.totalOvertimeWorkDays)} công`,
+      subLabel: "Tổng giờ OT",
+      subValue: `${formatNumber(payroll.totalOvertimeHours)} giờ`,
+      rows: payroll.overtimeLines,
+    },
+    allowance: {
+      title: "Chi tiết phụ cấp",
+      total: payroll.totalAllowance,
+      rows: payroll.allowanceLines,
+    },
+    bonus: {
+      title: "Chi tiết thưởng",
+      total: payroll.totalBonus,
+      rows: bonusLines,
+    },
+    penalty: {
+      title: "Chi tiết phạt",
+      total: payroll.totalPenalty,
+      rows: penaltyLines,
+    },
+  }[dialog ?? "overtime"];
+
+  return (
+    <Modal open={dialog !== null} title={config.title} onCancel={onClose} footer={null} width={860} centered>
+      <div className="grid gap-4">
+        <div className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+          <div className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+            <div className="text-xs font-bold uppercase tracking-wider text-[#64748b]">Tổng tiền</div>
+            <div className="mt-1 text-2xl font-extrabold text-[#1e293b]">
+              {formatMoney(config.total)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+            <div className="text-xs font-bold uppercase tracking-wider text-[#64748b]">
+              {"countLabel" in config ? config.countLabel : "Số dòng"}
+            </div>
+            <div className="mt-1 text-2xl font-extrabold text-[#1e293b]">
+              {"countValue" in config ? config.countValue : config.rows.length.toLocaleString("vi-VN")}
+            </div>
+          </div>
+          <div className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+            <div className="text-xs font-bold uppercase tracking-wider text-[#64748b]">
+              {"subLabel" in config ? config.subLabel : "Bình quân"}
+            </div>
+            <div className="mt-1 text-2xl font-extrabold text-[#1e293b]">
+              {"subValue" in config
+                ? config.subValue
+                : formatMoney(config.rows.length ? toNumber(config.total) / config.rows.length : 0)}
+            </div>
+          </div>
+        </div>
+
+        <div className="max-h-[50vh] overflow-auto rounded-xl border border-[#e2e8f0] shadow-sm">
+          {dialog === "overtime" ? (
+            <table className="relative w-full min-w-[760px] text-sm">
+              <thead className="sticky top-0 z-10 bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-[#64748b] after:absolute after:bottom-0 after:left-0 after:right-0 after:border-b after:border-[#e2e8f0]">
+                <tr>
+                  <th className="px-5 py-3 text-left">Loại ca OT</th>
+                  <th className="px-5 py-3 text-right">Công OT</th>
+                  <th className="px-5 py-3 text-right">Giờ OT</th>
+                  <th className="px-5 py-3 text-right">Đơn giá giờ</th>
+                  <th className="px-5 py-3 text-right">Hệ số</th>
+                  <th className="px-5 py-3 text-right">Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e2e8f0] bg-white">
+                {payroll.overtimeLines.map((line) => (
+                  <tr key={line.id} className="transition-colors hover:bg-slate-50">
+                    <td className="px-5 py-3">
+                      <div className="font-semibold text-[#1e293b]">{line.workShiftName}</div>
+                      <div className="text-xs text-[#64748b]">{line.workShiftCode ?? "-"}</div>
+                    </td>
+                    <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatNumber(line.workDays)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatNumber(line.hours)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatMoney(line.baseHourlyRate)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatNumber(line.multiplier)}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-[#1e293b]">{formatMoney(line.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="relative w-full min-w-[620px] text-sm">
+              <thead className="sticky top-0 z-10 bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-[#64748b] after:absolute after:bottom-0 after:left-0 after:right-0 after:border-b after:border-[#e2e8f0]">
+                <tr>
+                  <th className="px-5 py-3 text-left">Nội dung</th>
+                  <th className="px-5 py-3 text-right">Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e2e8f0] bg-white">
+                {moneyRows.map((line) => (
+                  <tr key={line.id} className="transition-colors hover:bg-slate-50">
+                    <td className="px-5 py-3 font-medium text-[#1e293b]">{line.name}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-[#1e293b]">{formatMoney(line.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function MinePayrollDetailSection({
+  payroll: payrollInput,
   loading,
 }: {
   payroll: PayrollDetail | null;
   loading: boolean;
 }) {
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<MineDetailDialog>(null);
+
+  const labels = useMemo(() => {
+    const profile = payrollInput?.employee?.payrollProfile;
+    const insurance = profile?.insurancePolicy;
+    const taxRate = payrollInput ? getCurrentTaxRate(payrollInput) : null;
+
+    return {
+      social: `BHXH${formatPercent(insurance?.employeeSocialRate)}`,
+      health: `BHYT${formatPercent(insurance?.employeeHealthRate)}`,
+      unemployment: `BHTN${formatPercent(insurance?.employeeUnemploymentRate)}`,
+      tax: `Thuế TNCN${profile?.taxPolicy ? formatPercent(taxRate ?? 0) : ""}`,
+    };
+  }, [payrollInput]);
+
   if (loading) {
     return (
       <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
@@ -660,18 +916,243 @@ function MinePayrollDetailSection({
     );
   }
 
-  if (!payroll) {
+  if (!payrollInput) {
     return (
       <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
         <EmptyState text="Chưa có bảng lương phù hợp." />
       </section>
     );
   }
+  const payroll = payrollInput;
 
-  const insuranceTotal =
-    toNumber(payroll.socialInsurance) +
-    toNumber(payroll.healthInsurance) +
-    toNumber(payroll.unemploymentInsurance);
+  return (
+    <section className="grid gap-5">
+      <section className="relative overflow-hidden rounded-xl bg-gradient-to-r from-slate-900 to-[#1e293b] p-6 shadow-lg">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 shrink-0 rounded-full border-2 border-white/20 shadow-inner">
+              <Avatar alt={payroll.employee?.name ?? "NV"} sizeClass="h-full w-full" />
+            </div>
+            <div>
+              <div className="text-xl font-extrabold text-white">{payroll.employee?.name}</div>
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                <span className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-white backdrop-blur-sm">
+                  {payroll.employee?.employeeId}
+                </span>
+                <span>·</span>
+                <span>{payroll.employee?.department?.name ?? "-"}</span>
+                <span>·</span>
+                <span>{payroll.employee?.position?.name ?? "-"}</span>
+              </div>
+            </div>
+          </div>
+          <span className="rounded-full border border-blue-400/30 bg-blue-500/20 px-4 py-1.5 text-sm font-bold text-blue-200 backdrop-blur-md">
+            {getStatusLabel(payroll.status)}
+          </span>
+        </div>
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-blue-500 opacity-20 blur-3xl" />
+        <div className="absolute bottom-0 right-20 h-20 w-20 rounded-full bg-emerald-500 opacity-20 blur-2xl" />
+      </section>
+
+      <div className="grid grid-cols-4 gap-4 max-[960px]:grid-cols-2 max-[560px]:grid-cols-1">
+        {[
+          { label: "Lương công thực tế", value: payroll.actualSalary, icon: Banknote, color: "blue" },
+          { label: "Lương nghỉ lễ", value: payroll.holidayPay, icon: CalendarDays, color: "blue" },
+          { label: "Tổng Gross", value: payroll.grossSalary, icon: Coins, color: "blue" },
+          { label: "Khấu trừ", value: payroll.totalDeduction, icon: MinusCircle, color: "rose" },
+          { label: "Thực nhận", value: payroll.netSalary, icon: WalletCards, color: "emerald" },
+        ].map((item) => {
+          const Icon = item.icon;
+          const colorClasses = {
+            blue: "bg-[#f0f7ff] text-[#006fd5] border-[#006fd5]/10",
+            emerald: "bg-emerald-50 text-emerald-600 border-emerald-600/10",
+            rose: "bg-rose-50 text-rose-600 border-rose-600/10",
+          }[item.color as "blue" | "emerald" | "rose"];
+
+          return (
+            <div className="group relative overflow-hidden rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)]" key={item.label}>
+              <div className="relative z-10 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#64748b]">{item.label}</div>
+                  <div className="mt-1.5 text-2xl font-extrabold tracking-tight text-[#1e293b]">{formatMoney(item.value)}</div>
+                </div>
+                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl border ${colorClasses} transition-transform group-hover:scale-110`}>
+                  <Icon className="h-6 w-6" />
+                </span>
+              </div>
+              <div className={`absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-20 blur-2xl transition-opacity group-hover:opacity-40 ${item.color === "blue" ? "bg-[#006fd5]" : item.color === "emerald" ? "bg-emerald-500" : "bg-rose-500"}`} />
+            </div>
+          );
+        })}
+      </div>
+
+      <section className="overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+        <div className="flex items-center gap-2 border-b border-[#e2e8f0] bg-[#f8fafc] px-5 py-4">
+          <Receipt className="h-5 w-5 text-[#64748b]" />
+          <h2 className="text-lg font-extrabold text-[#1e293b]">Bảng lương chi tiết</h2>
+        </div>
+        <div className="border-b border-[#e2e8f0] bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-[#64748b]">Thu nhập</div>
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-[#e2e8f0]">
+            <MineSummaryRow icon={FileText} label="Lương cơ bản" value={formatMoney(payroll.baseSalary)} />
+            <MineSummaryRow icon={Clock} label="Công chuẩn" value={formatNumber(payroll.standardWorkDays)} />
+            <MineSummaryRow icon={Clock} label="Công thực tế" value={formatNumber(payroll.actualWorkDays)} />
+            <MineSummaryRow icon={CalendarDays} label="Lương nghỉ lễ" variant="income" value={formatMoney(payroll.holidayPay)} />
+            <MineSummaryRow icon={CalendarDays} label="Công nghỉ lễ" value={formatNumber(payroll.holidayWorkDays)} />
+            <MineSummaryRow icon={Clock} label="Tăng ca (OT)" variant="income" value={formatMoney(payroll.totalOvertimePay)} onClick={() => setDialog("overtime")} />
+            <MineSummaryRow icon={PlusCircle} label="Phụ cấp" variant="income" value={formatMoney(payroll.totalAllowance)} onClick={() => setDialog("allowance")} />
+            <MineSummaryRow icon={PlusCircle} label="Thưởng" variant="income" value={formatMoney(payroll.totalBonus)} onClick={() => setDialog("bonus")} />
+          </tbody>
+        </table>
+        <div className="border-y border-[#e2e8f0] bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-[#64748b]">Khấu trừ</div>
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-[#e2e8f0]">
+            <MineSummaryRow icon={MinusCircle} label="Phạt" variant="deduction" value={formatMoney(payroll.totalPenalty)} onClick={() => setDialog("penalty")} />
+            <MineSummaryRow icon={ShieldAlert} label={labels.social} variant="deduction" value={formatMoney(payroll.socialInsurance)} />
+            <MineSummaryRow icon={ShieldAlert} label={labels.health} variant="deduction" value={formatMoney(payroll.healthInsurance)} />
+            <MineSummaryRow icon={ShieldAlert} label={labels.unemployment} variant="deduction" value={formatMoney(payroll.unemploymentInsurance)} />
+            <MineSummaryRow icon={MinusCircle} label={labels.tax} variant="deduction" value={formatMoney(payroll.personalIncomeTax)} />
+          </tbody>
+        </table>
+        <div className="border-y border-[#006fd5]/10 bg-[#f0f7ff] px-5 py-3 text-xs font-bold uppercase tracking-wider text-[#006fd5]">Tổng kết</div>
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-[#006fd5]/10 bg-[#f8fbff]">
+            <MineSummaryRow icon={WalletCards} label="Thực nhận" variant="total" value={formatMoney(payroll.netSalary)} />
+            <MineSummaryRow icon={BadgeCheck} label="Đã trả" value={formatMoney(payroll.paidAmount ?? 0)} />
+          </tbody>
+        </table>
+      </section>
+
+      <MineDetailModal payroll={payroll} dialog={dialog} onClose={() => setDialog(null)} />
+    </section>
+  );
+
+  const toggleSection = (section: string) => {
+    setExpandedSection(expandedSection === section ? null : section);
+  };
+
+  const isClickable = (label: string) =>
+    ["Tăng ca", "Phụ cấp", "Thưởng", "Tổng phạt"].includes(label);
+
+  const renderDetailedLines = (label: string) => {
+    if (label === "Tăng ca") {
+      if (!payroll.overtimeLines.length) return <div className="text-center text-[#667085] py-4">Không có dòng chi tiết</div>;
+      return (
+        <div className="overflow-auto rounded-lg border border-[#e2e8f0]">
+          <table className="w-full text-sm">
+            <thead className="bg-[#f8fafc] text-xs uppercase text-[#667085]">
+              <tr>
+                <th className="px-4 py-3 text-left">Loại</th>
+                <th className="px-4 py-3 text-left">Nội dung</th>
+                <th className="px-4 py-3 text-right">Số lượng</th>
+                <th className="px-4 py-3 text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e2e8f0]">
+              {payroll.overtimeLines.map((line) => (
+                <tr key={`ot-${line.id}`}>
+                  <td className="px-4 py-3 font-medium text-[#344054]">Tăng ca</td>
+                  <td className="px-4 py-3 text-[#344054]">{line.workShiftName}</td>
+                  <td className="px-4 py-3 text-right text-[#667085]">
+                    {formatNumber(line.hours)} giờ · x{formatNumber(line.multiplier)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (label === "Phụ cấp") {
+      if (!payroll.allowanceLines.length) return <div className="text-center text-[#667085] py-4">Không có dòng chi tiết</div>;
+      return (
+        <div className="overflow-auto rounded-lg border border-[#e2e8f0]">
+          <table className="w-full text-sm">
+            <thead className="bg-[#f8fafc] text-xs uppercase text-[#667085]">
+              <tr>
+                <th className="px-4 py-3 text-left">Loại</th>
+                <th className="px-4 py-3 text-left">Nội dung</th>
+                <th className="px-4 py-3 text-right">Số lượng</th>
+                <th className="px-4 py-3 text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e2e8f0]">
+              {payroll.allowanceLines.map((line) => (
+                <tr key={`allowance-${line.id}`}>
+                  <td className="px-4 py-3 font-medium text-[#344054]">Phụ cấp</td>
+                  <td className="px-4 py-3 text-[#344054]">{line.allowanceName}</td>
+                  <td className="px-4 py-3 text-right text-[#667085]">-</td>
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-700">{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (label === "Thưởng") {
+      const bonusLines = payroll.bonusPenaltyLines.filter((l) => l.isBonus);
+      if (!bonusLines.length) return <div className="text-center text-[#667085] py-4">Không có dòng chi tiết</div>;
+      return (
+        <div className="overflow-auto rounded-lg border border-[#e2e8f0]">
+          <table className="w-full text-sm">
+            <thead className="bg-[#f8fafc] text-xs uppercase text-[#667085]">
+              <tr>
+                <th className="px-4 py-3 text-left">Loại</th>
+                <th className="px-4 py-3 text-left">Nội dung</th>
+                <th className="px-4 py-3 text-right">Số lượng</th>
+                <th className="px-4 py-3 text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e2e8f0]">
+              {bonusLines.map((line) => (
+                <tr key={`bonus-${line.id}`}>
+                  <td className="px-4 py-3 font-medium text-[#344054]">Thưởng</td>
+                  <td className="px-4 py-3 text-[#344054]">
+                    {line.reason ?? line.autoPenaltyPolicy?.name ?? "-"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-[#667085]">-</td>
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-700">+{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (label === "Tổng phạt") {
+      const penaltyLines = payroll.bonusPenaltyLines.filter((l) => !l.isBonus);
+      if (!penaltyLines.length) return <div className="text-center text-[#667085] py-4">Không có dòng chi tiết</div>;
+      return (
+        <div className="overflow-auto rounded-lg border border-[#e2e8f0]">
+          <table className="w-full text-sm">
+            <thead className="bg-[#f8fafc] text-xs uppercase text-[#667085]">
+              <tr>
+                <th className="px-4 py-3 text-left">Loại</th>
+                <th className="px-4 py-3 text-left">Nội dung</th>
+                <th className="px-4 py-3 text-right">Số lượng</th>
+                <th className="px-4 py-3 text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e2e8f0]">
+              {penaltyLines.map((line) => (
+                <tr key={`penalty-${line.id}`}>
+                  <td className="px-4 py-3 font-medium text-[#344054]">Phạt</td>
+                  <td className="px-4 py-3 text-[#344054]">
+                    {line.reason ?? line.autoPenaltyPolicy?.name ?? "-"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-[#667085]">-</td>
+                  <td className="px-4 py-3 text-right font-semibold text-rose-700">-{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <section className="grid gap-5">
@@ -697,98 +1178,67 @@ function MinePayrollDetailSection({
           ["Khấu trừ", payroll.totalDeduction],
           ["Thực nhận", payroll.netSalary],
         ].map(([label, value]) => (
-          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm" key={label}>
-            <div className="text-xs font-semibold uppercase text-[#667085]">{label}</div>
-            <div className="mt-1 text-xl font-bold text-[#243247]">{formatMoney(value)}</div>
+          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm" key={label as string}>
+            <div className="text-xs font-semibold uppercase text-[#667085]">{label as string}</div>
+            <div className="mt-1 text-xl font-bold text-[#243247]">{formatMoney(value as any)}</div>
           </div>
         ))}
       </div>
 
-      <section className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
-        <div className="border-b border-[#e2e8f0] px-4 py-3 text-base font-bold text-[#243247]">
-          Tổng hợp
-        </div>
-        <table className="w-full text-sm">
-          <tbody className="divide-y divide-[#e2e8f0]">
-            {[
-              ["Lương cơ bản", payroll.baseSalary],
-              ["Công chuẩn", `${formatNumber(payroll.standardWorkDays)} ngày`],
-              ["Công thực tế", `${formatNumber(payroll.actualWorkDays)} ngày`],
-              ["Lương thực tế", payroll.actualSalary],
-              ["Lương nghỉ lễ", payroll.holidayPay],
-              ["Tăng ca", payroll.totalOvertimePay],
-              ["Phụ cấp", payroll.totalAllowance],
-              ["Thưởng", payroll.totalBonus],
-              ["Phạt", payroll.totalPenalty],
-              ["Bảo hiểm", insuranceTotal],
-              ["Thuế TNCN", payroll.personalIncomeTax],
-              ["Gross", payroll.grossSalary],
-              ["Khấu trừ", payroll.totalDeduction],
-              ["Thực nhận", payroll.netSalary],
-              ["Đã trả", payroll.paidAmount ?? 0],
-              ["Còn lại", getRemainingAmount(payroll)],
-            ].map(([label, value]) => (
-              <tr key={label}>
-                <td className="px-4 py-3 text-[#667085]">{label}</td>
-                <td className="px-4 py-3 text-right font-semibold text-[#243247]">
-                  {typeof value === "string" && value.includes("ngày") ? value : formatMoney(value)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
-        <div className="border-b border-[#e2e8f0] px-4 py-3 text-base font-bold text-[#243247]">
-          Dòng chi tiết
-        </div>
-        <div className="overflow-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-[#f8fafc] text-xs uppercase text-[#667085]">
-              <tr>
-                <th className="px-4 py-3 text-left">Loại</th>
-                <th className="px-4 py-3 text-left">Nội dung</th>
-                <th className="px-4 py-3 text-right">Số lượng</th>
-                <th className="px-4 py-3 text-right">Thành tiền</th>
-              </tr>
-            </thead>
+      <section className="grid gap-3">
+        <h3 className="text-base font-bold text-[#243247]">Tổng hợp</h3>
+        <div className="overflow-auto rounded-lg border border-[#e2e8f0] bg-white">
+          <table className="w-full min-w-[640px] text-sm">
             <tbody className="divide-y divide-[#e2e8f0]">
-              {payroll.overtimeLines.map((line) => (
-                <tr key={`ot-${line.id}`}>
-                  <td className="px-4 py-3">OT</td>
-                  <td className="px-4 py-3">{line.workShiftName}</td>
-                  <td className="px-4 py-3 text-right">{formatNumber(line.workDays)} công</td>
-                  <td className="px-4 py-3 text-right">{formatMoney(line.amount)}</td>
-                </tr>
-              ))}
-              {payroll.allowanceLines.map((line) => (
-                <tr key={`allowance-${line.id}`}>
-                  <td className="px-4 py-3">Phụ cấp</td>
-                  <td className="px-4 py-3">{line.allowanceName}</td>
-                  <td className="px-4 py-3 text-right">-</td>
-                  <td className="px-4 py-3 text-right">{formatMoney(line.amount)}</td>
-                </tr>
-              ))}
-              {payroll.bonusPenaltyLines.map((line) => (
-                <tr key={`bonus-penalty-${line.id}`}>
-                  <td className="px-4 py-3">{line.isBonus ? "Thưởng" : "Phạt"}</td>
-                  <td className="px-4 py-3">
-                    {line.autoPenaltyPolicy?.name || line.payrollBonusPenalty?.reason || line.reason || "-"}
-                  </td>
-                  <td className="px-4 py-3 text-right">-</td>
-                  <td className="px-4 py-3 text-right">{formatMoney(line.amount)}</td>
-                </tr>
-              ))}
-              {!payroll.overtimeLines.length &&
-              !payroll.allowanceLines.length &&
-              !payroll.bonusPenaltyLines.length ? (
-                <tr>
-                  <td className="px-4 py-6 text-center text-[#667085]" colSpan={4}>
-                    Không có dòng chi tiết
-                  </td>
-                </tr>
-              ) : null}
+              {[
+                ["Lương cơ bản", payroll.baseSalary],
+                ["Công chuẩn", `${formatNumber(payroll.standardWorkDays)} ngày`],
+                ["Công thực tế", `${formatNumber(payroll.actualWorkDays)} ngày`],
+                ["Tăng ca", payroll.totalOvertimePay],
+                ["Phụ cấp", payroll.totalAllowance],
+                ["Thưởng", payroll.totalBonus],
+                ["Tổng lương gross", payroll.grossSalary],
+                ["BHXH", payroll.socialInsurance],
+                ["BHYT", payroll.healthInsurance],
+                ["BHTN", payroll.unemploymentInsurance],
+                ["Thuế TNCN", payroll.personalIncomeTax],
+                ["Tổng phạt", payroll.totalPenalty],
+                ["Tổng khấu trừ", payroll.totalDeduction],
+                ["Thực nhận", payroll.netSalary],
+              ].map(([label, value]) => {
+                const clickable = typeof label === "string" && isClickable(label);
+                return (
+                  <Fragment key={label as string}>
+                    <tr 
+                      className={clickable ? "cursor-pointer hover:bg-[#f8fafc] group" : ""}
+                      onClick={() => clickable && toggleSection(label as string)}
+                    >
+                      <td className="w-1/2 px-4 py-2.5 text-[#667085]">
+                        <div className="flex items-center gap-2">
+                          {label as string}
+                          {clickable && (
+                            <ChevronDown 
+                              className={`h-4 w-4 text-[#006fd5] transition-transform ${expandedSection === label ? 'rotate-180' : 'opacity-0 group-hover:opacity-100'}`} 
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-[#243247]">
+                        {typeof value === "string" && value.includes("ngày") ? value : formatMoney(value as any)}
+                      </td>
+                    </tr>
+                    {clickable && expandedSection === label && (
+                      <tr className="bg-[#f8fafc]">
+                        <td colSpan={2} className="px-4 py-3">
+                          <div className="rounded-lg border border-[#e2e8f0] bg-white p-3 shadow-sm">
+                            {renderDetailedLines(label as string)}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1278,10 +1728,12 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
           ) : null}
 
           {isMine ? (
-            <MinePayrollDetailSection
-              payroll={selectedDetail}
-              loading={loading || detailLoading}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+              <MinePayrollDetailSection
+                payroll={selectedDetail}
+                loading={loading || detailLoading}
+              />
+            </div>
           ) : (
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
             {loading ? (

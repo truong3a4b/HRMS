@@ -332,17 +332,10 @@ export function getDrawerItems(
     ...(hasPermission("PAYROLL_POLICY_VIEW")
       ? [
           {
-            key: "payroll-config",
-            label: "Cấu hình tính lương",
+            key: "payroll-policies",
+            label: "Chính sách lương",
             icon: <Calculator className={drawerIconClass} />,
-            expandable: true,
-            children: [
-              {
-                key: "payroll-policies",
-                label: "Chính sách lương",
-                path: paths.payrollPolicies,
-              },
-            ],
+            path: paths.payrollPolicies,
           },
         ]
       : []),

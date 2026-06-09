@@ -35,7 +35,7 @@ type PayrollLineInput = {
   workShiftName: string;
   workDays?: DecimalInput;
   hours?: DecimalInput;
-  baseHourlyRate?: DecimalInput;
+  baseDailyRate?: DecimalInput;
   multiplier?: DecimalInput;
   amount?: DecimalInput;
 };
@@ -287,7 +287,7 @@ const payrollDetailInclude = {
       workShiftName: true,
       workDays: true,
       hours: true,
-      baseHourlyRate: true,
+      baseDailyRate: true,
       multiplier: true,
       amount: true,
       createdAt: true,
@@ -502,6 +502,9 @@ const getShiftHours = (start: Date, end: Date) => {
   const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   return hours > 0 ? hours : 0;
 };
+
+const getPositiveMinutes = (start: Date, end: Date) =>
+  Math.max(0, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60)));
 
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -1177,9 +1180,7 @@ const calculatePayrollForEmployee = async (
       ? getSalaryForDate(employee.jobHistories, date, baseSalary) /
         standardWorkDays
       : 0;
-  // Lấy mức lương theo giờ cho làm thêm để tính lương làm thêm sau này, đảm bảo tính đúng lương làm thêm theo từng ngày công đã lên kế hoạch
-  const getHourlyRateForDate = (date: Date) => getDailyRateForDate(date) / 8;
-
+  // Đơn giá công theo từng ngày được dùng cho cả công thường và công tăng ca.
   // Tính lương thực tế dựa trên chi tiết chấm công, chỉ tính cho các ngày công thường
   const actualSalary = paidWorkDetails.reduce((total, detail) => {
     if (isDetailOvertime(detail)) {
@@ -1210,7 +1211,7 @@ const calculatePayrollForEmployee = async (
       getDailyRateForDate(holiday.date) * toNumber(holiday.salaryMultiplier),
     0,
   );
-  const actualWorkDays = actualAttendanceWorkDays + holidayWorkDays;
+  const actualWorkDays = actualAttendanceWorkDays;
 
   // Tạo một Set các ngày đã chấm công có làm việc thường để tính số ngày vắng mặt sau này
   // Tạo một Map để tra cứu nhanh chi tiết chấm công theo ngày, phục vụ cho việc tính toán số ngày vắng mặt không phép và số lần đi muộn/về sớm
@@ -1375,11 +1376,50 @@ const calculatePayrollForEmployee = async (
     }),
   );
   const lateEarlyOccurrences = lateEarlyViolations.length;
+  const attendanceViolationMinutes = attendedDetails.reduce(
+    (totals, detail) => {
+      if (
+        isDetailOvertime(detail) ||
+        hasLeaveCoverage(
+          leaveCoverage,
+          detail.recordDate,
+          detail.workShiftId,
+        )
+      ) {
+        return totals;
+      }
 
-  // Tính lương làm thêm dựa trên chi tiết chấm công, chỉ tính cho các ngày công làm thêm, gộp theo ca làm việc để tính tổng số giờ làm thêm và tổng tiền làm thêm cho mỗi ca
+      if (
+        detail.checkInTime &&
+        (detail.status === AttendanceStatus.LATE ||
+          detail.status === AttendanceStatus.LATE_AND_EARLY_LEAVE)
+      ) {
+        totals.late += getPositiveMinutes(
+          detail.shiftStartTime,
+          detail.checkInTime,
+        );
+      }
+
+      if (
+        detail.checkOutTime &&
+        (detail.status === AttendanceStatus.EARLY_LEAVE ||
+          detail.status === AttendanceStatus.LATE_AND_EARLY_LEAVE)
+      ) {
+        totals.early += getPositiveMinutes(
+          detail.checkOutTime,
+          detail.shiftEndTime,
+        );
+      }
+
+      return totals;
+    },
+    { late: 0, early: 0 },
+  );
+
+  // Tính lương tăng ca theo công của ca; giờ chỉ được giữ lại để thống kê.
   const overtimeLineMap = new Map<string, PayrollLineInput>();
 
-  // Đi qua tất cả chi tiết chấm công đã chấm công, lọc ra các chi tiết làm thêm, tính toán số giờ làm thêm và tiền làm thêm cho từng chi tiết, sau đó gộp theo ca làm việc để tính tổng số giờ làm thêm và tổng tiền làm thêm cho mỗi ca
+  // Gộp các chi tiết tăng ca theo ca và đơn giá công áp dụng tại ngày làm việc.
   attendedDetails
     .filter((detail) => isDetailOvertime(detail))
     .forEach((detail) => {
@@ -1390,9 +1430,9 @@ const calculatePayrollForEmployee = async (
           : getShiftHours(detail.shiftStartTime, detail.shiftEndTime) ||
             workUnits * 8;
       const multiplier = getDetailOvertimeMultiplier(detail);
-      const hourlyRate = getHourlyRateForDate(detail.recordDate);
-      const amount = hourlyRate * hours * multiplier;
-      const key = `${detail.workShiftId}:${roundMoney(hourlyRate)}`;
+      const dailyRate = getDailyRateForDate(detail.recordDate);
+      const amount = dailyRate * workUnits * multiplier;
+      const key = `${detail.workShiftId}:${roundMoney(dailyRate)}`;
       const existing = overtimeLineMap.get(key);
 
       overtimeLineMap.set(key, {
@@ -1401,7 +1441,7 @@ const calculatePayrollForEmployee = async (
         workShiftName: detail.workShiftName,
         workDays: roundWork(toNumber(existing?.workDays) + workUnits),
         hours: roundWork(toNumber(existing?.hours) + hours),
-        baseHourlyRate: roundMoney(hourlyRate),
+        baseDailyRate: roundMoney(dailyRate),
         multiplier,
         amount: roundMoney(toNumber(existing?.amount) + amount),
       });
@@ -1599,14 +1639,30 @@ const calculatePayrollForEmployee = async (
       end,
     )
   ) {
+    const requiredAttendanceWorkDays = attendanceBonusPolicy.useStandardWorkDays
+      ? standardWorkDays
+      : toNumber(attendanceBonusPolicy.requiredWorkDays);
     const meetsWorkDays =
-      !attendanceBonusPolicy.requiredWorkDays ||
-      actualWorkDays >= toNumber(attendanceBonusPolicy.requiredWorkDays);
+      requiredAttendanceWorkDays <= 0 ||
+      actualWorkDays >= requiredAttendanceWorkDays;
     const meetsAbsentDays =
       !attendanceBonusPolicy.maxAbsentDays ||
       leaveOrAbsentShiftCount <= toNumber(attendanceBonusPolicy.maxAbsentDays);
+    const meetsLateMinutes =
+      attendanceBonusPolicy.maxLateMinutes === null ||
+      attendanceBonusPolicy.maxLateMinutes === undefined ||
+      attendanceViolationMinutes.late <= attendanceBonusPolicy.maxLateMinutes;
+    const meetsEarlyMinutes =
+      attendanceBonusPolicy.maxEarlyMinutes === null ||
+      attendanceBonusPolicy.maxEarlyMinutes === undefined ||
+      attendanceViolationMinutes.early <= attendanceBonusPolicy.maxEarlyMinutes;
 
-    if (meetsWorkDays && meetsAbsentDays) {
+    if (
+      meetsWorkDays &&
+      meetsAbsentDays &&
+      meetsLateMinutes &&
+      meetsEarlyMinutes
+    ) {
       bonusPenaltyLines.push({
         isBonus: true,
         reason: attendanceBonusPolicy.name,

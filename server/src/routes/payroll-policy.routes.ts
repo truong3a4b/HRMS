@@ -79,6 +79,7 @@ const updateTaxPolicySchema = createTaxPolicySchema.partial();
 const createAttendanceBonusPolicySchema = z.object({
   name: z.string().trim().min(2),
   amount: decimalSchema,
+  useStandardWorkDays: z.boolean().optional(),
   requiredWorkDays: optionalDecimalSchema,
   maxLateMinutes: z.preprocess(
     emptyToUndefined,

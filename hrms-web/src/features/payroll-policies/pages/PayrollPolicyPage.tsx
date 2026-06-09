@@ -94,6 +94,7 @@ const defaultAllowanceForm: AllowancePolicyPayload = {
 const defaultAttendanceBonusForm: AttendanceBonusPolicyPayload = {
   name: "",
   amount: "",
+  useStandardWorkDays: true,
   requiredWorkDays: "",
   maxLateMinutes: null,
   maxEarlyMinutes: null,
@@ -593,6 +594,7 @@ function AttendanceBonusModal({
         ? {
             name: policy.name,
             amount: policy.amount,
+            useStandardWorkDays: policy.useStandardWorkDays,
             requiredWorkDays: policy.requiredWorkDays ?? "",
             maxLateMinutes: policy.maxLateMinutes ?? null,
             maxEarlyMinutes: policy.maxEarlyMinutes ?? null,
@@ -615,6 +617,10 @@ function AttendanceBonusModal({
     event.preventDefault();
     if (!form.name.trim() || !form.amount || !form.effectiveFrom) {
       setError("Vui lòng nhập tên, số tiền thưởng và ngày hiệu lực.");
+      return;
+    }
+    if (!form.useStandardWorkDays && !form.requiredWorkDays) {
+      setError("Vui lòng nhập số ngày công yêu cầu hoặc bật tự động lấy công chuẩn tháng.");
       return;
     }
 
@@ -678,7 +684,16 @@ function AttendanceBonusModal({
             </label>
             <label>
               <span className={labelClass}>Số ngày công yêu cầu</span>
-              <input className={fieldClass} type="number" min="0" step="0.5" placeholder="VD: 22" value={form.requiredWorkDays ?? ""} onChange={(event) => setValue("requiredWorkDays", event.target.value)} />
+              <input
+                className={`${fieldClass} disabled:cursor-not-allowed disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]`}
+                type="number"
+                min="0"
+                step="0.5"
+                placeholder={form.useStandardWorkDays ? "Tự động theo công chuẩn tháng" : "VD: 22"}
+                value={form.useStandardWorkDays ? "" : (form.requiredWorkDays ?? "")}
+                disabled={form.useStandardWorkDays}
+                onChange={(event) => setValue("requiredWorkDays", event.target.value)}
+              />
             </label>
             <label>
               <span className={labelClass}>Số ngày vắng tối đa</span>
@@ -701,6 +716,18 @@ function AttendanceBonusModal({
               <input className={fieldClass} type="date" value={form.effectiveTo ?? ""} onChange={(event) => setValue("effectiveTo", event.target.value)} />
             </label>
           </div>
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-[#d1e9ff] bg-[#f5faff] p-3 text-sm text-[#344054]">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-[#006fd5]"
+              checked={form.useStandardWorkDays}
+              onChange={(event) => setValue("useStandardWorkDays", event.target.checked)}
+            />
+            <span>
+              <strong className="block font-semibold text-[#175cd3]">Tự động lấy công chuẩn của tháng</strong>
+              Hệ thống dùng công chuẩn trên bảng lương làm điều kiện chuyên cần, không cần sửa chính sách mỗi tháng.
+            </span>
+          </label>
           <label className="mt-4 flex items-center gap-2 text-sm font-medium text-[#344054] cursor-pointer">
             <input type="checkbox" className="h-4 w-4 accent-[#006fd5]" checked={form.isActive} onChange={(event) => setValue("isActive", event.target.checked)} />
             Đang áp dụng
@@ -1697,7 +1724,9 @@ export function PayrollPolicyPage() {
                       </div>
                       <div className="flex flex-wrap gap-1.5 text-xs text-[#667085]">
                         <span className="rounded-md bg-[#f8f9fa] px-2 py-0.5">
-                          Công: {(policy as AttendanceBonusPolicy).requiredWorkDays ?? "-"}
+                          Công: {(policy as AttendanceBonusPolicy).useStandardWorkDays
+                            ? "Theo công chuẩn tháng"
+                            : ((policy as AttendanceBonusPolicy).requiredWorkDays ?? "-")}
                         </span>
                         <span className="rounded-md bg-[#f8f9fa] px-2 py-0.5">
                           Muộn: {(policy as AttendanceBonusPolicy).maxLateMinutes ?? "-"} phút

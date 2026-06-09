@@ -1680,7 +1680,11 @@ export function EmployeeDetailPage() {
                             </div>
                             <div>
                               <span className="block text-xs text-[#667085]">Công yêu cầu</span>
-                              <span className="font-medium text-[#243247]">{attendanceBonus?.requiredWorkDays ?? "-"} ngày</span>
+                              <span className="font-medium text-[#243247]">
+                                {attendanceBonus?.useStandardWorkDays
+                                  ? "Theo công chuẩn tháng"
+                                  : `${attendanceBonus?.requiredWorkDays ?? "-"} ngày`}
+                              </span>
                             </div>
                           </div>
                         </div>

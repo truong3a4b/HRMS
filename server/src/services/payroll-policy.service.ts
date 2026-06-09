@@ -57,6 +57,7 @@ type UpdateTaxPolicyInput = Partial<Omit<CreateTaxPolicyInput, "brackets">> & {
 type CreateAttendanceBonusPolicyInput = {
   name: string;
   amount: DecimalInput;
+  useStandardWorkDays?: boolean;
   requiredWorkDays?: DecimalInput | null;
   maxLateMinutes?: number | null;
   maxEarlyMinutes?: number | null;
@@ -1146,6 +1147,9 @@ export const payrollPolicyService = {
         data: {
           ...(data.name !== undefined ? { name: data.name } : {}),
           ...(data.amount !== undefined ? { amount: data.amount } : {}),
+          ...(data.useStandardWorkDays !== undefined
+            ? { useStandardWorkDays: data.useStandardWorkDays }
+            : {}),
           ...(data.requiredWorkDays !== undefined
             ? { requiredWorkDays: data.requiredWorkDays }
             : {}),

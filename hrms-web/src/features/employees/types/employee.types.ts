@@ -67,6 +67,7 @@ export type AttendanceBonusPolicy = {
   id: string;
   name: string;
   amount: string | number;
+  useStandardWorkDays: boolean;
   requiredWorkDays?: string | number | null;
   maxLateMinutes?: number | null;
   maxEarlyMinutes?: number | null;

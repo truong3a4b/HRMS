@@ -229,7 +229,7 @@ function DetailModal({
                   <th className="px-5 py-3 text-left">Loại ca OT</th>
                   <th className="px-5 py-3 text-right">Công OT</th>
                   <th className="px-5 py-3 text-right">Giờ OT</th>
-                  <th className="px-5 py-3 text-right">Đơn giá giờ</th>
+                  <th className="px-5 py-3 text-right">Đơn giá công</th>
                   <th className="px-5 py-3 text-right">Hệ số</th>
                   <th className="px-5 py-3 text-right">Thành tiền</th>
                 </tr>
@@ -243,7 +243,7 @@ function DetailModal({
                     </td>
                     <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatNumber(line.workDays)}</td>
                     <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatNumber(line.hours)}</td>
-                    <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatMoney(line.baseHourlyRate)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatMoney(line.baseDailyRate)}</td>
                     <td className="px-5 py-3 text-right font-medium text-[#475569]">{formatNumber(line.multiplier)}</td>
                     <td className="px-5 py-3 text-right font-semibold text-[#1e293b]">{formatMoney(line.amount)}</td>
                   </tr>
@@ -382,7 +382,6 @@ export function PayrollEmployeeDetailPage() {
               <div className="grid grid-cols-4 gap-4 max-[960px]:grid-cols-2 max-[560px]:grid-cols-1">
                 {[
                   { label: "Lương công thực tế", value: payroll.actualSalary, icon: Banknote, color: "blue" },
-                  { label: "Lương nghỉ lễ", value: payroll.holidayPay, icon: CalendarDays, color: "blue" },
                   { label: "Tổng Gross", value: payroll.grossSalary, icon: Coins, color: "blue" },
                   { label: "Khấu trừ", value: payroll.totalDeduction, icon: MinusCircle, color: "rose" },
                   { label: "Thực nhận", value: payroll.netSalary, icon: WalletCards, color: "emerald" },

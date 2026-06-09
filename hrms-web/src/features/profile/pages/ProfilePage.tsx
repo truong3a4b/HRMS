@@ -364,7 +364,9 @@ function PayrollPolicyCard({ employee }: { employee: Employee }) {
             </div>
             <div>Số tiền: {formatCurrency(attendanceBonus?.amount)}</div>
             <div>
-              Công yêu cầu: {attendanceBonus?.requiredWorkDays ?? "-"} | Vắng tối đa:{" "}
+              Công yêu cầu: {attendanceBonus?.useStandardWorkDays
+                ? "Theo công chuẩn tháng"
+                : (attendanceBonus?.requiredWorkDays ?? "-")} | Vắng tối đa:{" "}
               {attendanceBonus?.maxAbsentDays ?? "-"}
             </div>
             <div className="text-xs text-[#667085]">

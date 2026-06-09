@@ -141,7 +141,7 @@ export type PayrollOvertimeLine = {
   workShiftName: string;
   workDays: MoneyValue;
   hours: MoneyValue;
-  baseHourlyRate: MoneyValue;
+  baseDailyRate: MoneyValue;
   multiplier: MoneyValue;
   amount: MoneyValue;
 };

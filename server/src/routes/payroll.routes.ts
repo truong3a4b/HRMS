@@ -38,7 +38,7 @@ const overtimeLineSchema = z.object({
   workShiftName: z.string().trim().min(1),
   workDays: optionalDecimalSchema,
   hours: optionalDecimalSchema,
-  baseHourlyRate: optionalDecimalSchema,
+  baseDailyRate: optionalDecimalSchema,
   multiplier: optionalDecimalSchema,
   amount: optionalDecimalSchema,
 });

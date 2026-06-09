@@ -1073,6 +1073,7 @@ model TaxBracket {
 
 model AttendanceBonusPolicy {
   id String @id @default(uuid())
+  useStandardWorkDays Boolean @default(true)
 
   name   String
   amount Decimal @db.Decimal(15, 2) // số tiền thưởng
@@ -1469,9 +1470,9 @@ model PayrollOvertimeLine {
   workDays Decimal @default(0) @db.Decimal(8, 2)
   hours    Decimal @default(0) @db.Decimal(8, 2)
 
-  baseHourlyRate Decimal @default(0) @db.Decimal(15, 2)
-  multiplier     Decimal @default(1) @db.Decimal(6, 2)
-  amount         Decimal @default(0) @db.Decimal(15, 2)
+  baseDailyRate Decimal @default(0) @db.Decimal(15, 2)
+  multiplier    Decimal @default(1) @db.Decimal(6, 2)
+  amount        Decimal @default(0) @db.Decimal(15, 2)
 
   payroll   Payroll    @relation(fields: [payrollId], references: [id], onDelete: Cascade)
   workShift WorkShift? @relation(fields: [workShiftId], references: [id], onDelete: SetNull)

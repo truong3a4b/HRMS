@@ -87,9 +87,16 @@ export const errorMiddleware = (
     const messageByCode: Record<string, string> = {
       P2002: "Dữ liệu bị trùng (vi phạm ràng buộc duy nhất)",
       P2003: "Không thể cập nhật do ràng buộc dữ liệu",
+      P2022: "Cấu trúc database chưa được cập nhật",
       P2025: "Không tìm thấy dữ liệu cần cập nhật",
     };
     const statusCode = err.code === "P2025" ? 404 : 400;
+
+    console.error("Prisma request error", {
+      code: err.code,
+      message: err.message,
+      meta: err.meta,
+    });
 
     return res.status(statusCode).json({
       success: false,

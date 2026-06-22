@@ -2,7 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/token_storage.dart';
 import '../../../attendance/presentation/providers/attendance_provider.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -298,10 +300,7 @@ class CheckInCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          // TODO: xử lý khi bấm
-          print("Chấm công clicked");
-        },
+        onTap: () => context.push(AppRoutes.myAttendanceHistory),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(18),
@@ -375,50 +374,71 @@ class HomeFeatureCard extends StatelessWidget {
   final String icon;
   final String title;
   final String subtitle;
+  final VoidCallback onTap;
 
   const HomeFeatureCard({
     super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final borderRadius = BorderRadius.circular(22);
+
     return SizedBox(
       width:
           (MediaQuery.of(context).size.width - 18 * 3) /
           2, //  chia 2 card / hàng
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x10000000),
-              blurRadius: 16,
-              offset: Offset(0, 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: borderRadius,
+        child: InkWell(
+          borderRadius: borderRadius,
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: borderRadius,
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x10000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(icon, width: 34, height: 34),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF222222),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Image.asset(icon, width: 34, height: 34),
+                    const Spacer(),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: Color(0xFF8A94A6),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF222222),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -433,26 +453,30 @@ class HomeFeatureSection extends StatelessWidget {
     return Wrap(
       spacing: 14,
       runSpacing: 14,
-      children: const [
+      children: [
         HomeFeatureCard(
           icon: 'assets/images/schedule.png',
           title: 'Lịch làm việc',
           subtitle: '',
+          onTap: () => context.push(AppRoutes.mySchedule),
         ),
         HomeFeatureCard(
           icon: 'assets/images/leave.png',
           title: 'Đăng ký nghỉ',
           subtitle: '',
+          onTap: () => context.push(AppRoutes.createLeaveRequest),
         ),
         HomeFeatureCard(
           icon: 'assets/images/salary.png',
           title: 'Kỳ lương',
           subtitle: '',
+          onTap: () => context.push(AppRoutes.myPayroll),
         ),
         HomeFeatureCard(
           icon: 'assets/images/newspaper.png',
           title: 'Bảng tin',
           subtitle: '',
+          onTap: () => context.go(AppRoutes.notification),
         ),
       ],
     );

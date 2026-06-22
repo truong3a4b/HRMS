@@ -344,6 +344,32 @@ const hasLeaveCoverage = (
   );
 };
 
+const parseMonth = (value: string) => {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    throw new Error("month must be in YYYY-MM format");
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+
+  if (month < 1 || month > 12) {
+    throw new Error("month must be in YYYY-MM format");
+  }
+
+  return new Date(Date.UTC(year, month - 1, 1));
+};
+
+const getMonthRange = (month: string) => {
+  const start = parseMonth(month);
+  const end = new Date(
+    Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1),
+  );
+
+  return { start, end };
+};
+
 const getClockDistance = (left: number, right: number) => {
   const rawDistance = Math.abs(left - right);
   return Math.min(rawDistance, MINUTES_PER_DAY - rawDistance);
@@ -786,7 +812,210 @@ export const createAbsentDetailsForExpiredSchedules = async () => {
   }
 };
 
+export const createAbsentDetailsForMonth = async (month: string) => {
+  if (isAbsentSweepRunning) {
+    return {
+      month,
+      createdCount: 0,
+      existingCount: 0,
+      leaveCoveredCount: 0,
+      futureShiftCount: 0,
+      scheduledShiftCount: 0,
+      scheduleCount: 0,
+      skipped: true,
+    };
+  }
 
+  isAbsentSweepRunning = true;
+  let createdCount = 0;
+  let existingCount = 0;
+  let leaveCoveredCount = 0;
+  let futureShiftCount = 0;
+  let scheduledShiftCount = 0;
+
+  try {
+    const { start: fromDate, end: toDate } = getMonthRange(month);
+    const attendanceClockNow = toAttendanceClockTime(new Date());
+
+    const schedules = await prisma.workSchedule.findMany({
+      where: {
+        date: {
+          gte: fromDate,
+          lt: toDate,
+        },
+      },
+      include: {
+        shiftLinks: {
+          include: {
+            workShift: true,
+          },
+        },
+      },
+      orderBy: {
+        date: "asc",
+      },
+    });
+
+    if (schedules.length === 0) {
+      return {
+        month,
+        createdCount,
+        existingCount,
+        leaveCoveredCount,
+        futureShiftCount,
+        scheduledShiftCount,
+        scheduleCount: 0,
+        skipped: false,
+      };
+    }
+
+    const leaveCoverage = await buildLeaveCoverageMap(
+      [...new Set(schedules.map((schedule) => schedule.employeeId))],
+      fromDate,
+      toDate,
+    );
+
+    const attendanceRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        date: {
+          gte: fromDate,
+          lt: toDate,
+        },
+      },
+      include: {
+        details: {
+          select: {
+            workShiftId: true,
+          },
+        },
+      },
+    });
+
+    const recordMap = new Map<string, Set<string>>();
+    for (const record of attendanceRecords) {
+      const key = `${record.employeeId}_${record.date.getTime()}`;
+      const shiftIds = new Set(record.details.map((d) => d.workShiftId));
+      recordMap.set(key, shiftIds);
+    }
+
+    for (const schedule of schedules) {
+      const key = `${schedule.employeeId}_${schedule.date.getTime()}`;
+      const existingWorkShiftIds = recordMap.get(key) || new Set<string>();
+      scheduledShiftCount += schedule.shiftLinks.length;
+
+      const expiredShiftLinks = schedule.shiftLinks.filter((shiftLink) => {
+        if (existingWorkShiftIds.has(shiftLink.workShiftId)) {
+          existingCount += 1;
+          return false;
+        }
+
+        if (
+          hasLeaveCoverage(
+            leaveCoverage,
+            schedule.employeeId,
+            schedule.date,
+            shiftLink.workShiftId,
+          )
+        ) {
+          leaveCoveredCount += 1;
+          return false;
+        }
+
+        const shift = shiftLink.workShift;
+        const attendanceDeadline = buildWindowDateTime(
+          schedule.date,
+          shift.checkInEndTime,
+          shift.startTime,
+        );
+
+        if (attendanceDeadline.getTime() > attendanceClockNow.getTime()) {
+          futureShiftCount += 1;
+          return false;
+        }
+
+        return true;
+      });
+
+      if (expiredShiftLinks.length === 0) {
+        continue;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const attendanceRecord = await tx.attendanceRecord.upsert({
+          where: {
+            employeeId_date: {
+              employeeId: schedule.employeeId,
+              date: schedule.date,
+            },
+          },
+          create: {
+            employeeId: schedule.employeeId,
+            date: schedule.date,
+          },
+          update: {},
+        });
+
+        for (const shiftLink of expiredShiftLinks) {
+          const shift = shiftLink.workShift;
+          const shiftStartAt = buildDateTimeOnDate(
+            schedule.date,
+            shift.startTime,
+          );
+          const shiftEndAt = getShiftEndDateTime(
+            schedule.date,
+            shift.startTime,
+            shift.endTime,
+            shift.isOvernight,
+          );
+          const shiftSnapshot = buildAttendanceDetailShiftSnapshot(
+            shift,
+            shiftStartAt,
+            shiftEndAt,
+          );
+
+          const existingShiftIds = recordMap.get(key) ?? new Set<string>();
+
+          await tx.attendanceRecordDetail.upsert({
+            where: {
+              attendanceRecordId_workShiftId: {
+                attendanceRecordId: attendanceRecord.id,
+                workShiftId: shiftLink.workShiftId,
+              },
+            },
+            create: {
+              attendanceRecordId: attendanceRecord.id,
+              workShiftId: shiftLink.workShiftId,
+              ...shiftSnapshot,
+              checkInTime: null,
+              checkOutTime: null,
+              status: AttendanceStatus.ABSENT,
+            },
+            update: {},
+          });
+
+          if (!existingShiftIds.has(shiftLink.workShiftId)) {
+            existingShiftIds.add(shiftLink.workShiftId);
+            recordMap.set(key, existingShiftIds);
+            createdCount += 1;
+          }
+        }
+      });
+    }
+
+    return {
+      month,
+      createdCount,
+      existingCount,
+      leaveCoveredCount,
+      futureShiftCount,
+      scheduledShiftCount,
+      scheduleCount: schedules.length,
+      skipped: false,
+    };
+  } finally {
+    isAbsentSweepRunning = false;
+  }
+};
 
 const handleHeartbeatMessage = async (deviceCode: string) => {
   await prisma.attendanceDevice.updateMany({

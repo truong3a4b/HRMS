@@ -175,6 +175,17 @@ export type AttendanceTimesheetData = {
   days: AttendanceTimesheetDay[];
 };
 
+export type AttendanceRecalculateResult = {
+  month: string;
+  createdCount: number;
+  existingCount?: number;
+  leaveCoveredCount?: number;
+  futureShiftCount?: number;
+  scheduledShiftCount?: number;
+  scheduleCount?: number;
+  skipped?: boolean;
+};
+
 export type EmployeeStandardWorkDay = {
   id: string;
   employeeId: string;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, RefreshCcw, Search } from "lucide-react";
+import { ArrowLeft, Calculator, Plus, RefreshCcw, Search } from "lucide-react";
 import { AppLayout } from "../../../app/layouts";
 import { employeeService } from "../../employees/services/employeeService";
 import type { Employee } from "../../employees/types/employee.types";
@@ -143,6 +143,7 @@ export function AttendanceManagementPage({
     null,
   );
   const [loading, setLoading] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -468,6 +469,34 @@ export function AttendanceManagementPage({
     }
   };
 
+  const recalculateEmployeeTimesheet = async () => {
+    setRecalculating(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await attendanceService.recalculateTimesheet(employeeMonth);
+      setNotice(
+        result.skipped
+          ? "Hệ thống đang tính lại bảng công, vui lòng thử lại sau."
+          : `Đã tính lại bảng công tháng ${employeeMonth}. Tạo thêm ${result.createdCount} ca thiếu.`,
+      );
+      if (employeeTimesheetDetailOpen) {
+        await loadEmployeeTimesheet();
+      } else {
+        setEmployeeTimesheetRefreshKey((value) => value + 1);
+      }
+    } catch (recalculateError) {
+      setError(
+        getErrorMessage(
+          recalculateError,
+          "Không thể tính lại bảng công tháng này",
+        ),
+      );
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   return (
     <AppLayout>
       <main className="h-full min-w-0 overflow-y-auto">
@@ -501,6 +530,17 @@ export function AttendanceManagementPage({
               >
                 <RefreshCcw className="h-4.5 w-4.5 transition-transform duration-300 group-hover:-rotate-180" />
               </button>
+              {activeTab === "employeeTimesheet" ? (
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-semibold text-[#344054] transition-all hover:border-[#006fd5] hover:bg-[#f0f7ff] hover:text-[#006fd5] disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  disabled={recalculating}
+                  onClick={recalculateEmployeeTimesheet}
+                >
+                  <Calculator className="h-4 w-4" />
+                  {recalculating ? "Đang tính..." : "Tính lại bảng công"}
+                </button>
+              ) : null}
               {activeTab === "devices" ? (
                 <button
                   className="inline-flex items-center gap-2 rounded-lg bg-[#006fd5] px-4 py-2 text-sm font-semibold text-white! hover:bg-[#0055a8]"

@@ -5,6 +5,7 @@ import type {
   AttendanceDeviceCommand,
   AttendanceDeviceListData,
   AttendanceHistoryData,
+  AttendanceRecalculateResult,
   AttendanceTimesheetData,
   AnnualLeaveBalancePayload,
   AssignAnnualLeaveBalancePayload,
@@ -128,6 +129,15 @@ export const attendanceService = {
     const response = await apiClient.get<ApiResponse<AttendanceTimesheetData>>(
       `/attendance/timesheet/employees/${employeeId}`,
       { params: { month } },
+    );
+
+    return response.data.data;
+  },
+
+  async recalculateTimesheet(month: string) {
+    const response = await apiClient.post<ApiResponse<AttendanceRecalculateResult>>(
+      "/attendance/timesheet/recalculate",
+      { month },
     );
 
     return response.data.data;

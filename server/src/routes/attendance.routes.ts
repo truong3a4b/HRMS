@@ -40,6 +40,12 @@ router.get(
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
   attendanceController.getMyTimesheet,
 );
+router.post(
+  "/timesheet/recalculate",
+  authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),
+  permissionMiddleware(PERMISSIONS.ATTENDANCE_TIMESHEET_VIEW),
+  attendanceController.recalculateTimesheet,
+);
 router.get(
   "/timesheet/employees/:employeeId",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),

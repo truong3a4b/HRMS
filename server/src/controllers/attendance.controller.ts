@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { ApprovalMode } from "../../generated/prisma/client";
 import { attendanceService } from "../services/attendance.service";
+import { createAbsentDetailsForMonth } from "../services/attendanceMqtt.service";
 import { ApiError } from "../utils/apiError";
 import { sendResponse } from "../utils/response";
 
@@ -12,6 +13,10 @@ const historyQuerySchema = z.object({
 });
 
 const monthQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, "month must be in YYYY-MM format"),
+});
+
+const recalculateTimesheetSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "month must be in YYYY-MM format"),
 });
 
@@ -100,6 +105,18 @@ export const attendanceController = {
       });
 
       return sendResponse(res, 200, "Attendance timesheet fetched successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async recalculateTimesheet(req: Request, res: Response, next: NextFunction) {
+    try {
+      requireUser(req);
+      const body = recalculateTimesheetSchema.parse(req.body);
+      const result = await createAbsentDetailsForMonth(body.month);
+
+      return sendResponse(res, 200, "Attendance timesheet recalculated successfully", result);
     } catch (error) {
       next(error);
     }

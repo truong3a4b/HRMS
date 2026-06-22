@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/token_storage.dart';
+import '../../../attendance/presentation/providers/attendance_provider.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../employee/domain/entities/employee.dart';
 import '../../../notification/presentation/providers/notification_provider.dart';
@@ -18,9 +19,7 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-
   @override
   void initState() {
     super.initState();
@@ -41,7 +40,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final asyncValue = ref.watch(homeProvider);
 
-
     return Scaffold(
       backgroundColor: Color(0xFFFAFAFA),
       body: asyncValue.when(
@@ -54,8 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildContent(HomeState state) {
     final showCheckInCard = state.role == UserRole.employee;
-    final showPendingCard =
-        state.role == UserRole.admin;
+    final showPendingCard = state.role == UserRole.admin;
     final showFeatureSection = state.role == UserRole.employee;
     final showTodayTaskSection = state.role == UserRole.employee;
     final showTodaySummary = state.role == UserRole.admin;
@@ -63,7 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final isDay = DateTime.now().hour >= 6 && DateTime.now().hour < 18;
     String position = 'Ứng viên';
-    if(state.me is Employee){
+    if (state.me is Employee) {
       position = (state.me as Employee).position?.name ?? ' ';
     }
 
@@ -78,7 +75,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               fit: StackFit.expand,
               children: [
                 Image.asset(
-                  isDay ? 'assets/images/home_background_day.jpg' :'assets/images/home_background_night.jpg',
+                  isDay
+                      ? 'assets/images/home_background_day.jpg'
+                      : 'assets/images/home_background_night.jpg',
                   fit: BoxFit.cover,
                 ),
                 Container(
@@ -175,11 +174,17 @@ class GreetingSection extends StatelessWidget {
   final String? position;
   final UserRole role;
   final bool isDay;
-  const GreetingSection({super.key, required this.name, this.position, required this.role, this.avatarUrl = 'assets/images/profile.png', this.isDay = true});
+  const GreetingSection({
+    super.key,
+    required this.name,
+    this.position,
+    required this.role,
+    this.avatarUrl = 'assets/images/profile.png',
+    this.isDay = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -208,18 +213,13 @@ class GreetingSection extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: Colors.white,
               ),
-              child: ClipOval(
-                child: Image.asset(
-                  avatarUrl,
-                  fit: BoxFit.cover,
-                ),
-              ),
+              child: ClipOval(child: Image.asset(avatarUrl, fit: BoxFit.cover)),
             ),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                 Text(
+                Text(
                   name,
                   style: TextStyle(
                     fontSize: 16,
@@ -609,12 +609,15 @@ class PendingCard extends StatelessWidget {
   }
 }
 
-class TodaySummary extends StatelessWidget {
+class TodaySummary extends ConsumerWidget {
   const TodaySummary({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const gap = 12.0;
+    final date = currentDateKey();
+    final asyncSummary = ref.watch(todayAttendanceSummaryProvider(date));
+    final summary = asyncSummary.value;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -640,6 +643,18 @@ class TodaySummary extends StatelessWidget {
 
         const SizedBox(height: 12),
 
+        if (asyncSummary.isLoading) ...[
+          const LinearProgressIndicator(minHeight: 2),
+          const SizedBox(height: 12),
+        ] else if (asyncSummary.hasError) ...[
+          _TodaySummaryError(
+            onRetry: () {
+              ref.invalidate(todayAttendanceSummaryProvider(date));
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
@@ -647,39 +662,39 @@ class TodaySummary extends StatelessWidget {
           mainAxisSpacing: gap,
           crossAxisSpacing: gap,
           childAspectRatio: 2.25,
-          children: const [
+          children: [
             _StatCard(
-              value: '3',
+              value: (summary?.lateCount ?? 0).toString(),
               label: 'Đi muộn',
               color: Color(0xFFFFF4E5),
-              icon: Icons.timelapse
+              icon: Icons.timelapse,
             ),
             _StatCard(
-              value: '1',
+              value: (summary?.earlyLeaveCount ?? 0).toString(),
               label: 'Về sớm',
               color: Color(0xFFE5F9F4),
               icon: Icons.run_circle,
             ),
             _StatCard(
-              value: '1',
+              value: (summary?.missingCheckInCount ?? 0).toString(),
               label: 'Quên check-in',
               color: Color(0xFFE9EDCE),
               icon: Icons.input,
             ),
             _StatCard(
-              value: '1',
+              value: (summary?.missingCheckOutCount ?? 0).toString(),
               label: 'Quên check-out',
               color: Color(0xFFF8F0E1),
               icon: Icons.output,
             ),
             _StatCard(
-              value: '1',
+              value: (summary?.leaveCount ?? 0).toString(),
               label: 'Nghỉ phép',
               color: Color(0xFFECE1FB),
               icon: Icons.beach_access,
             ),
             _StatCard(
-              value: '1',
+              value: (summary?.absentCount ?? 0).toString(),
               label: 'Nghỉ không phép',
               color: Color(0xFFF8CFCF),
               icon: Icons.do_not_disturb_on_outlined,
@@ -690,6 +705,43 @@ class TodaySummary extends StatelessWidget {
     );
   }
 }
+
+class _TodaySummaryError extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _TodaySummaryError({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Không thể tải tổng quan hôm nay',
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+          IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   final String value;
   final String label;
@@ -716,11 +768,7 @@ class _StatCard extends StatelessWidget {
           Positioned(
             right: 0,
             top: 0,
-            child: Icon(
-              icon,
-              size: 36,
-              color: Color(0x2C888888)
-            ),
+            child: Icon(icon, size: 36, color: Color(0x2C888888)),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,

@@ -46,6 +46,11 @@ router.get(
   permissionMiddleware(PERMISSIONS.ATTENDANCE_TIMESHEET_VIEW),
   attendanceController.getEmployeeTimesheet,
 );
+router.get(
+  "/summary/daily",
+  authMiddleware(UserRole.ADMIN),
+  attendanceController.getDailySummary,
+);
 router.post(
   "/compensation-requests",
   authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE),

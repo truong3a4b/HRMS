@@ -18,6 +18,11 @@ class AttendanceRepository {
     final dto = await remote.getMyTimesheet(month);
     return dto.toEntity();
   }
+
+  Future<AttendanceDailySummary> getDailySummary(String date) async {
+    final dto = await remote.getDailySummary(date);
+    return dto.toEntity();
+  }
 }
 
 final attendanceRepositoryProvider = Provider<AttendanceRepository>((ref) {

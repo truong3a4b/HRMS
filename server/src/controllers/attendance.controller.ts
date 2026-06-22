@@ -15,6 +15,10 @@ const monthQuerySchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "month must be in YYYY-MM format"),
 });
 
+const dayQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be in YYYY-MM-DD format"),
+});
+
 const createCompensationSchema = z.object({
   employeeId: z.string().min(1).optional(),
   attendanceDate: z.string().min(1, "attendanceDate is required"),
@@ -40,6 +44,7 @@ const requireUser = (req: Request) => {
 
 const parseHistoryQuery = (req: Request) => historyQuerySchema.parse(req.query);
 const parseMonthQuery = (req: Request) => monthQuerySchema.parse(req.query);
+const parseDayQuery = (req: Request) => dayQuerySchema.parse(req.query);
 const parseEmployeeParams = (req: Request) =>
   z.object({ employeeId: z.string().min(1) }).parse(req.params);
 
@@ -95,6 +100,18 @@ export const attendanceController = {
       });
 
       return sendResponse(res, 200, "Attendance timesheet fetched successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getDailySummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = requireUser(req);
+      const query = parseDayQuery(req);
+      const result = await attendanceService.getDailySummary(user, query);
+
+      return sendResponse(res, 200, "Attendance daily summary fetched successfully", result);
     } catch (error) {
       next(error);
     }

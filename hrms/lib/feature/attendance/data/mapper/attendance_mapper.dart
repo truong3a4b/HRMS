@@ -119,3 +119,17 @@ extension AttendanceTimesheetDataMapper on AttendanceTimesheetDataDto {
     );
   }
 }
+
+extension AttendanceDailySummaryMapper on AttendanceDailySummaryDto {
+  AttendanceDailySummary toEntity() {
+    return AttendanceDailySummary(
+      date: date,
+      lateCount: lateCount,
+      earlyLeaveCount: earlyLeaveCount,
+      missingCheckInCount: missingCheckInCount,
+      missingCheckOutCount: missingCheckOutCount,
+      leaveCount: leaveCount,
+      absentCount: absentCount,
+    );
+  }
+}

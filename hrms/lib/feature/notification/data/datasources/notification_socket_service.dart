@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
+import '../../../../core/network/api_config.dart';
 import '../../data/models/notification_dto.dart';
 import '../../data/mapper/notification_mapper.dart';
 import '../../presentation/providers/notification_provider.dart';
@@ -17,7 +18,7 @@ class NotificationSocketService {
     if (_socket?.connected == true) return;
 
     _socket = IO.io(
-      'http://192.168.1.136:5000',
+      ApiConfig.socketUrl,
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({

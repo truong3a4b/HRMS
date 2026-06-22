@@ -315,6 +315,38 @@ class AttendanceTimesheetDataDto {
   }
 }
 
+class AttendanceDailySummaryDto {
+  final String date;
+  final int lateCount;
+  final int earlyLeaveCount;
+  final int missingCheckInCount;
+  final int missingCheckOutCount;
+  final int leaveCount;
+  final int absentCount;
+
+  const AttendanceDailySummaryDto({
+    required this.date,
+    required this.lateCount,
+    required this.earlyLeaveCount,
+    required this.missingCheckInCount,
+    required this.missingCheckOutCount,
+    required this.leaveCount,
+    required this.absentCount,
+  });
+
+  factory AttendanceDailySummaryDto.fromJson(Map<String, dynamic> json) {
+    return AttendanceDailySummaryDto(
+      date: json['date'] as String? ?? '',
+      lateCount: _toInt(json['lateCount']),
+      earlyLeaveCount: _toInt(json['earlyLeaveCount']),
+      missingCheckInCount: _toInt(json['missingCheckInCount']),
+      missingCheckOutCount: _toInt(json['missingCheckOutCount']),
+      leaveCount: _toInt(json['leaveCount']),
+      absentCount: _toInt(json['absentCount']),
+    );
+  }
+}
+
 double _toDouble(dynamic value, {double fallback = 0}) {
   if (value is num) return value.toDouble();
   if (value is String) return double.tryParse(value) ?? fallback;

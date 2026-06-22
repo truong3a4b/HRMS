@@ -10,6 +10,11 @@ String currentMonthKey() {
   return '${now.year}-${now.month.toString().padLeft(2, '0')}';
 }
 
+String currentDateKey() {
+  final now = DateTime.now();
+  return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+}
+
 final attendanceMonthProvider =
     NotifierProvider<AttendanceMonthNotifier, String>(
       AttendanceMonthNotifier.new,
@@ -29,6 +34,21 @@ final myAttendanceHistoryProvider = FutureProvider.autoDispose
       try {
         final repo = ref.read(attendanceRepositoryProvider);
         return repo.getMyHistory(month);
+      } on AppException catch (e) {
+        debugPrint(e.toString());
+        rethrow;
+      } catch (e, st) {
+        debugPrint(e.toString());
+        debugPrint(st.toString());
+        throw AppException('Đã có lỗi xảy ra, vui lòng thử lại');
+      }
+    });
+
+final todayAttendanceSummaryProvider = FutureProvider.autoDispose
+    .family<AttendanceDailySummary, String>((ref, date) async {
+      try {
+        final repo = ref.read(attendanceRepositoryProvider);
+        return repo.getDailySummary(date);
       } on AppException catch (e) {
         debugPrint(e.toString());
         rethrow;

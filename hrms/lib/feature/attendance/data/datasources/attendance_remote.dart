@@ -40,6 +40,22 @@ class AttendanceRemote {
       throw AppException(e.response?.data['message'] ?? 'Lỗi tải bảng công');
     }
   }
+
+  Future<AttendanceDailySummaryDto> getDailySummary(String date) async {
+    try {
+      final response = await dio.get(
+        '/attendance/summary/daily',
+        queryParameters: {'date': date},
+      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      return AttendanceDailySummaryDto.fromJson(data);
+    } on DioException catch (e) {
+      debugPrint('AttendanceRemote getDailySummary error: $e');
+      throw AppException(
+        e.response?.data['message'] ?? 'Lỗi tải tổng quan chấm công',
+      );
+    }
+  }
 }
 
 final attendanceRemoteProvider = Provider<AttendanceRemote>((ref) {

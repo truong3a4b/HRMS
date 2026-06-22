@@ -15,6 +15,7 @@ import {
 } from "./request-notification.service";
 import { ApiError } from "../utils/apiError";
 
+//hàm tiện ích để chuẩn hóa danh sách ID người dùng, loại bỏ các giá trị trùng lặp và khoảng trắng
 const normalizeIds = (values: string[]) =>
   [...new Set(values.map((value) => value.trim()).filter(Boolean))].filter(
     Boolean,
@@ -105,6 +106,7 @@ const ensureUsersExist = async (userIds: string[]) => {
   }
 };
 
+//hàm tiện ích để xác định nhân viên dựa trên vai trò của người dùng và employeeId được cung cấp
 const resolveEmployeeForUser = async (
   userId: string,
   role: UserRole,
@@ -143,11 +145,13 @@ const resolveEmployeeForUser = async (
   return employee;
 };
 
+//hàm tiện ích để đảm bảo rằng việc sửa đổi điểm danh được phép.
 const ensureAttendanceCorrectionIsAllowed = async (params: {
   employeeId: string;
   attendanceDate: Date;
   workShiftId: string;
 }) => {
+  // Kiểm tra xem có lịch làm việc cho ngày điểm danh đã chọn hay không
   const workSchedule = await prisma.workSchedule.findUnique({
     where: {
       employeeId_date: {
@@ -182,6 +186,7 @@ const ensureAttendanceCorrectionIsAllowed = async (params: {
     );
   }
 
+  // Kiểm tra xem đã có bản ghi điểm danh cho ca làm việc đã chọn hay chưa
   const attendanceRecord = await prisma.attendanceRecord.findUnique({
     where: {
       employeeId_date: {
@@ -208,6 +213,7 @@ const ensureAttendanceCorrectionIsAllowed = async (params: {
     );
   }
 
+  // Kiểm tra xem đã có yêu cầu sửa đổi điểm danh nào đang chờ xử lý cho ca làm việc đã chọn hay chưa
   const duplicateRequest = await prisma.attendanceCorrectionRequest.findFirst({
     where: {
       employeeId: params.employeeId,
@@ -253,6 +259,10 @@ type CreateAttendanceCorrectionRequestInput = {
 
 type MonthQuery = {
   month: string;
+};
+
+type DayQuery = {
+  date: string;
 };
 
 type AttendanceHistoryQuery = MonthQuery & {
@@ -330,6 +340,14 @@ const getAttendanceCorrections = async (
     },
   });
 
+const getDayRange = (date: string) => {
+  const start = parseDateOnly(date);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { start, end };
+};
+
 const resolveOwnEmployee = async (userId: string) => {
   const employee = await prisma.employee.findUnique({
     where: { userId },
@@ -343,6 +361,7 @@ const resolveOwnEmployee = async (userId: string) => {
   return employee;
 };
 
+//hàm tiện ích để xác định nhân viên dựa trên vai trò của người dùng và employeeId được cung cấp
 const resolveTargetEmployee = async (
   requester: AttendanceRequester,
   employeeId: string,
@@ -368,6 +387,7 @@ const resolveTargetEmployee = async (
   return employee;
 };
 
+//hàm tiện ích để lấy lịch sử nhật ký điểm danh của một nhân viên trong một tháng cụ thể
 const getAttendanceLogHistory = async (
   employee: AttendanceEmployee,
   query: AttendanceHistoryQuery,
@@ -456,6 +476,7 @@ const earlyLeaveStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.LATE_AND_EARLY_LEAVE,
 ]);
 
+//hàm tiện ích để xây dựng bảng chấm công hàng tháng cho một nhân viên cụ thể
 const buildMonthlyTimesheet = async (
   employee: AttendanceEmployee,
   month: string,
@@ -466,58 +487,59 @@ const buildMonthlyTimesheet = async (
   const yearNum = parseInt(yearStr, 10);
   const monthNum = parseInt(monthStr, 10);
 
-  const [schedules, attendanceRecords, standardWorkDayConfig] = await Promise.all([
-    prisma.workSchedule.findMany({
-      where: {
-        employeeId: employee.id,
-        date: {
-          gte: start,
-          lt: end,
-        },
-      },
-      include: {
-        shiftLinks: {
-          include: {
-            workShift: true,
-          },
-        },
-      },
-      orderBy: {
-        date: "asc",
-      },
-    }),
-    prisma.attendanceRecord.findMany({
-      where: {
-        employeeId: employee.id,
-        date: {
-          gte: start,
-          lt: end,
-        },
-      },
-      include: {
-        details: {
-          include: {
-            workShift: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
-        },
-      },
-      orderBy: {
-        date: "asc",
-      },
-    }),
-    prisma.employeeStandardWorkDay.findUnique({
-      where: {
-        employeeId_month_year: {
+  const [schedules, attendanceRecords, standardWorkDayConfig] =
+    await Promise.all([
+      prisma.workSchedule.findMany({
+        where: {
           employeeId: employee.id,
-          month: monthNum,
-          year: yearNum,
+          date: {
+            gte: start,
+            lt: end,
+          },
         },
-      },
-    }),
-  ]);
+        include: {
+          shiftLinks: {
+            include: {
+              workShift: true,
+            },
+          },
+        },
+        orderBy: {
+          date: "asc",
+        },
+      }),
+      prisma.attendanceRecord.findMany({
+        where: {
+          employeeId: employee.id,
+          date: {
+            gte: start,
+            lt: end,
+          },
+        },
+        include: {
+          details: {
+            include: {
+              workShift: true,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+        orderBy: {
+          date: "asc",
+        },
+      }),
+      prisma.employeeStandardWorkDay.findUnique({
+        where: {
+          employeeId_month_year: {
+            employeeId: employee.id,
+            month: monthNum,
+            year: yearNum,
+          },
+        },
+      }),
+    ]);
 
   const scheduleByDate = new Map<string, (typeof schedules)[number]>();
 
@@ -657,8 +679,7 @@ const buildMonthlyTimesheet = async (
       lateEarlyCount: accumulator.lateEarlyCount + day.lateEarlyCount,
       leaveCount: accumulator.leaveCount + day.leaveCount,
       absentCount: accumulator.absentCount + day.absentCount,
-      leaveOrAbsentDays:
-        accumulator.leaveOrAbsentDays + day.leaveOrAbsentCount,
+      leaveOrAbsentDays: accumulator.leaveOrAbsentDays + day.leaveOrAbsentCount,
       leaveDays: accumulator.leaveDays + day.leaveCount,
       bonusUnits: 0,
     }),
@@ -692,6 +713,7 @@ const buildMonthlyTimesheet = async (
 };
 
 export const attendanceService = {
+  //hàm để tạo yêu cầu sửa đổi điểm danh
   async createCompensationRequest(
     requester: { id: string; role: UserRole },
     input: CreateAttendanceCorrectionRequestInput,
@@ -739,10 +761,7 @@ export const attendanceService = {
 
     const title =
       input.title ??
-      buildRequestTitle(
-        toDateKey(attendanceDate),
-        workShift.name,
-      );
+      buildRequestTitle(toDateKey(attendanceDate), workShift.name);
     const description = input.description ?? input.reason;
 
     const request = await prisma.$transaction(async (tx) => {
@@ -802,6 +821,7 @@ export const attendanceService = {
     );
   },
 
+  //hàm để lấy lịch sử điểm danh của chính người dùng
   async getMyAttendanceHistory(
     requester: AttendanceRequester,
     query: AttendanceHistoryQuery,
@@ -811,6 +831,7 @@ export const attendanceService = {
     return getAttendanceLogHistory(employee, query);
   },
 
+  //hàm để lấy lịch sử điểm danh của một nhân viên cụ thể
   async getEmployeeAttendanceHistory(
     requester: AttendanceRequester,
     query: EmployeeAttendanceHistoryQuery,
@@ -824,15 +845,14 @@ export const attendanceService = {
     return getAttendanceLogHistory(employee, query);
   },
 
-  async getMyTimesheet(
-    requester: AttendanceRequester,
-    query: MonthQuery,
-  ) {
+  //hàm để lấy bảng chấm công hàng tháng của chính người dùng
+  async getMyTimesheet(requester: AttendanceRequester, query: MonthQuery) {
     const employee = await resolveOwnEmployee(requester.id);
 
     return buildMonthlyTimesheet(employee, query.month);
   },
 
+  //hàm để lấy bảng chấm công hàng tháng của một nhân viên cụ thể
   async getEmployeeTimesheet(
     requester: AttendanceRequester,
     query: EmployeeMonthQuery,
@@ -844,5 +864,63 @@ export const attendanceService = {
     );
 
     return buildMonthlyTimesheet(employee, query.month);
+  },
+
+  //hàm để lấy thống kê chấm công trong ngày cho trang tổng quan admin
+  async getDailySummary(requester: AttendanceRequester, query: DayQuery) {
+    if (requester.role !== UserRole.ADMIN) {
+      throw new ApiError(403, "Forbidden");
+    }
+
+    const { start, end } = getDayRange(query.date);
+    const details = await prisma.attendanceRecordDetail.findMany({
+      where: {
+        attendanceRecord: {
+          date: {
+            gte: start,
+            lt: end,
+          },
+        },
+      },
+      select: {
+        status: true,
+        checkInTime: true,
+        checkOutTime: true,
+      },
+    });
+
+    return details.reduce(
+      (summary, detail) => {
+        const isLeave = leaveStatuses.has(detail.status);
+        const isAbsent = absentStatuses.has(detail.status);
+        const canHaveCheckTime = !isLeave && !isAbsent;
+
+        return {
+          date: query.date,
+          lateCount:
+            summary.lateCount + (lateStatuses.has(detail.status) ? 1 : 0),
+          earlyLeaveCount:
+            summary.earlyLeaveCount +
+            (earlyLeaveStatuses.has(detail.status) ? 1 : 0),
+          missingCheckInCount:
+            summary.missingCheckInCount +
+            (canHaveCheckTime && !detail.checkInTime ? 1 : 0),
+          missingCheckOutCount:
+            summary.missingCheckOutCount +
+            (canHaveCheckTime && !detail.checkOutTime ? 1 : 0),
+          leaveCount: summary.leaveCount + (isLeave ? 1 : 0),
+          absentCount: summary.absentCount + (isAbsent ? 1 : 0),
+        };
+      },
+      {
+        date: query.date,
+        lateCount: 0,
+        earlyLeaveCount: 0,
+        missingCheckInCount: 0,
+        missingCheckOutCount: 0,
+        leaveCount: 0,
+        absentCount: 0,
+      },
+    );
   },
 };

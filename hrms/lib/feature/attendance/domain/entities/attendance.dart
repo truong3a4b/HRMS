@@ -179,3 +179,23 @@ class AttendanceTimesheetData {
     required this.days,
   });
 }
+
+class AttendanceDailySummary {
+  final String date;
+  final int lateCount;
+  final int earlyLeaveCount;
+  final int missingCheckInCount;
+  final int missingCheckOutCount;
+  final int leaveCount;
+  final int absentCount;
+
+  const AttendanceDailySummary({
+    required this.date,
+    required this.lateCount,
+    required this.earlyLeaveCount,
+    required this.missingCheckInCount,
+    required this.missingCheckOutCount,
+    required this.leaveCount,
+    required this.absentCount,
+  });
+}

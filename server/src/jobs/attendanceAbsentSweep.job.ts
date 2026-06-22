@@ -26,9 +26,10 @@ const runAbsentSweep = async () => {
 
 export const initAttendanceAbsentSweepCron = () => {
   void runAbsentSweep();
-  cron.schedule("* * * * *", runAbsentSweep);
+  // Schedule the job to run every hour at the start of the hour (0 minutes past every hour)
+  cron.schedule("0 * * * *", runAbsentSweep);
 
   console.log(
-    "[Job] Initialized attendance absent sweep cronjob (runs every minute).",
+    "[Job] Initialized attendance absent sweep cronjob (runs every hour).",
   );
 };

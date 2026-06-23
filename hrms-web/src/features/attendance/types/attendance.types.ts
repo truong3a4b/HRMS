@@ -175,6 +175,11 @@ export type AttendanceTimesheetData = {
   days: AttendanceTimesheetDay[];
 };
 
+export type AttendanceTimesheetOverviewData = {
+  month: string;
+  rows: AttendanceTimesheetData[];
+};
+
 export type AttendanceRecalculateResult = {
   month: string;
   createdCount: number;

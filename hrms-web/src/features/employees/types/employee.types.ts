@@ -206,6 +206,7 @@ export type EmployeeFilters = {
   departmentId?: string;
   positionId?: string;
   status?: EmployeeStatus;
+  view?: "summary";
   page: number;
   limit: number;
 };

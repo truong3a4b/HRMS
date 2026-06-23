@@ -30,6 +30,7 @@ const getAllEmployeesQuerySchema = z.object({
     emptyToUndefined,
     z.nativeEnum(EmployeeStatus).optional(),
   ),
+  view: z.enum(["summary"]).optional(),
 });
 
 export const employeeController = {
@@ -87,13 +88,14 @@ export const employeeController = {
 
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
-      const { page, limit, search, departmentId, positionId, status } =
+      const { page, limit, search, departmentId, positionId, status, view } =
         getAllEmployeesQuerySchema.parse(req.query);
 
       const result = await employeeService.getAll(page, limit, search, {
         departmentId,
         positionId,
         status,
+        view,
       });
       return sendResponse(res, 200, "Employees fetched successfully", result);
     } catch (error) {

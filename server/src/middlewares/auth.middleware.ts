@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { UserRole } from "../../generated/prisma/client";
+import { EmployeeStatus, UserRole } from "../../generated/prisma/client";
 import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import { PermissionKey } from "../constants/permissions";
@@ -41,6 +41,7 @@ export const authMiddleware =
           where: { userId: decoded.userId },
           select: {
             id: true,
+            status: true,
             position: {
               select: {
                 permissions: {
@@ -56,6 +57,13 @@ export const authMiddleware =
             },
           },
         });
+
+        if (employee?.status === EmployeeStatus.RESIGNED) {
+          return res.status(403).json({
+            success: false,
+            message: "Tài khoản nhân viên đã nghỉ làm không được phép truy cập hệ thống",
+          });
+        }
 
         employeeId = employee?.id;
         permissions =
@@ -115,6 +123,7 @@ export const optionalAuth = async (
         where: { userId: decoded.userId },
         select: {
           id: true,
+          status: true,
           position: {
             select: {
               permissions: {
@@ -130,6 +139,10 @@ export const optionalAuth = async (
           },
         },
       });
+
+      if (employee?.status === EmployeeStatus.RESIGNED) {
+        return next();
+      }
 
       employeeId = employee?.id;
       permissions =

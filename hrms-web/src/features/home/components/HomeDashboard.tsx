@@ -326,7 +326,7 @@ export function HomeDashboard() {
           standardWorkDays,
         ] = await Promise.all([
           settle(
-            employeeService.getEmployees({ page: 1, limit: -1 }),
+            employeeService.getEmployees({ page: 1, limit: -1, view: "summary" }),
             { items: [], meta: { page: 1, limit: -1, total: 0, totalPages: 0 } },
           ),
           settle(departmentService.getDepartments(), []),
@@ -358,18 +358,16 @@ export function HomeDashboard() {
         const workingEmployees = employees.filter(
           (employee) => employee.status !== "RESIGNED",
         );
-        const timesheets = await Promise.allSettled(
-          workingEmployees.map((employee) =>
-            attendanceService.getEmployeeTimesheet(employee.id, monthKey),
-          ),
+        const timesheetOverview = await settle(
+          attendanceService.getEmployeesTimesheetOverview(monthKey),
+          { month: monthKey, rows: [] },
         );
         const dayMapByEmployee = new Map<string, Map<string, AttendanceTimesheetDay>>();
 
-        timesheets.forEach((result, index) => {
-          if (result.status !== "fulfilled") return;
+        timesheetOverview.rows.forEach((timesheet) => {
           dayMapByEmployee.set(
-            workingEmployees[index].id,
-            new Map(result.value.days.map((day) => [day.date, day])),
+            timesheet.employee.id,
+            new Map(timesheet.days.map((day) => [day.date, day])),
           );
         });
 

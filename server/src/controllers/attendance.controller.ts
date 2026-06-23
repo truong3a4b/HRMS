@@ -110,6 +110,30 @@ export const attendanceController = {
     }
   },
 
+  async getEmployeesTimesheetOverview(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const user = requireUser(req);
+      const query = parseMonthQuery(req);
+      const result = await attendanceService.getEmployeesTimesheetOverview(
+        user,
+        query,
+      );
+
+      return sendResponse(
+        res,
+        200,
+        "Attendance timesheet overview fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async recalculateTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
       requireUser(req);

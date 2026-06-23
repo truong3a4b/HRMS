@@ -7,6 +7,7 @@ import type {
   AttendanceHistoryData,
   AttendanceRecalculateResult,
   AttendanceTimesheetData,
+  AttendanceTimesheetOverviewData,
   AnnualLeaveBalancePayload,
   AssignAnnualLeaveBalancePayload,
   AssignStandardWorkDaysPayload,
@@ -130,6 +131,16 @@ export const attendanceService = {
       `/attendance/timesheet/employees/${employeeId}`,
       { params: { month } },
     );
+
+    return response.data.data;
+  },
+
+  async getEmployeesTimesheetOverview(month: string) {
+    const response =
+      await apiClient.get<ApiResponse<AttendanceTimesheetOverviewData>>(
+        "/attendance/timesheet/employees/overview",
+        { params: { month } },
+      );
 
     return response.data.data;
   },

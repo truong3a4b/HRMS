@@ -12,6 +12,7 @@ type EmployeeListFilters = {
   departmentId?: string;
   positionId?: string;
   status?: EmployeeStatus;
+  view?: "summary";
 };
 
 type LookupValue = {
@@ -150,6 +151,29 @@ const employeeInclude = {
   },
 };
 
+const employeeSummarySelect = {
+  id: true,
+  employeeId: true,
+  name: true,
+  email: true,
+  status: true,
+  departmentId: true,
+  positionId: true,
+  hireDate: true,
+  department: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  position: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.EmployeeSelect;
+
 const toNullableJson = (
   value: LookupValue | null | undefined,
 ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
@@ -269,19 +293,30 @@ export const employeeService = {
 
     const isFetchAll = limit === -1;
     const normalizedPage = isFetchAll ? 1 : page;
+    const pagination: Pick<Prisma.EmployeeFindManyArgs, "skip" | "take"> =
+      isFetchAll
+        ? {}
+        : {
+            skip: (normalizedPage - 1) * limit,
+            take: limit,
+          };
+    const itemsPromise =
+      filters.view === "summary"
+        ? prisma.employee.findMany({
+            where,
+            select: employeeSummarySelect,
+            ...pagination,
+            orderBy: { createdAt: "desc" },
+          })
+        : prisma.employee.findMany({
+            where,
+            include: employeeInclude,
+            ...pagination,
+            orderBy: { createdAt: "desc" },
+          });
 
     const [items, total] = await Promise.all([
-      prisma.employee.findMany({
-        where,
-        include: employeeInclude,
-        ...(isFetchAll
-          ? {}
-          : {
-              skip: (normalizedPage - 1) * limit,
-              take: limit,
-            }),
-        orderBy: { createdAt: "desc" },
-      }),
+      itemsPromise,
       prisma.employee.count({ where }),
     ]);
 

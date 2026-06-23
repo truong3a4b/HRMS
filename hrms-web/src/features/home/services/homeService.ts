@@ -104,14 +104,11 @@ export const homeService = {
     const role = normalizeRole(user.role)
 
     if (role === 'ADMIN') {
-      const [profile, permissions] = await Promise.all([
+      const [profile, permissions, pendingApprovals] = await Promise.all([
         settle(loadProfile(role), null as HomeProfile | null),
         loadPermissions(role),
+        settle(loadPendingApprovals(), [] as ApprovalRequest[]),
       ])
-      const pendingApprovals = await settle(
-        loadPendingApprovals(),
-        [] as ApprovalRequest[],
-      )
 
       return {
         role,

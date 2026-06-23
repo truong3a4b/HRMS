@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { randomUUID, randomInt } from "crypto";
-import { UserRole } from "../../generated/prisma/client";
+import { EmployeeStatus, UserRole } from "../../generated/prisma/client";
 import { PermissionKey } from "../constants/permissions";
 import { sendOtpEmail, sendPasswordResetOtpEmail } from "../config/brevo";
 import { env } from "../config/env";
@@ -29,6 +29,12 @@ type AuthUser = {
   id: string;
   email: string;
   role: UserRole;
+};
+
+type AuthenticatingUser = AuthUser & {
+  employee?: {
+    status: EmployeeStatus;
+  } | null;
 };
 
 type TokenMeta = {
@@ -63,6 +69,18 @@ const buildUser = (user: { id: string; email: string; role: UserRole }) => ({
   email: user.email,
   role: user.role,
 });
+
+const ensureUserCanAuthenticate = (user: AuthenticatingUser) => {
+  if (
+    user.role === UserRole.EMPLOYEE &&
+    user.employee?.status === EmployeeStatus.RESIGNED
+  ) {
+    throw new ApiError(
+      403,
+      "Tài khoản nhân viên đã nghỉ làm không được phép đăng nhập",
+    );
+  }
+};
 
 //Hàm xác thực và giải mã payload từ refresh token
 const verifyRefreshTokenPayload = (token: string) => {
@@ -166,6 +184,11 @@ const getValidatedSession = async (token: string) => {
           id: true,
           email: true,
           role: true,
+          employee: {
+            select: {
+              status: true,
+            },
+          },
         },
       },
     },
@@ -179,6 +202,22 @@ const getValidatedSession = async (token: string) => {
 
   if (!isTokenValid) {
     throw new ApiError(401, "Invalid refresh token");
+  }
+
+  try {
+    ensureUserCanAuthenticate(session.user);
+  } catch (error) {
+    await prisma.refreshToken.updateMany({
+      where: {
+        userId: session.user.id,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    throw error;
   }
 
   return session;
@@ -292,7 +331,16 @@ export const authService = {
   },
 
   async login(email: string, password: string, meta?: TokenMeta) {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        employee: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
 
     if (!user) {
       throw new ApiError(401, "Invalid email or password");
@@ -302,6 +350,8 @@ export const authService = {
     if (!isPasswordValid) {
       throw new ApiError(401, "Invalid email or password");
     }
+
+    ensureUserCanAuthenticate(user);
 
     const { accessToken, refreshToken } = await createTokenPair(
       buildUser(user),
@@ -512,7 +562,7 @@ export const authService = {
     const session = await getValidatedSession(token);
 
     const { accessToken, refreshToken } = await createTokenPair(
-      session.user,
+      buildUser(session.user),
       session.id,
       {
         userAgent: session.userAgent ?? undefined,
@@ -521,7 +571,7 @@ export const authService = {
     );
 
     return {
-      user: session.user,
+      user: buildUser(session.user),
       accessToken,
       refreshToken,
     };

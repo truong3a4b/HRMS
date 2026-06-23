@@ -5,7 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { Employee } from "../../employees/types/employee.types";
 import { buildMonthGrid } from "../../schedules/utils/scheduleDateUtils";
 import { attendanceService } from "../services/attendanceService";
-import type { AttendanceTimesheetData, AttendanceTimesheetDay } from "../types/attendance.types";
+import type {
+  AttendanceEmployee,
+  AttendanceTimesheetData,
+  AttendanceTimesheetDay,
+} from "../types/attendance.types";
 import { AttendanceMonthPicker } from "./AttendanceMonthPicker";
 
 type EmployeeTimesheetOverviewTabProps = {
@@ -17,7 +21,7 @@ type EmployeeTimesheetOverviewTabProps = {
 };
 
 type TimesheetRow = {
-  employee: Employee;
+  employee: AttendanceEmployee;
   timesheet: AttendanceTimesheetData | null;
   error?: string;
 };
@@ -70,12 +74,14 @@ function SummaryCard({
 }
 
 export function EmployeeTimesheetOverviewTab({
-  employees,
+  employees: _employees,
   month,
   refreshKey,
   onMonthChange,
   onViewDetail,
 }: EmployeeTimesheetOverviewTabProps) {
+  void _employees;
+
   const [rows, setRows] = useState<TimesheetRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -89,27 +95,23 @@ export function EmployeeTimesheetOverviewTab({
 
     async function loadTimesheets() {
       setLoading(true);
-      const targetEmployees = employees;
 
       try {
-        const results = await Promise.allSettled(
-          targetEmployees.map((employee) =>
-            attendanceService.getEmployeeTimesheet(employee.id, month),
-          ),
-        );
+        const data = await attendanceService.getEmployeesTimesheetOverview(month);
 
         if (cancelled) return;
 
         setRows(
-          targetEmployees.map((employee, index) => {
-            const result = results[index];
+          (data.rows ?? []).map((timesheet) => {
             return {
-              employee,
-              timesheet: result.status === "fulfilled" ? result.value : null,
-              error: result.status === "rejected" ? "Không tải được" : undefined,
+              employee: timesheet.employee,
+              timesheet,
+              error: undefined,
             };
           }),
         );
+      } catch {
+        if (!cancelled) setRows([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -120,7 +122,7 @@ export function EmployeeTimesheetOverviewTab({
     return () => {
       cancelled = true;
     };
-  }, [employees, month, refreshKey]);
+  }, [month, refreshKey]);
 
   useEffect(() => {
     setCurrentPage(1);

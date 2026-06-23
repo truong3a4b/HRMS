@@ -156,6 +156,7 @@ export function AttendanceManagementPage({
     const data = await employeeService.getEmployees({
       page: 1,
       limit: -1,
+      view: "summary",
     });
     setEmployees(data.items ?? []);
   };
@@ -265,8 +266,16 @@ export function AttendanceManagementPage({
   };
 
   useEffect(() => {
-    void loadEmployees();
-  }, []);
+    const needsEmployees = [
+      "fingerprints",
+      "employeeLogs",
+      "standardWorkDays",
+    ].includes(activeTab);
+
+    if (needsEmployees && employees.length === 0) {
+      void loadEmployees();
+    }
+  }, [activeTab, employees.length]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -283,8 +292,10 @@ export function AttendanceManagementPage({
   }, [searchParams]);
 
   useEffect(() => {
-    void loadDevices();
-  }, [devicePage, devicePageSize, deviceSearch]);
+    if (activeTab === "devices" || activeTab === "fingerprints") {
+      void loadDevices();
+    }
+  }, [activeTab, devicePage, devicePageSize, deviceSearch]);
 
   useEffect(() => {
     if (activeTab === "fingerprints") {

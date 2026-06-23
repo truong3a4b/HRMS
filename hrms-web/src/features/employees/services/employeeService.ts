@@ -81,6 +81,7 @@ export const employeeService = {
           departmentId: filters.departmentId,
           positionId: filters.positionId,
           status: filters.status,
+          view: filters.view,
         }),
       },
     );

@@ -1,5 +1,5 @@
 import { Modal, Pagination } from "antd";
-import { ArrowLeft, BadgeCheck, Banknote, Calculator, Coins, CreditCard, Eye, FilePlus2, RefreshCcw, Search, Send, Trash2, WalletCards, XCircle } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Banknote, Calculator, Coins, CreditCard, Download, Eye, FilePlus2, RefreshCcw, Search, Send, Trash2, WalletCards, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { paths } from "../../../app/router/paths";
@@ -652,6 +652,7 @@ export function PayrollPeriodOverviewPage() {
   const [approvalRequestOpen, setApprovalRequestOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentEmployeeIds, setPaymentEmployeeIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -901,6 +902,25 @@ export function PayrollPeriodOverviewPage() {
     });
   };
 
+  const exportPayrollExcel = async () => {
+    if (!overview) return;
+
+    setExporting(true);
+    try {
+      const fallbackName = `bang-luong-${overview.year}-${String(
+        overview.month,
+      ).padStart(2, "0")}.xlsx`;
+      await payrollService.exportPeriodExcel(overview.period.id, fallbackName);
+    } catch (error) {
+      Modal.error({
+        title: "Không thể xuất Excel",
+        content: getErrorMessage(error, "Thao tác thất bại."),
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <AppLayout>
       <main className="h-full overflow-y-auto bg-[#f1f5f9]">
@@ -922,6 +942,10 @@ export function PayrollPeriodOverviewPage() {
             <div className="flex flex-wrap gap-2.5">
               <button className="grid h-10 w-10 place-items-center rounded-lg border border-[#e2e8f0] bg-white text-[#64748b] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:text-[#006fd5] hover:shadow-md active:scale-95" type="button" title="Tải lại" onClick={() => void loadData()}>
                 <RefreshCcw className="h-4.5 w-4.5" />
+              </button>
+              <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-4 text-sm font-semibold text-[#475569] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:text-[#006fd5] hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={!overview || exporting} onClick={() => void exportPayrollExcel()}>
+                <Download className="h-4 w-4 text-[#006fd5]" />
+                {exporting ? "Đang xuất..." : "Xuất Excel"}
               </button>
               {canEditPeriod && canManage ? (
                 <>

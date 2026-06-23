@@ -208,6 +208,10 @@ router.post("/", validate(createPayrollSchema), payrollController.create);
 router.get("/", payrollController.getAll);
 router.get("/periods", payrollController.getPeriods);
 router.get(
+  "/periods/:periodId/export",
+  payrollController.exportPeriodExcelById,
+);
+router.get(
   "/periods/:periodId/overview",
   payrollController.getPeriodOverviewById,
 );

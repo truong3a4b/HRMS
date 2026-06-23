@@ -12,6 +12,7 @@ import {
   RequestType,
   UserRole,
 } from "../../generated/prisma/client";
+import * as XLSX from "xlsx";
 import { prisma } from "../config/prisma";
 import { PERMISSIONS, PermissionKey } from "../constants/permissions";
 import { ApiError } from "../utils/apiError";
@@ -223,6 +224,25 @@ const payrollOverviewSelect = {
   employee: {
     select: payrollEmployeeSelect,
   },
+};
+
+const payrollExportStatusLabel: Record<PayrollStatus, string> = {
+  DRAFT: "Nhap",
+  WAITING_APPROVAL: "Cho duyet",
+  APPROVED: "Da duyet",
+  PARTIALLY_PAID: "Tra mot phan",
+  PAID: "Da tra",
+  CANCELLED: "Da huy",
+};
+
+const buildPayrollExportFilename = (period: {
+  month: number;
+  year: number;
+}) =>
+  `bang-luong-${period.year}-${String(period.month).padStart(2, "0")}.xlsx`;
+
+const setColumnWidths = (worksheet: XLSX.WorkSheet, widths: number[]) => {
+  worksheet["!cols"] = widths.map((wch) => ({ wch }));
 };
 
 const payrollDetailInclude = {
@@ -2201,6 +2221,116 @@ export const payrollService = {
           ),
         ),
       })),
+    };
+  },
+
+  async exportPeriodExcel(user: AuthUser, data: PayrollPeriodInput) {
+    if (!canViewAllPayrolls(user)) {
+      throw new ApiError(403, "Forbidden", "FORBIDDEN");
+    }
+
+    const period = await findPayrollPeriodByInput(data);
+    const payrolls = await prisma.payroll.findMany({
+      where: {
+        periodId: period.id,
+      },
+      select: payrollOverviewSelect,
+      orderBy: { employee: { name: "asc" } },
+    });
+
+    const payrollRows = payrolls.map((payroll, index) => {
+      const insuranceTotal =
+        toNumber(payroll.socialInsurance) +
+        toNumber(payroll.healthInsurance) +
+        toNumber(payroll.unemploymentInsurance);
+      const netSalary = roundMoney(toNumber(payroll.netSalary));
+      const paidAmount = roundMoney(toNumber(payroll.paidAmount));
+      const remainingAmount = roundMoney(Math.max(0, netSalary - paidAmount));
+
+      return {
+        STT: index + 1,
+        "Ma nhan vien": payroll.employee?.employeeId ?? "",
+        "Ho ten": payroll.employee?.name ?? "",
+        "Email": payroll.employee?.email ?? "",
+        "Phong ban": payroll.employee?.department?.name ?? "",
+        "Chuc vu": payroll.employee?.position?.name ?? "",
+        "Luong co ban": roundMoney(toNumber(payroll.baseSalary)),
+        "Cong chuan": toNumber(payroll.standardWorkDays),
+        "Cong thuc te": toNumber(payroll.actualWorkDays),
+        "Luong thuc te": roundMoney(toNumber(payroll.actualSalary)),
+        "Cong ngay le": toNumber(payroll.holidayWorkDays),
+        "Luong ngay le": roundMoney(toNumber(payroll.holidayPay)),
+        "Cong tang ca": toNumber(payroll.totalOvertimeWorkDays),
+        "Gio tang ca": toNumber(payroll.totalOvertimeHours),
+        "Tien tang ca": roundMoney(toNumber(payroll.totalOvertimePay)),
+        "Phu cap": roundMoney(toNumber(payroll.totalAllowance)),
+        "Thuong": roundMoney(toNumber(payroll.totalBonus)),
+        "Phat": roundMoney(toNumber(payroll.totalPenalty)),
+        "BHXH": roundMoney(toNumber(payroll.socialInsurance)),
+        "BHYT": roundMoney(toNumber(payroll.healthInsurance)),
+        "BHTN": roundMoney(toNumber(payroll.unemploymentInsurance)),
+        "Tong bao hiem": roundMoney(insuranceTotal),
+        "Thue TNCN": roundMoney(toNumber(payroll.personalIncomeTax)),
+        "Luong gross": roundMoney(toNumber(payroll.grossSalary)),
+        "Tong khau tru": roundMoney(toNumber(payroll.totalDeduction)),
+        "Thuc nhan": netSalary,
+        "Da tra": paidAmount,
+        "Con lai": remainingAmount,
+        "Trang thai": payrollExportStatusLabel[payroll.status] ?? payroll.status,
+      };
+    });
+
+    const summary = payrollRows.reduce(
+      (totals, row) => ({
+        grossSalary: totals.grossSalary + Number(row["Luong gross"] ?? 0),
+        totalDeduction:
+          totals.totalDeduction + Number(row["Tong khau tru"] ?? 0),
+        netSalary: totals.netSalary + Number(row["Thuc nhan"] ?? 0),
+        paidAmount: totals.paidAmount + Number(row["Da tra"] ?? 0),
+        remainingAmount: totals.remainingAmount + Number(row["Con lai"] ?? 0),
+      }),
+      {
+        grossSalary: 0,
+        totalDeduction: 0,
+        netSalary: 0,
+        paidAmount: 0,
+        remainingAmount: 0,
+      },
+    );
+
+    const summaryRows = [
+      { "Chi tieu": "Ky luong", "Gia tri": period.name },
+      { "Chi tieu": "Thang", "Gia tri": `${period.month}/${period.year}` },
+      { "Chi tieu": "Trang thai ky", "Gia tri": period.status },
+      { "Chi tieu": "So nhan vien", "Gia tri": payrollRows.length },
+      { "Chi tieu": "Tong luong gross", "Gia tri": roundMoney(summary.grossSalary) },
+      { "Chi tieu": "Tong khau tru", "Gia tri": roundMoney(summary.totalDeduction) },
+      { "Chi tieu": "Tong thuc nhan", "Gia tri": roundMoney(summary.netSalary) },
+      { "Chi tieu": "Da tra", "Gia tri": roundMoney(summary.paidAmount) },
+      { "Chi tieu": "Con lai", "Gia tri": roundMoney(summary.remainingAmount) },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    const payrollSheet = XLSX.utils.json_to_sheet(payrollRows);
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+
+    setColumnWidths(payrollSheet, [
+      6, 14, 24, 28, 22, 22, 16, 12, 12, 16, 12, 16, 12, 12, 16, 16, 14, 14,
+      14, 14, 14, 16, 14, 16, 16, 16, 16, 16, 18,
+    ]);
+    setColumnWidths(summarySheet, [24, 24]);
+
+    XLSX.utils.book_append_sheet(workbook, payrollSheet, "Bang luong");
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Tong hop");
+
+    const buffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "buffer",
+    }) as Buffer;
+
+    return {
+      filename: buildPayrollExportFilename(period),
+      buffer,
     };
   },
 

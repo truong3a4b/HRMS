@@ -176,6 +176,31 @@ export const payrollController = {
     }
   },
 
+  async exportPeriodExcelById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const result = await payrollService.exportPeriodExcel(getCurrentUser(req), {
+        periodId: getParamValue(req.params.periodId),
+      });
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${result.filename}"`,
+      );
+
+      return res.status(200).send(result.buffer);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getPeriodOverview(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await payrollService.getPeriodOverview(getCurrentUser(req), {

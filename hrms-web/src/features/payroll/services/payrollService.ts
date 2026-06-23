@@ -37,6 +37,28 @@ export const payrollService = {
     return response.data.data;
   },
 
+  async exportPeriodExcel(periodId: string, fallbackName: string) {
+    const response = await apiClient.get<Blob>(
+      `/payrolls/periods/${periodId}/export`,
+      { responseType: "blob" },
+    );
+
+    const contentDisposition = response.headers["content-disposition"];
+    const filenameMatch =
+      typeof contentDisposition === "string"
+        ? /filename="?([^"]+)"?/i.exec(contentDisposition)
+        : null;
+    const filename = filenameMatch?.[1] ?? fallbackName;
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
+
   async getPeriodEmployeeDetail(periodId: string, employeeId: string) {
     const response = await apiClient.get<ApiResponse<PayrollDetail>>(
       `/payrolls/periods/${periodId}/employees/${employeeId}`,

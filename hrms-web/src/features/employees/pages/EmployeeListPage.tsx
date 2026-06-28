@@ -57,7 +57,7 @@ function getErrorMessage(error: unknown) {
 export function EmployeeListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   const isAdmin = user?.role === "ADMIN";
   const permissions = user?.permissions ?? [];
   const canCreate = isAdmin || permissions.includes("EMPLOYEE_CREATE");
@@ -122,6 +122,7 @@ export function EmployeeListPage() {
     }
   };
 
+  // load phong ban va chuc vu
   useEffect(() => {
     let ignore = false;
 
@@ -147,6 +148,7 @@ export function EmployeeListPage() {
     };
   }, []);
 
+  // load danh sach nhan vien
   useEffect(() => {
     let ignore = false;
 
@@ -297,7 +299,10 @@ export function EmployeeListPage() {
               }}
               options={[
                 { value: "", label: "Tất cả bộ phận" },
-                ...departments.map((department) => ({ value: department.id, label: department.name }))
+                ...departments.map((department) => ({
+                  value: department.id,
+                  label: department.name,
+                })),
               ]}
             />
             <SearchableSelect
@@ -309,7 +314,10 @@ export function EmployeeListPage() {
               }}
               options={[
                 { value: "", label: "Tất cả chức vụ" },
-                ...positions.map((position) => ({ value: position.id, label: position.name }))
+                ...positions.map((position) => ({
+                  value: position.id,
+                  label: position.name,
+                })),
               ]}
             />
             <select

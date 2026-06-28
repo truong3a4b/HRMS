@@ -175,6 +175,7 @@ const parseClockToMinutes = (value: string, label: string) => {
   return hours * 60 + minutes;
 };
 
+//hàm kiểm tra xem có ca làm việc nào bị trùng lặp trong cùng một ngày hay không
 const ensureNoOverlappingWorkShifts = (
   scheduleDetails: ScheduleDetail[],
   workShiftsById: Map<string, WorkShiftInfo>,
@@ -311,8 +312,7 @@ const normalizeFutureScheduleDetails = (
     }
 
     const dateKey = date.toISOString().slice(0, 10);
-    const workShiftIds =
-      detailsByDate.get(dateKey) ?? new Set<string>();
+    const workShiftIds = detailsByDate.get(dateKey) ?? new Set<string>();
 
     for (const workShiftId of normalizeIds(detail.workShiftIds)) {
       workShiftIds.add(workShiftId);
@@ -327,6 +327,7 @@ const normalizeFutureScheduleDetails = (
   }));
 };
 
+// Hàm áp dụng các phân công lịch làm việc
 export const applyScheduleAssignments = async (
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   employeeIds: string[],
@@ -370,6 +371,7 @@ export const applyScheduleAssignments = async (
 };
 
 export const scheduleAssignmentService = {
+  // Hàm áp dụng lịch làm việc cho một nhân viên
   async applyForEmployee(
     employeeId: string,
     scheduleDetails: ScheduleDetail[],
@@ -400,6 +402,7 @@ export const scheduleAssignmentService = {
     };
   },
 
+  // Hàm tạo một thiết lập lịch làm việc và áp dụng nó cho các nhân viên
   async createSetupAndApply(payload: CreateSetupInput) {
     const futureScheduleDetails = normalizeFutureScheduleDetails(
       payload.scheduleDetails,

@@ -16,6 +16,34 @@ const hasAnyPermission = (
   permissions: PermissionKey[],
 ) => permissions.some((permission) => userPermissions?.includes(permission));
 
+const findEmployeeAuthContext = (userId: string) =>
+  prisma.employee.findUnique({
+    where: { userId },
+    select: {
+      id: true,
+      position: {
+        select: {
+          permissions: {
+            select: {
+              permission: {
+                select: {
+                  key: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+const mapEmployeePermissions = (
+  employee: Awaited<ReturnType<typeof findEmployeeAuthContext>>,
+) =>
+  employee?.position?.permissions.map(
+    (item) => item.permission.key as PermissionKey,
+  ) ?? [];
+
 export const authMiddleware =
   (...roles: UserRole[]) =>
   async (req: Request, res: Response, next: NextFunction) => {
@@ -70,6 +98,12 @@ export const authMiddleware =
           employee?.position?.permissions.map(
             (item) => item.permission.key as PermissionKey,
           ) ?? [];
+      }
+
+      if (decoded.role !== UserRole.EMPLOYEE) {
+        const employee = await findEmployeeAuthContext(decoded.userId);
+        employeeId = employee?.id;
+        permissions = mapEmployeePermissions(employee);
       }
 
       req.user = {
@@ -149,6 +183,12 @@ export const optionalAuth = async (
         employee?.position?.permissions.map(
           (item) => item.permission.key as PermissionKey,
         ) ?? [];
+    }
+
+    if (decoded.role !== UserRole.EMPLOYEE) {
+      const employee = await findEmployeeAuthContext(decoded.userId);
+      employeeId = employee?.id;
+      permissions = mapEmployeePermissions(employee);
     }
 
     req.user = {

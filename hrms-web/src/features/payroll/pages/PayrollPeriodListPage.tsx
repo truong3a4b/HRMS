@@ -209,11 +209,33 @@ export function PayrollPeriodListPage() {
   }, [year]);
 
   const createPeriod = async (payload: CreatePayrollByTargetsPayload) => {
-    const result = await payrollService.createByTargets(payload);
+    const job = await payrollService.createByTargetsJob(payload);
     setCreateOpen(false);
     await loadData();
-    const periodId = result.payrolls[0]?.periodId;
-    if (periodId) navigate(paths.payrollPeriodOverview(periodId));
+
+    Modal.info({
+      title: "Dang tao ky luong",
+      content: `He thong dang tinh luong cho ${job.totalEmployees} nhan vien. Job: ${job.id}`,
+    });
+
+    const finishedJob = await payrollService.waitForCalculationJob(job.id);
+    await loadData();
+
+    if (finishedJob.status === "COMPLETED") {
+      Modal.success({
+        title: "Da tao ky luong",
+        content: `Tao ${finishedJob.createdCount}, cap nhat ${finishedJob.updatedCount}, bo qua ${finishedJob.skippedCount}.`,
+      });
+      navigate(paths.payrollPeriodOverview(finishedJob.periodId));
+      return;
+    }
+
+    Modal.error({
+      title: "Tao ky luong chua hoan tat",
+      content:
+        finishedJob.errorMessage ??
+        `Da xu ly ${finishedJob.processedCount}/${finishedJob.totalEmployees}, loi ${finishedJob.failedCount} nhan vien.`,
+    });
   };
 
   return (

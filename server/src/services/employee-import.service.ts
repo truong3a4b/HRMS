@@ -29,7 +29,10 @@ const OPTIONAL_HEADERS = [
   "status",
 ] as const;
 
-const KNOWN_HEADERS = new Set<string>([...REQUIRED_HEADERS, ...OPTIONAL_HEADERS]);
+const KNOWN_HEADERS = new Set<string>([
+  ...REQUIRED_HEADERS,
+  ...OPTIONAL_HEADERS,
+]);
 const MAX_IMPORT_ROWS = 500;
 const BATCH_TTL_HOURS = 24;
 
@@ -67,6 +70,7 @@ type PreviewRow = {
   warnings: ImportError[];
 };
 
+//Hàm chuẩn hóa giá trị của header, loại bỏ khoảng trắng và chuyển đổi sang chuỗi
 const normalizeHeader = (value: unknown) => String(value ?? "").trim();
 
 const normalizeText = (value: unknown) => {
@@ -92,12 +96,14 @@ const parseDateValue = (value: unknown): Date | null => {
   }
 
   const text = String(value).trim();
+  //Phân tích ngày theo định dạng YYYY-MM-DD hoặc YYYY/MM/DD
   const ymd = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
   if (ymd) {
     const [, year, month, day] = ymd;
     return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   }
 
+  //Phân tích ngày theo định dạng DD-MM-YYYY hoặc DD/MM/YYYY
   const dmy = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (dmy) {
     const [, day, month, year] = dmy;
@@ -108,6 +114,7 @@ const parseDateValue = (value: unknown): Date | null => {
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 };
 
+//Chuyển đổi đối tượng Date sang chuỗi ISO (YYYY-MM-DD)
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
 const parseSalary = (value: unknown) => {
@@ -119,6 +126,7 @@ const parseSalary = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+//Hàm chuẩn hóa dữ liệu đã được xác thực để loại bỏ thông tin nhạy cảm như passwordHash
 const toPreviewNormalized = (
   normalized: NormalizedEmployeeImportRow | null,
 ): PreviewRow["normalized"] => {
@@ -127,8 +135,11 @@ const toPreviewNormalized = (
   return safeNormalized;
 };
 
+//Hàm đọc dữ liệu từ file Excel và trả về các hàng dữ liệu đã được chuẩn hóa
 const readRowsFromWorkbook = (file: Express.Multer.File) => {
+  //Đọc workbook từ buffer của file Excel, đảm bảo rằng dữ liệu ngày được xử lý đúng cách
   const workbook = XLSX.read(file.buffer, { type: "buffer", cellDates: true });
+  //Lấy tên của sheet đầu tiên trong workbook
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {
     throw new ApiError(400, "Excel file does not contain any sheet");
@@ -162,6 +173,7 @@ const readRowsFromWorkbook = (file: Express.Multer.File) => {
   return { headers, rows };
 };
 
+//Hàm tạo mã nhân viên duy nhất, đảm bảo rằng mã này chưa tồn tại trong cơ sở dữ liệu và không bị trùng lặp trong quá trình nhập khẩu
 const getEmployeeId = async (
   tx: Prisma.TransactionClient,
   reserved: Set<string>,
@@ -209,12 +221,10 @@ const parseNormalizedRow = (
 };
 
 export const employeeImportService = {
+  //Hàm tạo một buffer Excel mẫu với các hàng dữ liệu giả định để người dùng có thể tải xuống và sử dụng làm mẫu nhập khẩu
   createTemplateBuffer() {
     const rows = [
-      [
-        ...REQUIRED_HEADERS,
-        ...OPTIONAL_HEADERS,
-      ],
+      [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS],
       [
         "Nguyen Van A",
         "nguyenvana@example.com",
@@ -238,7 +248,11 @@ export const employeeImportService = {
     return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
   },
 
-  async preview(file: Express.Multer.File | undefined, uploadedByUserId?: string) {
+  //Hàm xem trước dữ liệu nhập khẩu từ file Excel, kiểm tra các lỗi và cảnh báo, và lưu trữ kết quả trong cơ sở dữ liệu để người dùng có thể xác nhận sau này
+  async preview(
+    file: Express.Multer.File | undefined,
+    uploadedByUserId?: string,
+  ) {
     if (!file) {
       throw new ApiError(400, "Excel file is required");
     }
@@ -248,9 +262,13 @@ export const employeeImportService = {
       throw new ApiError(400, "Excel file does not contain employee rows");
     }
     if (rows.length > MAX_IMPORT_ROWS) {
-      throw new ApiError(400, `Employee import cannot exceed ${MAX_IMPORT_ROWS} rows`);
+      throw new ApiError(
+        400,
+        `Employee import cannot exceed ${MAX_IMPORT_ROWS} rows`,
+      );
     }
 
+    //Kiểm tra các cột bắt buộc có trong file Excel
     const missingHeaders = REQUIRED_HEADERS.filter(
       (header) => !headers.includes(header),
     );
@@ -265,6 +283,7 @@ export const employeeImportService = {
       (header) => header && !KNOWN_HEADERS.has(header),
     );
 
+    //Lấy danh sách các phòng ban, vị trí, người dùng và nhân viên hiện có từ cơ sở dữ liệu để kiểm tra tính hợp lệ của dữ liệu nhập khẩu
     const [departments, positions, users, employees] = await Promise.all([
       prisma.department.findMany({
         where: { code: { not: null } },
@@ -279,7 +298,10 @@ export const employeeImportService = {
     ]);
 
     const departmentByCode = new Map(
-      departments.map((department) => [department.code?.toLowerCase(), department]),
+      departments.map((department) => [
+        department.code?.toLowerCase(),
+        department,
+      ]),
     );
     const positionByCode = new Map(
       positions.map((position) => [position.code?.toLowerCase(), position]),
@@ -290,6 +312,7 @@ export const employeeImportService = {
     ]);
     const seenEmails = new Map<string, number>();
 
+    //Xử lý từng hàng dữ liệu nhập khẩu, chuẩn hóa các giá trị, kiểm tra lỗi và cảnh báo, và lưu trữ kết quả trong cơ sở dữ liệu
     const previewRows = await Promise.all(
       rows.map(async ({ rowNumber, values }) => {
         const errors: ImportError[] = [];
@@ -341,19 +364,31 @@ export const employeeImportService = {
           });
         }
         if (!departmentCode) {
-          errors.push({ field: "departmentCode", message: "Department code is required" });
+          errors.push({
+            field: "departmentCode",
+            message: "Department code is required",
+          });
         }
         if (!positionCode) {
-          errors.push({ field: "positionCode", message: "Position code is required" });
+          errors.push({
+            field: "positionCode",
+            message: "Position code is required",
+          });
         }
         if (!hireDate) {
           errors.push({ field: "hireDate", message: "Hire date is invalid" });
         }
         if (salary === null || salary < 0) {
-          errors.push({ field: "salary", message: "Salary must be a non-negative number" });
+          errors.push({
+            field: "salary",
+            message: "Salary must be a non-negative number",
+          });
         }
         if (values.dateOfBirth && !dateOfBirth) {
-          errors.push({ field: "dateOfBirth", message: "Date of birth is invalid" });
+          errors.push({
+            field: "dateOfBirth",
+            message: "Date of birth is invalid",
+          });
         }
         if (gender && !["MALE", "FEMALE", "OTHER"].includes(gender)) {
           errors.push({ field: "gender", message: "Gender is invalid" });
@@ -370,10 +405,16 @@ export const employeeImportService = {
           : undefined;
 
         if (departmentCode && !department) {
-          errors.push({ field: "departmentCode", message: "Department code was not found" });
+          errors.push({
+            field: "departmentCode",
+            message: "Department code was not found",
+          });
         }
         if (positionCode && !position) {
-          errors.push({ field: "positionCode", message: "Position code was not found" });
+          errors.push({
+            field: "positionCode",
+            message: "Position code was not found",
+          });
         }
 
         const normalized: NormalizedEmployeeImportRow | null =
@@ -412,9 +453,12 @@ export const employeeImportService = {
 
     const totalRows = previewRows.length;
     const errorRows = previewRows.filter((row) => row.errors.length > 0).length;
-    const warningRows = previewRows.filter((row) => row.warnings.length > 0).length;
+    const warningRows = previewRows.filter(
+      (row) => row.warnings.length > 0,
+    ).length;
     const expiresAt = new Date(Date.now() + BATCH_TTL_HOURS * 60 * 60 * 1000);
 
+    //Lưu trữ kết quả xem trước trong cơ sở dữ liệu để người dùng có thể xác nhận sau này
     const batch = await prisma.employeeImportBatch.create({
       data: {
         uploadedByUserId,
@@ -461,6 +505,7 @@ export const employeeImportService = {
     };
   },
 
+  //Hàm xác nhận dữ liệu nhập khẩu, tạo người dùng và nhân viên mới trong cơ sở dữ liệu dựa trên dữ liệu đã được xác thực và chuẩn hóa, và cập nhật trạng thái của lô nhập khẩu
   async confirm(batchId: string, userId?: string) {
     const batch = await prisma.employeeImportBatch.findUnique({
       where: { id: batchId },
@@ -488,13 +533,20 @@ export const employeeImportService = {
       throw new ApiError(400, "Employee import batch has expired");
     }
     if (batch.errorRows > 0) {
-      throw new ApiError(400, "Employee import batch still has validation errors");
+      throw new ApiError(
+        400,
+        "Employee import batch still has validation errors",
+      );
     }
 
+    //Chuẩn hóa các hàng dữ liệu đã được xác thực để loại bỏ thông tin nhạy cảm như passwordHash
     const normalizedRows = batch.rows.map((row) => {
       const normalized = parseNormalizedRow(row.normalizedData);
       if (!normalized) {
-        throw new ApiError(400, `Row ${row.rowNumber} is missing validated data`);
+        throw new ApiError(
+          400,
+          `Row ${row.rowNumber} is missing validated data`,
+        );
       }
       return normalized;
     });
@@ -520,7 +572,9 @@ export const employeeImportService = {
               name: row.name,
               email: row.email,
               phone: row.phone,
-              dateOfBirth: row.dateOfBirth ? new Date(row.dateOfBirth) : undefined,
+              dateOfBirth: row.dateOfBirth
+                ? new Date(row.dateOfBirth)
+                : undefined,
               gender: row.gender,
               address: row.address,
               bankAccount: row.bankAccount,

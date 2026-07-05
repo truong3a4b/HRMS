@@ -254,7 +254,12 @@ export const requestController = {
 
       const result = await requestService.getMyLeaveShiftsByDate(user.id, date);
 
-      return sendResponse(res, 200, "Leave shifts fetched successfully", result);
+      return sendResponse(
+        res,
+        200,
+        "Leave shifts fetched successfully",
+        result,
+      );
     } catch (error) {
       next(error);
     }
@@ -342,7 +347,11 @@ export const requestController = {
     }
   },
 
-  async createLateEarlyRequest(req: Request, res: Response, next: NextFunction) {
+  async createLateEarlyRequest(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
     try {
       const user = requireUser(req);
       const body = req.body as CreateLateEarlyRequestBody;

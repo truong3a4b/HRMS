@@ -33,18 +33,19 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens         RefreshToken[]
-  passwordResetOtps     PasswordResetOtp[]
-  candidate             Candidate?
-  employee              Employee?
-  payrollPeriods        PayrollPeriod[]
-  payrollPaymentBatches PayrollPaymentBatch[]
-  sentNotifications     Notification[]          @relation("NotificationSender")
-  notifications         NotificationRecipient[]
-  requestedRequests     Request[]               @relation("RequestRequester")
-  requestApprovals      RequestApproval[]       @relation("RequestApprover")
-  watchedRequests       RequestWatcher[]        @relation("RequestWatcherUser")
-  employeeImportBatches EmployeeImportBatch[]   @relation("EmployeeImportUploader")
+  refreshTokens          RefreshToken[]
+  passwordResetOtps      PasswordResetOtp[]
+  candidate              Candidate?
+  employee               Employee?
+  payrollPeriods         PayrollPeriod[]
+  payrollPaymentBatches  PayrollPaymentBatch[]
+  payrollCalculationJobs PayrollCalculationJob[] @relation("PayrollCalculationJobRequester")
+  sentNotifications      Notification[]          @relation("NotificationSender")
+  notifications          NotificationRecipient[]
+  requestedRequests      Request[]               @relation("RequestRequester")
+  requestApprovals       RequestApproval[]       @relation("RequestApprover")
+  watchedRequests        RequestWatcher[]        @relation("RequestWatcherUser")
+  employeeImportBatches  EmployeeImportBatch[]   @relation("EmployeeImportUploader")
 }
 
 model PendingUser {
@@ -1072,7 +1073,7 @@ model TaxBracket {
 }
 
 model AttendanceBonusPolicy {
-  id String @id @default(uuid())
+  id                  String  @id @default(uuid())
   useStandardWorkDays Boolean @default(true)
 
   name   String
@@ -1282,9 +1283,9 @@ model PayrollBonusPenalty {
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
 
-  employee          Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  autoPenaltyPolicy AutoPenaltyPolicy?        @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: SetNull)
-  payrollLines      PayrollBonusPenaltyLine[]
+  employee             Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  autoPenaltyPolicy    AutoPenaltyPolicy?        @relation(fields: [autoPenaltyPolicyId], references: [id], onDelete: SetNull)
+  payrollLines         PayrollBonusPenaltyLine[]
   bonusPenaltyRequests BonusPenaltyRequest[]
 
   @@unique([employeeId, autoPenaltyPolicyId, occurrenceKey])
@@ -1376,6 +1377,7 @@ model PayrollPeriod {
   payrolls         Payroll[]
   paymentBatches   PayrollPaymentBatch[]
   approvalRequests PayrollApprovalRequest[]
+  calculationJobs  PayrollCalculationJob[]
 
   @@unique([month, year])
   @@index([year, month])
@@ -1404,6 +1406,43 @@ enum PayrollPaymentMode {
   AMOUNT
   PERCENT
   REMAINING
+}
+
+enum PayrollCalculationJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model PayrollCalculationJob {
+  id                  String                      @id @default(uuid())
+  periodId            String
+  requestedById       String?
+  status              PayrollCalculationJobStatus @default(PENDING)
+  targetDepartmentIds Json
+  targetPositionIds   Json
+  skipExisting        Boolean                     @default(false)
+  totalEmployees      Int                         @default(0)
+  processedCount      Int                         @default(0)
+  failedCount         Int                         @default(0)
+  createdCount        Int                         @default(0)
+  updatedCount        Int                         @default(0)
+  skippedCount        Int                         @default(0)
+  errorMessage        String?
+  errors              Json?
+  startedAt           DateTime?
+  finishedAt          DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+
+  period      PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  requestedBy User?         @relation("PayrollCalculationJobRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([periodId])
+  @@index([requestedById])
+  @@index([status, createdAt])
+  @@map("payroll_calculation_jobs")
 }
 
 model PayrollPaymentBatch {

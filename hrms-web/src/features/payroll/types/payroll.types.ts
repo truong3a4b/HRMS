@@ -215,6 +215,35 @@ export type CreatePayrollByTargetsResult = {
   payrolls: PayrollSummary[];
 };
 
+export type PayrollCalculationJobStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED";
+
+export type PayrollCalculationJob = {
+  id: string;
+  periodId: string;
+  requestedById?: string | null;
+  status: PayrollCalculationJobStatus;
+  targetDepartmentIds: string[];
+  targetPositionIds: string[];
+  skipExisting: boolean;
+  totalEmployees: number;
+  processedCount: number;
+  failedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorMessage?: string | null;
+  errors?: Array<{ employeeId?: string; message: string }> | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  period?: PayrollPeriod | null;
+};
+
 export type CreatePayrollPaymentBatchPayload = {
   periodId?: string;
   month?: number;

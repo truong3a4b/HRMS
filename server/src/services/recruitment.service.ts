@@ -14,7 +14,6 @@ import { ApiError } from "../utils/apiError";
 import { sendInterviewInvitationEmail, sendOfferEmail } from "../config/brevo";
 import { env } from "../config/env";
 import { notificationService } from "./notification.service";
-import { is } from "zod/locales";
 
 type CandidateProfileInput = {
   fullName?: string | null;
@@ -82,11 +81,6 @@ type InterviewEvaluationInput = {
 };
 
 type InterviewEvaluationUpdateInput = Partial<InterviewEvaluationInput>;
-
-type ApplicationDecisionInput = {
-  decision: JobApplicationStatus;
-  notes?: string;
-};
 
 type OfferInput = {
   departmentId: string;
@@ -169,17 +163,6 @@ const recruitmentJobInclude = {
     },
   },
 } satisfies Prisma.RecruitmentJobInclude;
-
-const candidateSummarySelect = {
-  id: true,
-  fullName: true,
-  email: true,
-  phone: true,
-  dateOfBirth: true,
-  gender: true,
-  avatar: true,
-  cvUrl: true,
-} as const;
 
 const applicationListSelect = {
   id: true,
@@ -295,12 +278,11 @@ const finalApplicationStatuses = new Set<string>([
   JobApplicationStatus.CANCELLED,
 ]);
 
-const isApplicationActive = (status: JobApplicationStatus | string) =>
-  activeApplicationStatuses.has(status as string);
-
+//Kiểm tra xem trạng thái của đơn có phải là trạng thái cuối cùng hay không
 const isApplicationFinal = (status: JobApplicationStatus | string) =>
   finalApplicationStatuses.has(status as string);
 
+//Kiểm tra xem trạng thái của đơn có phải là trạng thái đang hoạt động hay không
 const isRecruitmentJobExpired = (deadline: Date | null | undefined) =>
   !!deadline && deadline.getTime() < Date.now();
 
@@ -319,6 +301,7 @@ const recruitmentNotificationPermissionKeys = [
   "RECRUITMENT_APPROVE_DIRECT",
 ] as const;
 
+// Lấy danh sách userId của các admin và các nhân viên có quyền liên quan đến tuyển dụng để gửi thông báo
 const getRecruitmentNotificationRecipientIds = async () => {
   const [admins, recruitmentEmployees] = await Promise.all([
     prisma.user.findMany({
@@ -360,6 +343,7 @@ const getRecruitmentNotificationRecipientIds = async () => {
   ];
 };
 
+// Tự động từ chối các lịch phỏng vấn và offer quá hạn mà ứng viên chưa phản hồi
 const expirePendingRecruitmentResponses = async () => {
   const now = new Date();
   const interviewCutoff = hoursAgo(
@@ -437,6 +421,7 @@ const expirePendingRecruitmentResponses = async () => {
   });
 };
 
+// Lấy thông tin ứng viên dựa trên userId, nếu không tìm thấy thì ném ra lỗi 404
 const getCandidateByUserId = async (userId: string) => {
   const candidate = await prisma.candidate.findUnique({
     where: { userId },
@@ -454,6 +439,7 @@ const getCandidateByUserId = async (userId: string) => {
   return candidate;
 };
 
+// Kiểm tra xem đơn có thuộc về ứng viên hay không, nếu không thì ném ra lỗi 404
 const ensureApplicationOwner = async (
   applicationId: string,
   userId: string,
@@ -478,6 +464,7 @@ const ensureApplicationOwner = async (
   return { candidate, application };
 };
 
+// Lấy thông tin tuyển dụng dựa trên id, nếu không tìm thấy thì ném ra lỗi 404
 const getRecruitmentJobOrThrow = async (id: string) => {
   const recruitmentJob = await prisma.recruitmentJob.findUnique({
     where: { id },
@@ -495,6 +482,7 @@ const getRecruitmentJobOrThrow = async (id: string) => {
   return recruitmentJob;
 };
 
+// Kiểm tra xem công việc tuyển dụng có đang mở hay không, nếu không thì ném ra lỗi 400
 const ensureRecruitmentJobOpen = (recruitmentJob: {
   status: RecruitmentJobStatus;
   deadline: Date | null;
@@ -516,6 +504,7 @@ const ensureRecruitmentJobOpen = (recruitmentJob: {
   }
 };
 
+// Kiểm tra xem công việc tuyển dụng có thể chỉnh sửa hay không, nếu không thì ném ra lỗi 400
 const ensureRecruitmentJobEditable = (recruitmentJob: {
   status: RecruitmentJobStatus;
 }) => {
@@ -528,6 +517,7 @@ const ensureRecruitmentJobEditable = (recruitmentJob: {
   }
 };
 
+// Kiểm tra xem dữ liệu cập nhật công việc tuyển dụng chỉ chứa trường trạng thái hay không
 const isStatusOnlyRecruitmentJobUpdate = (data: RecruitmentJobUpdateInput) =>
   Object.keys(data).every((key) => key === "status");
 
@@ -542,6 +532,8 @@ function getJsonName(value: unknown): string | undefined {
 }
 
 export const recruitmentService = {
+  // Lấy danh sách công việc tuyển dụng dựa trên bộ lọc,
+  // nếu userId được cung cấp thì xác định các công việc mà ứng viên đã ứng tuyển
   async getJobs(filters: RecruitmentJobListFilters, userId?: string) {
     const normalizedSearch = filters.search?.trim() ?? "";
     const conditions: Prisma.RecruitmentJobWhereInput[] = [];
@@ -642,6 +634,8 @@ export const recruitmentService = {
     };
   },
 
+  // Lấy thông tin chi tiết của công việc tuyển dụng dựa trên id,
+  // nếu userId được cung cấp thì xác định xem ứng viên đã ứng tuyển hay chưa
   async getJobById(id: string, userId?: string) {
     const recruitmentJob = await prisma.recruitmentJob.findFirst({
       where: {
@@ -680,6 +674,7 @@ export const recruitmentService = {
     return { ...recruitmentJob, applied };
   },
 
+  // Tạo một công việc tuyển dụng mới, yêu cầu userId của người tạo và dữ liệu công việc
   async createJob(userId: string, data: RecruitmentJobInput) {
     const employee = await prisma.employee.findUnique({
       where: { userId },
@@ -732,6 +727,7 @@ export const recruitmentService = {
     });
   },
 
+  // Cập nhật thông tin công việc tuyển dụng dựa trên id, yêu cầu userId của người cập nhật và dữ liệu cập nhật
   async updateJob(id: string, data: RecruitmentJobUpdateInput) {
     const recruitmentJob = await getRecruitmentJobOrThrow(id);
 
@@ -789,6 +785,7 @@ export const recruitmentService = {
     });
   },
 
+  // Đóng công việc tuyển dụng dựa trên id, yêu cầu userId của người đóng
   async closeJob(id: string) {
     const recruitmentJob = await getRecruitmentJobOrThrow(id);
 
@@ -809,6 +806,7 @@ export const recruitmentService = {
     });
   },
 
+  // Mở lại công việc tuyển dụng dựa trên id, yêu cầu userId của người mở lại
   async reopenJob(id: string) {
     const recruitmentJob = await getRecruitmentJobOrThrow(id);
 
@@ -1300,6 +1298,7 @@ export const recruitmentService = {
     });
   },
 
+  // Ứng viên phản hồi lịch phỏng vấn, yêu cầu applicationId, scheduleId, candidateUserId và dữ liệu phản hồi
   async respondToInterview(
     applicationId: string,
     scheduleId: string,
@@ -1363,6 +1362,7 @@ export const recruitmentService = {
     });
   },
 
+  // Đánh giá phỏng vấn, yêu cầu applicationId, evaluatorUserId và dữ liệu đánh giá
   async submitEvaluation(
     applicationId: string,
     evaluatorUserId: string,
@@ -1414,6 +1414,7 @@ export const recruitmentService = {
     });
   },
 
+  // Cập nhật đánh giá phỏng vấn, yêu cầu applicationId, evaluationId, evaluatorUserId và dữ liệu cập nhật
   async updateEvaluation(
     applicationId: string,
     evaluationId: string,
@@ -1476,6 +1477,7 @@ export const recruitmentService = {
     return updatedEvaluation;
   },
 
+  // Xóa đánh giá phỏng vấn, yêu cầu applicationId, evaluationId và evaluatorUserId
   async deleteEvaluation(
     applicationId: string,
     evaluationId: string,
@@ -1555,6 +1557,7 @@ export const recruitmentService = {
     };
   },
 
+  // Reject ứng viên, yêu cầu applicationId
   async rejectApplication(applicationId: string) {
     const application = await this.getApplicationByIdWithDetail(applicationId);
 
@@ -1578,6 +1581,7 @@ export const recruitmentService = {
     return updatedApplication;
   },
 
+  // Gửi offer cho ứng viên, yêu cầu applicationId và dữ liệu offer
   async sendOffer(applicationId: string, data: OfferInput) {
     await expirePendingRecruitmentResponses();
 
@@ -1639,6 +1643,7 @@ export const recruitmentService = {
     });
   },
 
+  // Ứng viên phản hồi về offer đã nhận được, có thể chấp nhận hoặc từ chối
   async respondToOffer(
     applicationId: string,
     candidateUserId: string,
@@ -1756,6 +1761,8 @@ export const recruitmentService = {
     };
   },
 
+  // Lấy thông tin tổng quan về pipeline tuyển dụng,
+  // bao gồm số lượng ứng viên theo trạng thái, theo vị trí và theo công việc tuyển dụng
   async getPipeline() {
     await expirePendingRecruitmentResponses();
 

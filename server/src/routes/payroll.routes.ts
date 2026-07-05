@@ -200,12 +200,18 @@ router.use(authMiddleware(UserRole.ADMIN, UserRole.EMPLOYEE));
 
 router.get("/mine", payrollController.getMine);
 router.post(
+  "/by-targets/jobs",
+  validate(createPayrollByTargetsSchema),
+  payrollController.createByTargetsJob,
+);
+router.post(
   "/by-targets",
   validate(createPayrollByTargetsSchema),
   payrollController.createByTargets,
 );
 router.post("/", validate(createPayrollSchema), payrollController.create);
 router.get("/", payrollController.getAll);
+router.get("/jobs/:id", payrollController.getCalculationJob);
 router.get("/periods", payrollController.getPeriods);
 router.get(
   "/periods/:periodId/export",

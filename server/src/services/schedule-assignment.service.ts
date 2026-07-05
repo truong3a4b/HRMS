@@ -11,6 +11,7 @@ import {
   notifyRequestWorkflow,
 } from "./request-notification.service";
 
+//Đại diện cho chi tiết lịch làm việc trong một ngày cụ thể
 type ScheduleDetail = {
   date: string;
   workShiftIds: string[];
@@ -34,6 +35,8 @@ type RegisterScheduleRequestInput = {
   scheduleDetails: ScheduleDetail[];
 };
 
+// Định nghĩa các trường cần thiết để bao gồm thông tin liên quan đến người yêu cầu,
+//  người phê duyệt và người theo dõi trong một yêu cầu
 const requestInclude = {
   requester: {
     select: {
@@ -66,11 +69,13 @@ const requestInclude = {
   },
 } satisfies Prisma.RequestInclude;
 
+// Hàm chuẩn hóa danh sách ID bằng cách loại bỏ các giá trị trùng lặp và khoảng trắng
 const normalizeIds = (values: string[]) =>
   [...new Set(values.map((value) => value.trim()).filter(Boolean))].filter(
     Boolean,
   );
 
+// Hàm kiểm tra sự tồn tại của người dùng dựa trên danh sách ID người dùng
 const ensureUsersExist = async (userIds: string[]) => {
   if (userIds.length === 0) {
     return;
@@ -95,9 +100,19 @@ const ensureUsersExist = async (userIds: string[]) => {
   }
 };
 
+// Hàm lấy danh sách ID ca làm việc từ chi tiết lịch làm việc
 const getWorkShiftIdsFromDetails = (scheduleDetails: ScheduleDetail[]) =>
   normalizeIds(scheduleDetails.flatMap((detail) => detail.workShiftIds ?? []));
 
+const chunk = <T>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+// Định nghĩa kiểu dữ liệu cho thông tin ca làm việc
 type WorkShiftInfo = {
   id: string;
   code: string;
@@ -108,6 +123,7 @@ type WorkShiftInfo = {
   isActive: boolean;
 };
 
+// Hàm lấy thông tin ca làm việc dựa trên danh sách ID ca làm việc
 const getWorkShiftsByIds = async (
   workShiftIds: string[],
   requireActive = true,
@@ -217,6 +233,7 @@ const ensureNoOverlappingWorkShifts = (
   }
 };
 
+// Hàm phân tích một chuỗi ngày theo định dạng YYYY-MM-DD và trả về đối tượng Date
 const parseDateOnly = (value: string) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
@@ -240,6 +257,7 @@ const parseDateOnly = (value: string) => {
   return date;
 };
 
+// Hàm phân tích một chuỗi tháng theo định dạng YYYY-MM và trả về đối tượng Date đại diện cho ngày đầu tiên của tháng đó
 const parseMonth = (value: string) => {
   const match = /^(\d{4})-(\d{2})$/.exec(value);
 
@@ -257,6 +275,7 @@ const parseMonth = (value: string) => {
   return new Date(Date.UTC(year, month - 1, 1));
 };
 
+// Hàm đảm bảo rằng tất cả các chi tiết lịch làm việc đều nằm trong tháng đăng ký
 const ensureScheduleDetailsInMonth = (
   scheduleDetails: ScheduleDetail[],
   monthStart: Date,
@@ -280,6 +299,7 @@ const ensureScheduleDetailsInMonth = (
   }
 };
 
+// Hàm đảm bảo rằng một nhân viên tồn tại trong cơ sở dữ liệu dựa trên ID của họ
 const ensureEmployeeExists = async (employeeId: string) => {
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
@@ -291,10 +311,13 @@ const ensureEmployeeExists = async (employeeId: string) => {
   }
 };
 
+// Hàm chuẩn hóa chi tiết lịch làm việc trong tương lai,
+// loại bỏ các chi tiết đã qua và hợp nhất các ca làm việc trùng lặp trong cùng một ngày
 const normalizeFutureScheduleDetails = (
   scheduleDetails: ScheduleDetail[],
   referenceTime = new Date(),
 ) => {
+  // Tạo một bản đồ để lưu trữ các chi tiết lịch làm việc theo ngày
   const detailsByDate = new Map<string, Set<string>>();
   const referenceDate = new Date(
     Date.UTC(
@@ -304,6 +327,7 @@ const normalizeFutureScheduleDetails = (
     ),
   );
 
+  // Lặp qua từng chi tiết lịch làm việc
   for (const detail of scheduleDetails) {
     const date = parseDateOnly(detail.date);
 
@@ -321,6 +345,7 @@ const normalizeFutureScheduleDetails = (
     detailsByDate.set(dateKey, workShiftIds);
   }
 
+  // Chuyển đổi bản đồ thành một mảng các chi tiết lịch làm việc đã chuẩn hóa
   return Array.from(detailsByDate.entries()).map(([date, workShiftIds]) => ({
     date,
     workShiftIds: Array.from(workShiftIds),
@@ -343,30 +368,75 @@ export const applyScheduleAssignments = async (
     return;
   }
 
-  for (const employeeId of employeeIds) {
-    for (const detail of normalizedScheduleDetails) {
-      const dateObj = parseDateOnly(detail.date);
-      const schedule = await tx.workSchedule.upsert({
-        where: { employeeId_date: { employeeId, date: dateObj } },
-        update: {},
-        create: {
-          employeeId,
-          date: dateObj,
-        },
-      });
+  const detailsWithDate = normalizedScheduleDetails.map((detail) => ({
+    ...detail,
+    dateObj: parseDateOnly(detail.date),
+  }));
 
+  const scheduleRows = employeeIds.flatMap((employeeId) =>
+    detailsWithDate.map((detail) => ({
+      employeeId,
+      date: detail.dateObj,
+    })),
+  );
+
+  for (const rows of chunk(scheduleRows, 1000)) {
+    await tx.workSchedule.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+  }
+
+  const schedules = await tx.workSchedule.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      date: { in: detailsWithDate.map((detail) => detail.dateObj) },
+    },
+    select: {
+      id: true,
+      employeeId: true,
+      date: true,
+    },
+  });
+
+  const scheduleByEmployeeDate = new Map(
+    schedules.map((schedule) => [
+      `${schedule.employeeId}:${schedule.date.toISOString().slice(0, 10)}`,
+      schedule.id,
+    ]),
+  );
+  const scheduleIds = schedules.map((schedule) => schedule.id);
+
+  if (scheduleIds.length > 0) {
+    for (const ids of chunk(scheduleIds, 1000)) {
       await tx.workScheduleShift.deleteMany({
-        where: { workScheduleId: schedule.id },
-      });
-
-      await tx.workScheduleShift.createMany({
-        data: detail.workShiftIds.map((workShiftId) => ({
-          workScheduleId: schedule.id,
-          workShiftId,
-        })),
-        skipDuplicates: true,
+        where: { workScheduleId: { in: ids } },
       });
     }
+  }
+
+  const shiftRows = employeeIds.flatMap((employeeId) =>
+    detailsWithDate.flatMap((detail) => {
+      const workScheduleId = scheduleByEmployeeDate.get(
+        `${employeeId}:${detail.date}`,
+      );
+
+      if (!workScheduleId) {
+        return [];
+      }
+
+      return detail.workShiftIds.map((workShiftId) => ({
+        workScheduleId,
+        workShiftId,
+      }));
+    }),
+  );
+
+  for (const rows of chunk(shiftRows, 1000)) {
+    await tx.workScheduleShift.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
   }
 };
 
@@ -392,9 +462,12 @@ export const scheduleAssignmentService = {
     const workShiftsById = await getWorkShiftsByIds(workShiftIds);
     ensureNoOverlappingWorkShifts(futureScheduleDetails, workShiftsById);
 
-    await prisma.$transaction(async (tx) => {
-      await applyScheduleAssignments(tx, [employeeId], futureScheduleDetails);
-    });
+    await prisma.$transaction(
+      async (tx) => {
+        await applyScheduleAssignments(tx, [employeeId], futureScheduleDetails);
+      },
+      { timeout: 20_000 },
+    );
 
     return {
       employeeId,
@@ -404,6 +477,7 @@ export const scheduleAssignmentService = {
 
   // Hàm tạo một thiết lập lịch làm việc và áp dụng nó cho các nhân viên
   async createSetupAndApply(payload: CreateSetupInput) {
+    // Chuẩn hóa chi tiết lịch làm việc trong tương lai và lấy danh sách ID ca làm việc
     const futureScheduleDetails = normalizeFutureScheduleDetails(
       payload.scheduleDetails,
     );
@@ -460,9 +534,12 @@ export const scheduleAssignmentService = {
       return setup;
     }
 
-    await prisma.$transaction(async (tx) => {
-      await applyScheduleAssignments(tx, employeeIds, futureScheduleDetails);
-    });
+    await prisma.$transaction(
+      async (tx) => {
+        await applyScheduleAssignments(tx, employeeIds, futureScheduleDetails);
+      },
+      { timeout: 20_000 },
+    );
 
     return setup;
   },
@@ -555,6 +632,7 @@ export const scheduleAssignmentService = {
     return request;
   },
 
+  // Hàm lấy lịch làm việc của một nhân viên theo tháng
   async getEmployeeScheduleByMonth(
     employeeId: string,
     year: number,

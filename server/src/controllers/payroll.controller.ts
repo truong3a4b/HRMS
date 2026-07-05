@@ -109,6 +109,41 @@ export const payrollController = {
     }
   },
 
+  async createByTargetsJob(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await payrollService.createByTargetsJob(
+        getCurrentUser(req),
+        req.body,
+      );
+      return sendResponse(
+        res,
+        202,
+        "Payroll calculation job created successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getCalculationJob(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = getParamValue(req.params.id);
+      const result = await payrollService.getCalculationJob(
+        getCurrentUser(req),
+        id,
+      );
+      return sendResponse(
+        res,
+        200,
+        "Payroll calculation job fetched successfully",
+        result,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await payrollService.getAll(getCurrentUser(req), {

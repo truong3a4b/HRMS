@@ -5,6 +5,7 @@ import type {
   CreatePayrollPaymentBatchPayload,
   CreatePayrollByTargetsPayload,
   CreatePayrollByTargetsResult,
+  PayrollCalculationJob,
   PayrollDetail,
   PayrollPaymentBatch,
   PayrollPeriod,
@@ -18,6 +19,8 @@ const removeEmptyParams = (params: Record<string, unknown>) =>
   Object.fromEntries(
     Object.entries(params).filter(([, value]) => value !== "" && value != null),
   );
+
+const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export const payrollService = {
   async getPeriods(query: Pick<PayrollQuery, "month" | "year"> = {}) {
@@ -136,6 +139,48 @@ export const payrollService = {
     >("/payrolls/by-targets", payload);
 
     return response.data.data;
+  },
+
+  async createByTargetsJob(payload: CreatePayrollByTargetsPayload) {
+    const response = await apiClient.post<ApiResponse<PayrollCalculationJob>>(
+      "/payrolls/by-targets/jobs",
+      payload,
+    );
+
+    return response.data.data;
+  },
+
+  async getCalculationJob(id: string) {
+    const response = await apiClient.get<ApiResponse<PayrollCalculationJob>>(
+      `/payrolls/jobs/${id}`,
+    );
+
+    return response.data.data;
+  },
+
+  async waitForCalculationJob(
+    id: string,
+    options: {
+      intervalMs?: number;
+      onProgress?: (job: PayrollCalculationJob) => void;
+    } = {},
+  ) {
+    const intervalMs = options.intervalMs ?? 1500;
+
+    for (;;) {
+      const job = await this.getCalculationJob(id);
+      if (!job) {
+        throw new Error("Payroll calculation job not found");
+      }
+
+      options.onProgress?.(job);
+
+      if (job.status === "COMPLETED" || job.status === "FAILED") {
+        return job;
+      }
+
+      await delay(intervalMs);
+    }
   },
 
   async removeEmployeeFromPeriod(periodId: string, employeeId: string) {

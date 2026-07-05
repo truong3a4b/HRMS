@@ -409,6 +409,7 @@ export const employeeService = {
     return result.employee;
   },
 
+  //Ham tạo mới một nhân viên từ ứng viên
   async createFromCandidate(data: CreateEmployeeFromCandidateInput) {
     await ensureDepartmentExists(data.departmentId);
     await ensurePositionExists(data.positionId);
@@ -603,7 +604,9 @@ export const employeeService = {
             ? data.departmentId
             : historyBase.departmentId,
         positionId:
-          data.positionId !== undefined ? data.positionId : historyBase.positionId,
+          data.positionId !== undefined
+            ? data.positionId
+            : historyBase.positionId,
         hireDate:
           data.hireDate !== undefined ? data.hireDate : historyBase.hireDate,
         salary: data.salary !== undefined ? data.salary : historyBase.salary,
@@ -694,7 +697,6 @@ export const employeeService = {
     });
   },
 
-
   async getJobHistory(id: string) {
     await ensureEmployeeExists(id);
 
@@ -711,7 +713,7 @@ export const employeeService = {
   // Hàm đồng bộ lịch sử công việc của tất cả nhân viên dựa trên thời gian hiện tại
   async syncAllJobHistories() {
     console.log("[Job] Starting employee job history synchronization...");
-    
+
     // Lấy tất cả nhân viên
     const employees = await prisma.employee.findMany({
       select: {
@@ -721,7 +723,7 @@ export const employeeService = {
         hireDate: true,
         salary: true,
         status: true,
-      }
+      },
     });
 
     let updatedCount = 0;
@@ -744,7 +746,9 @@ export const employeeService = {
       if (currentJobHistory) {
         // So sánh các trường xem có cần update không
         const empSalaryNumber = emp.salary ? Number(emp.salary) : null;
-        const historySalaryNumber = currentJobHistory.salary ? Number(currentJobHistory.salary) : null;
+        const historySalaryNumber = currentJobHistory.salary
+          ? Number(currentJobHistory.salary)
+          : null;
 
         const needsUpdate =
           emp.departmentId !== currentJobHistory.departmentId ||
@@ -768,6 +772,8 @@ export const employeeService = {
         }
       }
     }
-    console.log(`[Job] Finished employee job history synchronization. Updated ${updatedCount} employees.`);
+    console.log(
+      `[Job] Finished employee job history synchronization. Updated ${updatedCount} employees.`,
+    );
   },
 };

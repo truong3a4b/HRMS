@@ -777,25 +777,45 @@ export function PayrollPeriodOverviewPage() {
     }
   };
 
+  const waitForPeriodPayrollJob = async (jobId: string, periodId: string) => {
+    const finishedJob = await payrollService.waitForCalculationJob(jobId);
+    setOverview(await payrollService.getPeriodOverview(periodId));
+
+    if (finishedJob.status === "COMPLETED") {
+      Modal.success({
+        title: "Da cap nhat ky luong",
+        content: `Tao ${finishedJob.createdCount}, cap nhat ${finishedJob.updatedCount}, bo qua ${finishedJob.skippedCount}.`,
+      });
+      return;
+    }
+
+    Modal.error({
+      title: "Tinh luong chua hoan tat",
+      content:
+        finishedJob.errorMessage ??
+        `Da xu ly ${finishedJob.processedCount}/${finishedJob.totalEmployees}, loi ${finishedJob.failedCount} nhan vien.`,
+    });
+  };
+
   const createPayrollsForPeriod = async (payload: { departmentIds: string[]; positionIds: string[] }) => {
     if (!overview) return;
 
     try {
-      const result = await payrollService.createByTargets({
+      const job = await payrollService.createByTargetsJob({
         periodId: overview.period.id,
         departmentIds: payload.departmentIds,
         positionIds: payload.positionIds,
       });
-      setOverview(await payrollService.getPeriodOverview(overview.period.id));
       setRecalculateOpen(false);
-      Modal.success({
-        title: "Đã tính lại kỳ lương",
-        content: `Đã thêm ${result.createdCount} bảng lương mới và cập nhật ${result.updatedCount ?? 0} bảng lương đã có.`,
+      Modal.info({
+        title: "Dang tinh lai ky luong",
+        content: `He thong dang xu ly ${job.totalEmployees} nhan vien trong nen. Job: ${job.id}`,
       });
+      await waitForPeriodPayrollJob(job.id, overview.period.id);
     } catch (error) {
       Modal.error({
-        title: "Không thể tính lại kỳ lương",
-        content: getErrorMessage(error, "Thao tác thất bại."),
+        title: "Khong the tinh lai ky luong",
+        content: getErrorMessage(error, "Thao tac that bai."),
       });
     }
   };
@@ -803,17 +823,24 @@ export function PayrollPeriodOverviewPage() {
   const addPayrollsToPeriod = async (payload: { departmentIds: string[]; positionIds: string[] }) => {
     if (!overview) return;
 
-    const created = await payrollService.createByTargets({
-      periodId: overview.period.id,
-      departmentIds: payload.departmentIds,
-      positionIds: payload.positionIds,
-    });
-    setOverview(await payrollService.getPeriodOverview(overview.period.id));
-    setPayrollModalMode(null);
-    Modal.success({
-      title: "Đã cập nhật kỳ lương",
-      content: `Đã thêm ${created.createdCount} bảng lương mới và cập nhật ${created.updatedCount ?? 0} bảng lương đã có.`,
-    });
+    try {
+      const job = await payrollService.createByTargetsJob({
+        periodId: overview.period.id,
+        departmentIds: payload.departmentIds,
+        positionIds: payload.positionIds,
+      });
+      setPayrollModalMode(null);
+      Modal.info({
+        title: "Dang cap nhat ky luong",
+        content: `He thong dang xu ly ${job.totalEmployees} nhan vien trong nen. Job: ${job.id}`,
+      });
+      await waitForPeriodPayrollJob(job.id, overview.period.id);
+    } catch (error) {
+      Modal.error({
+        title: "Khong the cap nhat ky luong",
+        content: getErrorMessage(error, "Thao tac that bai."),
+      });
+    }
   };
 
   const addSingleEmployeeToPeriod = async (employeeId: string) => {

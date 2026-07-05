@@ -63,6 +63,7 @@ const ensureUsersExist = async (userIds: string[]) => {
 };
 
 export const notificationService = {
+  //Tạo thông báo cho nhiều người dùng
   async createForUsers(input: CreateNotificationInput) {
     const userIds = normalizeUserIds(input.userIds);
 

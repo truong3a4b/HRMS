@@ -107,6 +107,7 @@ export type RequestListFilters = {
   scope?: RequestListScope;
   search?: string;
 };
+
 export type CreateRequestInput = {
   type: RequestType;
   title: string;
@@ -224,6 +225,7 @@ const lateEarlyAttendanceStatuses = new Set<AttendanceStatus>([
   AttendanceStatus.LATE_AND_EARLY_LEAVE,
 ]);
 
+// Chuẩn hóa danh sách ID, loại bỏ trùng lặp và các giá trị rỗng
 const normalizeIds = (values: string[]) =>
   [...new Set(values.map((value) => value.trim()).filter(Boolean))].filter(
     Boolean,
@@ -279,6 +281,7 @@ const parseMonthOnly = (value: string, fieldName: string) => {
   return new Date(Date.UTC(year, month - 1, 1));
 };
 
+// Chuyển đổi giá trị sang Prisma.Decimal và đảm bảo là số dương
 const parsePositiveDecimal = (value: string | number, fieldName: string) => {
   let decimal: Prisma.Decimal;
 
@@ -295,6 +298,7 @@ const parsePositiveDecimal = (value: string | number, fieldName: string) => {
   return decimal;
 };
 
+// Chuyển đổi giá trị thời gian sang định dạng HH:mm và đảm bảo là thời gian hợp lệ
 const parseTimeOnly = (value: string, fieldName: string) => {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
 
@@ -308,6 +312,7 @@ const parseTimeOnly = (value: string, fieldName: string) => {
   };
 };
 
+// Kết hợp ngày và giờ thành một đối tượng Date UTC
 const combineDateAndTime = (date: Date, time: string, fieldName: string) => {
   const parsedTime = parseTimeOnly(time, fieldName);
 
@@ -355,6 +360,7 @@ const isTransactionConflict = (error: unknown) =>
   error instanceof Prisma.PrismaClientKnownRequestError &&
   error.code === "P2034";
 
+// Thực thi một giao dịch với mức độ cô lập Serializable, tự động thử lại khi xảy ra xung đột
 const runSerializableTransaction = async <T>(
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
 ) => {
@@ -364,7 +370,10 @@ const runSerializableTransaction = async <T>(
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
     } catch (error) {
-      if (!isTransactionConflict(error) || attempt === SERIALIZABLE_RETRY_LIMIT) {
+      if (
+        !isTransactionConflict(error) ||
+        attempt === SERIALIZABLE_RETRY_LIMIT
+      ) {
         throw error;
       }
     }
@@ -373,6 +382,7 @@ const runSerializableTransaction = async <T>(
   throw new ApiError(409, "Request was updated concurrently. Please retry.");
 };
 
+// Gửi thông báo đến danh sách người dùng liên quan đến yêu cầu
 const notifyRequestUsers = async (
   userIds: string[],
   title: string,
@@ -406,6 +416,7 @@ const notifyRequestUsers = async (
   }
 };
 
+// Lấy danh sách người nhận thông báo ban đầu cho yêu cầu, bao gồm các approver hiện tại và watchers
 const getInitialRequestNotificationRecipients = (
   request: RequestWithDetails,
 ) => {
@@ -416,12 +427,10 @@ const getInitialRequestNotificationRecipients = (
           .map((approval) => approval.approverId)
       : request.approvals.map((approval) => approval.approverId);
 
-  return [
-    ...approverIds,
-    ...request.watchers.map((watcher) => watcher.userId),
-  ];
+  return [...approverIds, ...request.watchers.map((watcher) => watcher.userId)];
 };
 
+// Gửi thông báo khi một yêu cầu mới được tạo, thông báo đến các approver và watchers
 const notifyRequestCreated = (request: RequestWithDetails) =>
   notifyRequestUsers(
     getInitialRequestNotificationRecipients(request),
@@ -433,6 +442,8 @@ const notifyRequestCreated = (request: RequestWithDetails) =>
 
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
+// Xây dựng đối tượng Date UTC từ ngày và giờ, đảm bảo rằng giờ kết thúc của ca làm việc được tính toán chính xác,
+// đặc biệt là khi ca làm việc qua đêm
 const buildDateTimeOnDate = (date: Date, time: string) => {
   const parsedTime = parseTimeOnly(time, "shift time");
 
@@ -449,6 +460,7 @@ const buildDateTimeOnDate = (date: Date, time: string) => {
   );
 };
 
+// Tính toán thời gian kết thúc của ca làm việc dựa trên ngày, giờ bắt đầu, giờ kết thúc và thông tin ca làm việc qua đêm
 const getShiftEndDateTime = (
   date: Date,
   startTime: string,
@@ -465,6 +477,7 @@ const getShiftEndDateTime = (
   return shiftEndAt;
 };
 
+// Kiểm tra xem hai khoảng thời gian có chồng lấn nhau hay không
 const rangesOverlap = (
   leftStart: Date,
   leftEnd: Date,
@@ -493,6 +506,9 @@ type AttendanceShiftSnapshotSource = {
   overtimeMultiplier: Prisma.Decimal;
 };
 
+// Xây dựng đối tượng chi tiết ca làm việc từ dữ liệu nguồn,
+// bao gồm các thông tin về giờ bắt đầu, giờ kết thúc, thời gian nghỉ,
+// khoảng thời gian cho phép đi muộn và về sớm, cũng như các thông tin liên quan đến ca làm việc qua đêm và ca làm thêm
 const buildAttendanceDetailShiftSnapshot = (
   shift: AttendanceShiftSnapshotSource,
   shiftStartAt: Date,
@@ -542,6 +558,7 @@ const ensureUsersExist = async (userIds: string[]) => {
   }
 };
 
+// Kiểm tra xem người dùng có phải là nhân viên hay không, nếu không thì ném ra lỗi
 const ensureEmployeeRequester = async (userId: string) => {
   const employee = await prisma.employee.findUnique({
     where: {
@@ -561,6 +578,7 @@ const ensureEmployeeRequester = async (userId: string) => {
   return employee;
 };
 
+// Kiểm tra xem nhân viên có tồn tại hay không, nếu không thì ném ra lỗi
 const ensureEmployeeExists = async (employeeId: string) => {
   const employee = await prisma.employee.findUnique({
     where: {
@@ -578,6 +596,7 @@ const ensureEmployeeExists = async (employeeId: string) => {
   return employee;
 };
 
+// Lấy danh sách ca làm việc của nhân viên theo ngày từ lịch làm việc, bao gồm thông tin chi tiết về ca làm việc
 const getEmployeeScheduleShiftsByDate = async (
   client: Prisma.TransactionClient | typeof prisma,
   employeeId: string,
@@ -609,6 +628,7 @@ const getEmployeeScheduleShiftsByDate = async (
   return schedule?.shiftLinks.map((link) => link.workShift) ?? [];
 };
 
+// Kiểm tra xem workShiftId có thuộc lịch làm việc của nhân viên vào ngày được chọn hay không, nếu không thì ném ra lỗi
 const ensureLeaveWorkShiftInSchedule = async (
   employeeId: string,
   date: Date,
@@ -642,6 +662,7 @@ type LeaveShiftOccurrence = {
   shiftEndAt: Date;
 };
 
+// Lấy danh sách các ca làm việc của nhân viên trong khoảng thời gian nghỉ phép, bao gồm thông tin chi tiết về ca làm việc
 const getLeaveShiftOccurrences = async (
   client: Prisma.TransactionClient | typeof prisma,
   employeeId: string,
@@ -705,6 +726,7 @@ const getLeaveShiftOccurrences = async (
   );
 };
 
+// Nhóm các ca làm việc nghỉ phép theo năm và tính tổng số đơn vị làm việc cho mỗi năm
 const groupLeaveUnitsByYear = (occurrences: LeaveShiftOccurrence[]) => {
   const unitsByYear = new Map<number, number>();
 
@@ -716,6 +738,7 @@ const groupLeaveUnitsByYear = (occurrences: LeaveShiftOccurrence[]) => {
   return unitsByYear;
 };
 
+// Kiểm tra xem nhân viên có đủ số ngày nghỉ phép hàng năm hay không, nếu không thì ném ra lỗi
 const ensureAnnualLeaveBalance = async (
   client: Prisma.TransactionClient | typeof prisma,
   employeeId: string,
@@ -757,6 +780,7 @@ const ensureAnnualLeaveBalance = async (
   }
 };
 
+// Trừ số đơn vị nghỉ phép hàng năm khỏi số ngày nghỉ phép đã sử dụng của nhân viên trong cơ sở dữ liệu
 const consumeAnnualLeaveUnits = async (
   tx: Prisma.TransactionClient,
   employeeId: string,
@@ -786,6 +810,7 @@ const consumeAnnualLeaveUnits = async (
   }
 };
 
+// Hủy bỏ các phiếu thưởng/phạt tự động liên quan đến các ngày nghỉ phép của nhân viên
 const cancelAutoPenaltyVouchersForLeave = async (
   tx: Prisma.TransactionClient,
   employeeId: string,
@@ -825,7 +850,8 @@ const cancelAutoPenaltyVouchersForLeave = async (
   });
   const itemIds = existingItems
     .filter(
-      (item) => item.occurredAt && leaveDateKeys.has(getDateKey(item.occurredAt)),
+      (item) =>
+        item.occurredAt && leaveDateKeys.has(getDateKey(item.occurredAt)),
     )
     .map((item) => item.id);
 
@@ -846,6 +872,7 @@ const cancelAutoPenaltyVouchersForLeave = async (
   });
 };
 
+// Hủy bỏ các phiếu thưởng/phạt tự động liên quan đến việc đi muộn/về sớm của nhân viên
 const cancelAutoPenaltyVouchersForLateEarly = async (
   tx: Prisma.TransactionClient,
   employeeId: string,
@@ -906,6 +933,7 @@ const cancelAutoPenaltyVouchersForLateEarly = async (
   });
 };
 
+// Lấy thông tin nhân viên dựa trên userId, nếu không tìm thấy thì ném ra lỗi
 const getEmployeeByUserId = async (
   tx: Prisma.TransactionClient,
   userId: string,
@@ -926,6 +954,7 @@ const getEmployeeByUserId = async (
   return employee;
 };
 
+// Tạo một yêu cầu mới cùng với các approver và watcher, đảm bảo rằng dữ liệu hợp lệ và thông báo được gửi đi
 const createRequestWithApprovals = async (
   userId: string,
   input: {
@@ -997,6 +1026,7 @@ const createRequestWithApprovals = async (
   return sortedRequest;
 };
 
+// Sắp xếp danh sách các approver theo thứ tự bước (stepOrder) để đảm bảo rằng các approver được xử lý theo đúng trình tự
 const sortApprovals = (request: RequestWithDetails) => ({
   ...request,
   approvals: [...request.approvals].sort(
@@ -1004,6 +1034,7 @@ const sortApprovals = (request: RequestWithDetails) => ({
   ),
 });
 
+// Xây dựng điều kiện truy cập dựa trên vai trò của người dùng và phạm vi yêu cầu
 const buildAccessCondition = (
   userId: string,
   scope: RequestListScope | undefined,
@@ -1060,6 +1091,7 @@ const buildAccessCondition = (
   };
 };
 
+// Xây dựng điều kiện truy vấn cơ bản cho danh sách yêu cầu dựa trên vai trò người dùng, phạm vi và các bộ lọc khác
 const buildBaseWhere = (
   userId: string,
   role: UserRole,
@@ -1128,6 +1160,7 @@ const buildBaseWhere = (
   };
 };
 
+// Lấy thông tin chi tiết của một yêu cầu dựa trên ID, bao gồm danh sách các approver và watchers, và sắp xếp các approver theo thứ tự bước
 const getRequestByIdWithDetails = async (requestId: string) => {
   const request = await prisma.request.findUnique({
     where: {
@@ -1143,6 +1176,7 @@ const getRequestByIdWithDetails = async (requestId: string) => {
   return sortApprovals(request);
 };
 
+// Kiểm tra xem người dùng có quyền xem yêu cầu hay không, nếu không thì ném ra lỗi
 const assertCanViewRequest = (
   request: RequestWithDetails,
   userId: string,
@@ -1162,6 +1196,7 @@ const assertCanViewRequest = (
   }
 };
 
+// Kiểm tra xem người dùng có quyền duyệt yêu cầu hay không, nếu không thì ném ra lỗi
 const assertCanActAsApprover = (
   request: RequestWithDetails,
   userId: string,
@@ -1175,6 +1210,7 @@ const assertCanActAsApprover = (
   }
 };
 
+// Kiểm tra xem người dùng có quyền hoàn tất hoặc hủy yêu cầu hay không, nếu không thì ném ra lỗi
 const assertCanCompleteOrCancel = (
   request: RequestWithDetails,
   userId: string,
@@ -1187,6 +1223,7 @@ const assertCanCompleteOrCancel = (
   throw new ApiError(403, "You can only manage your own request");
 };
 
+// Lấy bước tiếp theo trong quy trình phê duyệt dựa trên bước hiện tại và trạng thái của các approver
 const getNextSequentialStep = (
   request: RequestWithDetails,
   currentStep: number,
@@ -1229,6 +1266,7 @@ const executeRequestLogic = async (
   }
 };
 
+// Chuyển đổi trạng thái của các đơn phê duyệt lương trở về trạng thái nháp nếu đơn đang ở trạng thái chờ phê duyệt
 const revertPayrollApprovalLogic = async (
   tx: Prisma.TransactionClient,
   request: RequestWithDetails,
@@ -1271,6 +1309,7 @@ const revertPayrollApprovalLogic = async (
   });
 };
 
+// Thực thi logic phê duyệt lương, bao gồm việc kiểm tra trạng thái của kỳ lương và cập nhật trạng thái của các phiếu lương và kỳ lương
 const executePayrollApprovalLogic = async (
   tx: Prisma.TransactionClient,
   request: RequestWithDetails,
@@ -1321,9 +1360,7 @@ const executePayrollApprovalLogic = async (
   });
 };
 
-/**
- * Xử lý logic cho đơn phê duyệt lịch làm việc
- */
+// Thực thi logic cho đơn thưởng/phạt, bao gồm việc tạo phiếu thưởng/phạt nếu chưa tồn tại và cập nhật thời gian áp dụng
 const executeBonusPenaltyLogic = async (
   tx: Prisma.TransactionClient,
   request: RequestWithDetails,
@@ -1379,6 +1416,7 @@ const executeBonusPenaltyLogic = async (
   });
 };
 
+// Xử lý logic cho đơn phê duyệt lịch làm việc, bao gồm việc áp dụng các ca làm việc từ yêu cầu vào lịch làm việc của nhân viên
 const executeScheduleApprovalLogic = async (
   tx: Prisma.TransactionClient,
   request: RequestWithDetails,
@@ -1473,7 +1511,10 @@ const executeLeaveLogic = async (
   const occurrencesByDate = new Map<string, LeaveShiftOccurrence[]>();
   for (const occurrence of occurrences) {
     const key = getDateKey(occurrence.date);
-    occurrencesByDate.set(key, [...(occurrencesByDate.get(key) ?? []), occurrence]);
+    occurrencesByDate.set(key, [
+      ...(occurrencesByDate.get(key) ?? []),
+      occurrence,
+    ]);
   }
 
   const isPaidLeave =
@@ -1741,6 +1782,7 @@ const executeLateEarlyLogic = async (
 };
 
 export const requestService = {
+  // Lấy danh sách các yêu cầu dựa trên userId, vai trò và các bộ lọc
   async getRequests(
     userId: string,
     role: UserRole,
@@ -1773,6 +1815,8 @@ export const requestService = {
     };
   },
 
+  // Lấy danh sách các yêu cầu của người dùng dựa trên userId, vai trò và các bộ lọc,
+  // chỉ lấy các yêu cầu mà người dùng là requester
   async getMyRequests(
     userId: string,
     role: UserRole,
@@ -1784,6 +1828,7 @@ export const requestService = {
     });
   },
 
+  // Lấy danh sách các yêu cầu mà người dùng đang theo dõi dựa trên userId, vai trò và các bộ lọc
   async getMyWatchingRequests(
     userId: string,
     role: UserRole,
@@ -1795,6 +1840,7 @@ export const requestService = {
     });
   },
 
+  // Lấy danh sách các yêu cầu đang chờ phê duyệt của người dùng dựa trên userId, vai trò và các bộ lọc
   async getMyPendingApprovals(
     userId: string,
     role: UserRole,
@@ -1806,12 +1852,14 @@ export const requestService = {
     });
   },
 
+  // Lấy danh sách các yêu cầu mà người dùng đã phê duyệt dựa trên userId, vai trò và các bộ lọc
   async getRequestById(requestId: string, userId: string, role: UserRole) {
     const request = await getRequestByIdWithDetails(requestId);
     assertCanViewRequest(request, userId, role === UserRole.ADMIN);
     return request;
   },
 
+  // Lấy danh sách các ca làm việc nghỉ phép của người dùng dựa trên userId và ngày cụ thể
   async getMyLeaveShiftsByDate(userId: string, dateValue: string) {
     const employee = await ensureEmployeeRequester(userId);
     const date = parseDateOnly(dateValue, "date");
@@ -1824,6 +1872,7 @@ export const requestService = {
     return getEmployeeScheduleShiftsByDate(prisma, employee.id, date);
   },
 
+  // Lấy danh sách các nhân viên có userId hợp lệ để hiển thị trong các tùy chọn yêu cầu
   async getEmployeeOptions(): Promise<RequestEmployeeOption[]> {
     return prisma.employee.findMany({
       where: {
@@ -2173,121 +2222,164 @@ export const requestService = {
 
     try {
       result = await runSerializableTransaction(async (tx) => {
-      const transactionRequest = await tx.request.findUnique({
-        where: { id: requestId },
-        include: requestInclude,
-      });
-
-      if (!transactionRequest) {
-        throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
-      }
-
-      assertCanActAsApprover(transactionRequest, userId);
-
-      if (finalRequestStatuses.has(transactionRequest.status)) {
-        throw new ApiError(
-          400,
-          "Request is already finished",
-          "REQUEST_ALREADY_FINAL",
-        );
-      }
-
-      const transactionApproval = transactionRequest.approvals.find(
-        (item) => item.approverId === userId,
-      );
-
-      if (
-        !transactionApproval ||
-        transactionApproval.status !== RequestApprovalStatus.PENDING
-      ) {
-        throw new ApiError(400, "You have already reviewed this request");
-      }
-
-      if (
-        transactionRequest.approvalMode === ApprovalMode.SEQUENTIAL &&
-        transactionApproval.stepOrder !== transactionRequest.currentStep
-      ) {
-        throw new ApiError(
-          409,
-          "It is not your turn to review this request",
-          "REQUEST_APPROVAL_OUT_OF_ORDER",
-        );
-      }
-      // Cập nhật quyết định của approver
-      const claimedApproval = await tx.requestApproval.updateMany({
-        where: {
-          requestId,
-          approverId: userId,
-          status: RequestApprovalStatus.PENDING,
-        },
-        data: {
-          status: input.decision,
-          note: input.note,
-          decidedAt,
-        },
-      });
-
-      if (claimedApproval.count !== 1) {
-        throw new ApiError(
-          409,
-          "This approval was already updated",
-          "REQUEST_APPROVAL_CONFLICT",
-        );
-      }
-
-      if (transactionRequest.status === RequestStatus.PENDING) {
-        await tx.request.update({
+        const transactionRequest = await tx.request.findUnique({
           where: { id: requestId },
+          include: requestInclude,
+        });
+
+        if (!transactionRequest) {
+          throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
+        }
+
+        // Kiểm tra xem người dùng có quyền duyệt yêu cầu hay không
+        assertCanActAsApprover(transactionRequest, userId);
+
+        if (finalRequestStatuses.has(transactionRequest.status)) {
+          throw new ApiError(
+            400,
+            "Request is already finished",
+            "REQUEST_ALREADY_FINAL",
+          );
+        }
+        // Kiểm tra xem approver đã duyệt hay chưa
+        const transactionApproval = transactionRequest.approvals.find(
+          (item) => item.approverId === userId,
+        );
+
+        if (
+          !transactionApproval ||
+          transactionApproval.status !== RequestApprovalStatus.PENDING
+        ) {
+          throw new ApiError(400, "You have already reviewed this request");
+        }
+
+        // Kiểm tra xem approver có phải là người duyệt tiếp theo trong quy trình tuần tự hay không
+        if (
+          transactionRequest.approvalMode === ApprovalMode.SEQUENTIAL &&
+          transactionApproval.stepOrder !== transactionRequest.currentStep
+        ) {
+          throw new ApiError(
+            409,
+            "It is not your turn to review this request",
+            "REQUEST_APPROVAL_OUT_OF_ORDER",
+          );
+        }
+        // Cập nhật quyết định của approver
+        const claimedApproval = await tx.requestApproval.updateMany({
+          where: {
+            requestId,
+            approverId: userId,
+            status: RequestApprovalStatus.PENDING,
+          },
           data: {
-            status: RequestStatus.PROCESSING,
-            processingAt: decidedAt,
+            status: input.decision,
+            note: input.note,
+            decidedAt,
           },
         });
-      }
 
-      const latestRequest = await tx.request.findUnique({
-        where: {
-          id: requestId,
-        },
-        include: requestInclude,
-      });
+        // Nếu không có bản ghi nào được cập nhật, điều đó có nghĩa là approver đã duyệt trước đó
+        if (claimedApproval.count !== 1) {
+          throw new ApiError(
+            409,
+            "This approval was already updated",
+            "REQUEST_APPROVAL_CONFLICT",
+          );
+        }
 
-      if (!latestRequest) {
-        throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
-      }
+        // Nếu đơn đang ở trạng thái PENDING, chuyển sang PROCESSING
+        if (transactionRequest.status === RequestStatus.PENDING) {
+          await tx.request.update({
+            where: { id: requestId },
+            data: {
+              status: RequestStatus.PROCESSING,
+              processingAt: decidedAt,
+            },
+          });
+        }
 
-      const sortedApprovals = [...latestRequest.approvals].sort(
-        (left, right) => left.stepOrder - right.stepOrder,
-      );
-
-      // Nếu approver reject thì reject ngay đơn
-      if (input.decision === RequestApprovalStatus.REJECTED) {
-        await revertPayrollApprovalLogic(tx, latestRequest);
-        const updatedRequest = await tx.request.update({
+        // Lấy lại thông tin đơn sau khi cập nhật quyết định của approver
+        const latestRequest = await tx.request.findUnique({
           where: {
             id: requestId,
-          },
-          data: {
-            status: RequestStatus.REJECTED,
-            rejectedAt: decidedAt,
           },
           include: requestInclude,
         });
 
-        return sortApprovals(updatedRequest);
-      }
+        if (!latestRequest) {
+          throw new ApiError(404, "Request not found", "REQUEST_NOT_FOUND");
+        }
 
-      // Xử lý sequential approval mode
-      if (latestRequest.approvalMode === ApprovalMode.SEQUENTIAL) {
-        const nextStep = getNextSequentialStep(
-          latestRequest,
-          transactionApproval.stepOrder,
+        // Sắp xếp danh sách approvals theo stepOrder để xử lý tiếp theo
+        const sortedApprovals = [...latestRequest.approvals].sort(
+          (left, right) => left.stepOrder - right.stepOrder,
         );
 
-        const updateData: Prisma.RequestUpdateInput = nextStep
+        // Nếu approver reject thì reject ngay đơn
+        if (input.decision === RequestApprovalStatus.REJECTED) {
+          await revertPayrollApprovalLogic(tx, latestRequest);
+          const updatedRequest = await tx.request.update({
+            where: {
+              id: requestId,
+            },
+            data: {
+              status: RequestStatus.REJECTED,
+              rejectedAt: decidedAt,
+            },
+            include: requestInclude,
+          });
+
+          return sortApprovals(updatedRequest);
+        }
+
+        // Xử lý sequential approval mode
+        if (latestRequest.approvalMode === ApprovalMode.SEQUENTIAL) {
+          // Nếu approver approve thì kiểm tra xem có bước tiếp theo hay không
+          const nextStep = getNextSequentialStep(
+            latestRequest,
+            transactionApproval.stepOrder,
+          );
+
+          // Nếu có bước tiếp theo thì chuyển sang bước đó, nếu không thì approve đơn
+          const updateData: Prisma.RequestUpdateInput = nextStep
+            ? {
+                status: RequestStatus.PROCESSING,
+                currentStep: nextStep,
+              }
+            : {
+                status: RequestStatus.APPROVED,
+                approvedAt: decidedAt,
+              };
+
+          // Cập nhật trạng thái của đơn
+          const updatedRequest = await tx.request.update({
+            where: {
+              id: requestId,
+            },
+            data: updateData,
+            include: requestInclude,
+          });
+
+          // Nếu đơn đã được duyệt hoàn toàn thì thực thi logic cụ thể
+          if (updatedRequest.status === RequestStatus.APPROVED) {
+            try {
+              await executeRequestLogic(tx, updatedRequest, decidedAt);
+            } catch (error) {
+              throw new RequestExecutionError(requestId, error);
+            }
+          }
+
+          return sortApprovals(updatedRequest);
+        }
+
+        // Xử lý parallel approval mode
+        const hasPendingApprovals = sortedApprovals.some(
+          (item) => item.status === RequestApprovalStatus.PENDING,
+        );
+
+        const updateData: Prisma.RequestUpdateInput = hasPendingApprovals
           ? {
               status: RequestStatus.PROCESSING,
-              currentStep: nextStep,
             }
           : {
               status: RequestStatus.APPROVED,
@@ -2312,42 +2404,9 @@ export const requestService = {
         }
 
         return sortApprovals(updatedRequest);
-      }
-
-      // Xử lý parallel approval mode
-      const hasPendingApprovals = sortedApprovals.some(
-        (item) => item.status === RequestApprovalStatus.PENDING,
-      );
-
-      const updateData: Prisma.RequestUpdateInput = hasPendingApprovals
-        ? {
-            status: RequestStatus.PROCESSING,
-          }
-        : {
-            status: RequestStatus.APPROVED,
-            approvedAt: decidedAt,
-          };
-
-      const updatedRequest = await tx.request.update({
-        where: {
-          id: requestId,
-        },
-        data: updateData,
-        include: requestInclude,
-      });
-
-      // Nếu đơn đã được duyệt hoàn toàn thì thực thi logic cụ thể
-      if (updatedRequest.status === RequestStatus.APPROVED) {
-        try {
-          await executeRequestLogic(tx, updatedRequest, decidedAt);
-        } catch (error) {
-          throw new RequestExecutionError(requestId, error);
-        }
-      }
-
-      return sortApprovals(updatedRequest);
       });
     } catch (error) {
+      // Nếu có lỗi xảy ra trong quá trình thực thi logic duyệt đơn, cập nhật trạng thái đơn thành FAILED và thông báo cho các user liên quan
       if (error instanceof RequestExecutionError) {
         await prisma.request.updateMany({
           where: {
@@ -2383,6 +2442,7 @@ export const requestService = {
       throw error;
     }
 
+    // Sắp xếp danh sách approvals theo stepOrder để gửi thông báo cho các user liên quan
     const sortedResult = sortApprovals(result);
     const nextApproverIds =
       sortedResult.approvalMode === ApprovalMode.SEQUENTIAL &&
@@ -2402,6 +2462,7 @@ export const requestService = {
           ? "Yêu cầu đã bị từ chối"
           : "Yêu cầu đã được cập nhật";
 
+    // Gửi thông báo cho các user liên quan về trạng thái mới của yêu cầu
     await notifyRequestUsers(
       [
         sortedResult.requesterId,

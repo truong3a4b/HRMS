@@ -25,11 +25,13 @@ type UpdateWorkShiftInput = Partial<CreateWorkShiftInput> & {
   isActive?: boolean;
 };
 
+//Đại diện cho 1 ngày trong llv
 type ScheduleDetail = {
   date: string;
   workShiftIds?: string[];
 };
 
+//Lấy thời điểm bắt đầu của ngày hôm nay theo UTC (00:00:00)
 const getUtcStartOfToday = () => {
   const now = new Date();
   return new Date(
@@ -37,6 +39,7 @@ const getUtcStartOfToday = () => {
   );
 };
 
+// Kiểm tra xem có bất kỳ ca làm việc nào đang hoạt động sử dụng cùng một mã hay không
 const ensureActiveCodeUnique = async (code: string, excludeId?: string) => {
   // Ensure no other *active* shift uses the same code. After applying
   // a partial unique index on (code) WHERE is_active = true, this
@@ -56,6 +59,7 @@ const ensureActiveCodeUnique = async (code: string, excludeId?: string) => {
   }
 };
 
+// Lấy ca làm việc theo ID hoặc ném lỗi nếu không tìm thấy
 const getWorkShiftOrThrow = async (id: string) => {
   const workShift = await prisma.workShift.findUnique({
     where: { id },
@@ -68,6 +72,7 @@ const getWorkShiftOrThrow = async (id: string) => {
   return workShift;
 };
 
+// Kiểm tra xem có bất kỳ trường nào trong dữ liệu cập nhật ca làm việc được cung cấp hay không
 const hasShiftFieldUpdates = (data: UpdateWorkShiftInput) =>
   [
     data.code,
@@ -88,11 +93,13 @@ const hasShiftFieldUpdates = (data: UpdateWorkShiftInput) =>
     data.overtimeMultiplier,
   ].some((value) => value !== undefined);
 
+// Chuyển đổi chuỗi thời gian (HH:mm) thành số phút kể từ nửa đêm
 const parseClockToMinutes = (value: string) => {
   const [hours, minutes] = value.split(":").map((part) => Number(part));
   return hours * 60 + minutes;
 };
 
+// Đảm bảo rằng thời gian bắt đầu và kết thúc của ca làm việc hợp lệ
 const ensureValidShiftTimeRange = (data: {
   startTime: string;
   endTime: string;
@@ -102,7 +109,9 @@ const ensureValidShiftTimeRange = (data: {
     return;
   }
 
-  if (parseClockToMinutes(data.endTime) <= parseClockToMinutes(data.startTime)) {
+  if (
+    parseClockToMinutes(data.endTime) <= parseClockToMinutes(data.startTime)
+  ) {
     throw new ApiError(
       400,
       "End time must be after start time when isOvernight is false",
@@ -110,6 +119,7 @@ const ensureValidShiftTimeRange = (data: {
   }
 };
 
+// Kích hoạt ca làm việc theo ID, đảm bảo rằng mã ca làm việc là duy nhất
 const activateShift = async (id: string) => {
   const shift = await getWorkShiftOrThrow(id);
 
@@ -125,6 +135,7 @@ const activateShift = async (id: string) => {
   });
 };
 
+// Phân tích ngày từ chuỗi và ném lỗi nếu không hợp lệ
 const parseScheduleDate = (value: string) => {
   const date = new Date(value);
 
@@ -135,6 +146,8 @@ const parseScheduleDate = (value: string) => {
   return date;
 };
 
+// Cập nhật chi tiết lịch trình cho ca làm việc cụ thể, loại bỏ hoặc thay thế ID ca làm việc trong các chi tiết lịch trình
+// Trả về các chi tiết lịch trình đã cập nhật và cờ cho biết có thay đổi hay không
 const updateScheduleDetailsForShift = (
   scheduleDetails: ScheduleDetail[],
   shiftId: string,
@@ -185,6 +198,8 @@ const updateScheduleDetailsForShift = (
   return { updated, changed };
 };
 
+// Cập nhật tất cả các tham chiếu chi tiết lịch trình cho ca làm việc cụ thể,
+// loại bỏ hoặc thay thế ID ca làm việc trong các chi tiết lịch trình
 const updateScheduleDetailReferences = async (
   tx: Prisma.TransactionClient,
   shiftId: string,
@@ -241,8 +256,11 @@ const updateScheduleDetailReferences = async (
 };
 
 export const workShiftService = {
+  // Tạo ca làm việc mới, đảm bảo rằng mã ca làm việc là duy nhất và thời gian hợp lệ
   async create(data: CreateWorkShiftInput) {
+    //Đảm bảo rằng mã ca làm việc là duy nhất và thời gian hợp lệ
     await ensureActiveCodeUnique(data.code);
+    //Đảm bảo rằng thời gian bắt đầu và kết thúc của ca làm việc hợp lệ
     ensureValidShiftTimeRange(data);
 
     return prisma.workShift.create({
@@ -267,7 +285,9 @@ export const workShiftService = {
     });
   },
 
+  // Cập nhật ca làm việc theo ID, đảm bảo rằng mã ca làm việc là duy nhất và thời gian hợp lệ
   async update(id: string, data: UpdateWorkShiftInput) {
+    // Kiểm tra xem có bất kỳ trường nào trong dữ liệu cập nhật ca làm việc được cung cấp hay không
     const hasShiftUpdates = hasShiftFieldUpdates(data);
 
     if (!hasShiftUpdates && data.isActive !== undefined) {
@@ -347,10 +367,6 @@ export const workShiftService = {
 
     try {
       return await prisma.$transaction(async (tx) => {
-        // deactivate current shift. We DO NOT modify the old `code` so
-        // historical schedules that reference the code/name keep displaying
-        // the original value. Uniqueness for active codes is enforced by
-        // a partial unique index (see server/prisma/partial_unique_index.sql)
         await tx.workShift.update({
           where: { id: currentShift.id },
           data: { isActive: false },

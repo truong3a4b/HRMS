@@ -1452,15 +1452,33 @@ export function PayrollPage({ mode }: { mode: PayrollPageMode }) {
   };
 
   const submitCreatePayroll = async (payload: CreatePayrollByTargetsPayload) => {
-    const result = await payrollService.createByTargets(payload);
+    const job = await payrollService.createByTargetsJob(payload);
     setCreateOpen(false);
     if (payload.year && payload.month) {
       setSelectedPeriod(`${payload.year}-${payload.month}`);
     }
+
+    Modal.info({
+      title: "Dang tinh luong",
+      content: `He thong dang xu ly ${job.totalEmployees} nhan vien trong nen. Job: ${job.id}`,
+    });
+
+    const finishedJob = await payrollService.waitForCalculationJob(job.id);
     await loadPayrolls();
-    Modal.success({
-      title: "Đã tạo bảng lương",
-      content: `Tạo ${result.createdCount} bảng lương, bỏ qua ${result.skippedCount} nhân viên đã có dữ liệu.`,
+
+    if (finishedJob.status === "COMPLETED") {
+      Modal.success({
+        title: "Da tinh xong bang luong",
+        content: `Tao ${finishedJob.createdCount}, cap nhat ${finishedJob.updatedCount}, bo qua ${finishedJob.skippedCount}.`,
+      });
+      return;
+    }
+
+    Modal.error({
+      title: "Tinh luong chua hoan tat",
+      content:
+        finishedJob.errorMessage ??
+        `Da xu ly ${finishedJob.processedCount}/${finishedJob.totalEmployees}, loi ${finishedJob.failedCount} nhan vien.`,
     });
   };
 

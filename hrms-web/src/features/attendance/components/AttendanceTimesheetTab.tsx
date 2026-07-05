@@ -11,7 +11,10 @@ import { useMemo, useState } from "react";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
 import { Avatar } from "../../../shared/ui/Avatar/Avatar";
 import type { Employee } from "../../employees/types/employee.types";
-import { buildMonthGrid, todayKey } from "../../schedules/utils/scheduleDateUtils";
+import {
+  buildMonthGrid,
+  todayKey,
+} from "../../schedules/utils/scheduleDateUtils";
 import type {
   AttendanceRecordDetail,
   AttendanceTimesheetData,
@@ -202,15 +205,11 @@ function EmployeeInfoCard({
               <span className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-white backdrop-blur-sm">
                 {employee.employeeId}
               </span>
-              <span>Â·</span>
-              <span>{employee.department?.name ?? "-"}</span>
-              <span>Â·</span>
-              <span>{employee.position?.name ?? "-"}</span>
             </div>
           </div>
         </div>
         <span className="rounded-full border border-blue-400/30 bg-blue-500/20 px-4 py-1.5 text-sm font-bold text-blue-200 backdrop-blur-md">
-          ThÃ¡ng {month}
+          {month}
         </span>
       </div>
       <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-blue-500 opacity-20 blur-3xl" />
@@ -248,27 +247,29 @@ export function AttendanceTimesheetTab({
 
   return (
     <section className="flex flex-col gap-5">
-      {showEmployeeCard ? <EmployeeInfoCard employee={data?.employee} month={month} /> : null}
+      {showEmployeeCard ? (
+        <EmployeeInfoCard employee={data?.employee} month={month} />
+      ) : null}
 
       {showFilters ? (
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        {employeeScoped ? (
-          <div className="min-w-[260px] flex-1">
-            <SearchableSelect
-              value={employeeId}
-              onChange={onEmployeeChange}
-              options={[
-                { value: "", label: "Chọn nhân viên" },
-                ...employees.map((employee) => ({
-                  value: employee.id,
-                  label: `${employee.employeeId} - ${employee.name}`,
-                })),
-              ]}
-            />
-          </div>
-        ) : null}
-        <AttendanceMonthPicker value={month} onChange={onMonthChange} />
-      </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          {employeeScoped ? (
+            <div className="min-w-[260px] flex-1">
+              <SearchableSelect
+                value={employeeId}
+                onChange={onEmployeeChange}
+                options={[
+                  { value: "", label: "Chọn nhân viên" },
+                  ...employees.map((employee) => ({
+                    value: employee.id,
+                    label: `${employee.employeeId} - ${employee.name}`,
+                  })),
+                ]}
+              />
+            </div>
+          ) : null}
+          <AttendanceMonthPicker value={month} onChange={onMonthChange} />
+        </div>
       ) : null}
 
       <div className="grid grid-cols-5 gap-4 max-[1180px]:grid-cols-3 max-[720px]:grid-cols-2">

@@ -22,6 +22,7 @@ const normalizeIds = (values: string[]) => [
   ...new Set(values.map((value) => value.trim()).filter(Boolean)),
 ];
 
+//Lấy danh sách userId của những người nhận thông báo đầu tiên dựa trên chế độ phê duyệt và danh sách approverIds, watcherIds
 export const getInitialRequestRecipientIds = (
   approvalMode: ApprovalMode,
   approverIds: string[],
@@ -33,6 +34,7 @@ export const getInitialRequestRecipientIds = (
   ...watcherIds,
 ];
 
+//Gửi thông báo đến những người nhận thông báo đầu tiên dựa trên chế độ phê duyệt và danh sách approverIds, watcherIds
 export const notifyRequestWorkflow = async (
   input: RequestNotificationInput,
 ) => {

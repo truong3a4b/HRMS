@@ -11,6 +11,7 @@ import routes from "./routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
 import { initEmployeeJobHistoryCron } from "./jobs/employeeJobHistory.job";
 import { initAttendanceAbsentSweepCron } from "./jobs/attendanceAbsentSweep.job";
+import { resumePendingPayrollCalculationJobs } from "./services/payroll.service";
 
 const app = express();
 const allowedOrigins = new Set(
@@ -65,6 +66,7 @@ const startServer = async () => {
     await attendanceMqttService.initialize();
     initEmployeeJobHistoryCron();
     initAttendanceAbsentSweepCron();
+    await resumePendingPayrollCalculationJobs();
 
     server.listen(env.PORT, () => {
       console.log(`Server running at http://localhost:${env.PORT}`);

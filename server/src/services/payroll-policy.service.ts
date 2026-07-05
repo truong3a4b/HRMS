@@ -192,9 +192,10 @@ type CreatePayrollBonusPenaltyInput = {
   reason?: string | null;
 };
 
-type UpdatePayrollBonusPenaltyInput = Partial<CreatePayrollBonusPenaltyInput> & {
-  status?: PayrollBonusPenaltyStatus;
-};
+type UpdatePayrollBonusPenaltyInput =
+  Partial<CreatePayrollBonusPenaltyInput> & {
+    status?: PayrollBonusPenaltyStatus;
+  };
 
 type PayrollProfileQuery = {
   employeeId?: string;
@@ -254,6 +255,7 @@ const policyInclude = {
   },
 };
 
+//Đảm bảo rằng chính sách tồn tại trước khi thực hiện các thao tác liên quan đến nó. Nếu không tồn tại, ném ra lỗi 404.
 const ensureExists = async (
   modelName: "insurancePolicy" | "taxPolicy" | "attendanceBonusPolicy",
   id: string | null | undefined,
@@ -283,6 +285,7 @@ const ensureExists = async (
   }
 };
 
+// Đảm bảo rằng ngày effectiveTo không nhỏ hơn ngày effectiveFrom. Nếu effectiveTo nhỏ hơn effectiveFrom, ném ra lỗi 400.
 const ensureDateRange = (effectiveFrom?: Date, effectiveTo?: Date | null) => {
   if (effectiveFrom && effectiveTo && effectiveTo < effectiveFrom) {
     throw new ApiError(
@@ -293,6 +296,7 @@ const ensureDateRange = (effectiveFrom?: Date, effectiveTo?: Date | null) => {
   }
 };
 
+// Đảm bảo rằng hệ số lương là một số dương.
 const ensurePositiveMultiplier = (value: DecimalInput) => {
   const multiplier = Number(value);
 
@@ -305,11 +309,13 @@ const ensurePositiveMultiplier = (value: DecimalInput) => {
   }
 };
 
+// Chuyển đổi một đối tượng Date thành một đối tượng Date chỉ chứa ngày (không có giờ, phút, giây).
 const toDateOnly = (date: Date) =>
   new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
   );
 
+// Đảm bảo rằng ngày nghỉ lễ không trùng với ngày nghỉ lễ đã tồn tại trong cơ sở dữ liệu. Nếu ngày nghỉ lễ đã tồn tại, ném ra lỗi 409.
 const ensureHolidayDateAvailable = async (date: Date, excludeId?: string) => {
   const existingHoliday = await prisma.holiday.findUnique({
     where: { date: toDateOnly(date) },
@@ -325,6 +331,7 @@ const ensureHolidayDateAvailable = async (date: Date, excludeId?: string) => {
   }
 };
 
+// Đảm bảo rằng các bracket thuế hợp lệ. Nếu không có bracket nào được cung cấp hoặc nếu có bracket có toAmount nhỏ hơn hoặc bằng fromAmount, ném ra lỗi 400.
 const ensureTaxBrackets = (brackets?: TaxBracketInput[]) => {
   if (!brackets) {
     return;
@@ -353,19 +360,26 @@ const ensureTaxBrackets = (brackets?: TaxBracketInput[]) => {
   });
 };
 
+//Chỉ hai loại này cần cấu hình tiers
 const progressiveAutoPenaltyTypes = new Set<AutoPenaltyType>([
   AutoPenaltyType.LATE_EARLY_PROGRESSIVE,
   AutoPenaltyType.UNAUTHORIZED_ABSENCE_PROGRESSIVE,
 ]);
 
+// Đảm bảo rằng các tier của chính sách auto penalty hợp lệ.
+// Nếu loại auto penalty là lũy tiến nhưng không có tier nào được cung cấp,
+// hoặc nếu có tier có fromOccurrence nhỏ hơn 1,
+// hoặc nếu có tier có toOccurrence nhỏ hơn fromOccurrence, hoặc nếu các tier chồng lấp nhau, ném ra lỗi 400.
 const ensureAutoPenaltyTiers = (
   type: AutoPenaltyType,
   tiers?: AutoPenaltyTierInput[],
 ) => {
+  // Nếu loại auto penalty không phải là progressive, không cần kiểm tra các tier.
   if (!progressiveAutoPenaltyTypes.has(type)) {
     return;
   }
 
+  // Nếu loại auto penalty là progressive nhưng không có tier nào được cung cấp, ném ra lỗi 400.
   if (!tiers || tiers.length === 0) {
     throw new ApiError(
       400,
@@ -374,10 +388,12 @@ const ensureAutoPenaltyTiers = (
     );
   }
 
+  // Sắp xếp các tier theo fromOccurrence để kiểm tra các điều kiện.
   const ordered = [...tiers].sort(
     (first, second) => first.fromOccurrence - second.fromOccurrence,
   );
 
+  // Kiểm tra từng tier để đảm bảo rằng chúng hợp lệ.
   ordered.forEach((tier, index) => {
     if (tier.fromOccurrence < 1) {
       throw new ApiError(
@@ -426,6 +442,7 @@ const buildPolicyWhere = (query: PolicyQuery) => ({
   ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
 });
 
+// Lấy danh sách employeeIds cần gán chính sách
 const getTargetEmployeeIds = async (data: {
   employeeIds?: string[];
   departmentIds?: string[];
@@ -636,7 +653,11 @@ const ensureMonthYear = (month: number, year: number) => {
   }
 
   if (!Number.isInteger(year) || year < 1900 || year > 9999) {
-    throw new ApiError(400, "year must be between 1900 and 9999", "INVALID_YEAR");
+    throw new ApiError(
+      400,
+      "year must be between 1900 and 9999",
+      "INVALID_YEAR",
+    );
   }
 };
 
@@ -654,7 +675,11 @@ const ensurePositiveStandardWorkDays = (standardWorkDays: DecimalInput) => {
 
 const ensureYear = (year: number) => {
   if (!Number.isInteger(year) || year < 1900 || year > 9999) {
-    throw new ApiError(400, "year must be between 1900 and 9999", "INVALID_YEAR");
+    throw new ApiError(
+      400,
+      "year must be between 1900 and 9999",
+      "INVALID_YEAR",
+    );
   }
 };
 
@@ -690,29 +715,7 @@ const activeLeaveRequestStatuses = [
 
 const toNumber = (value: unknown) => Number(value ?? 0);
 
-const progressiveCountMultiplier = (count: number) => (count * (count + 1)) / 2;
-
-const calculateTieredPenalty = (
-  count: number,
-  tiers: Array<{
-    fromOccurrence: number;
-    toOccurrence: number | null;
-    amount: unknown;
-  }>,
-) => {
-  if (count <= 0 || tiers.length === 0) {
-    return 0;
-  }
-
-  return tiers.reduce((total, tier) => {
-    const from = tier.fromOccurrence;
-    const to = tier.toOccurrence ?? Number.POSITIVE_INFINITY;
-    const matchedCount = Math.max(0, Math.min(count, to) - from + 1);
-
-    return total + matchedCount * toNumber(tier.amount);
-  }, 0);
-};
-
+// Tính toán số tiền phạt dựa trên số lần vi phạm và chính sách auto penalty.
 const calculatePenaltyOccurrenceAmount = (
   occurrence: number,
   policy: {
@@ -767,6 +770,7 @@ const addUtcDays = (date: Date, days: number) =>
 
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
+//gom các đơn nghỉ phép của nhiều nhân viên thành một cấu trúc tra cứu nhanh theo nhân viên, ngày và ca làm việc
 const buildLeaveCoverageByEmployee = async (
   employeeIds: string[],
   start: Date,
@@ -839,6 +843,7 @@ const buildLeaveCoverageByEmployee = async (
   return coverage;
 };
 
+// Kiểm tra xem một ngày và ca làm việc cụ thể có phải ngày nghỉ phép hay không.
 const hasLeaveCoverage = (
   coverage: Map<string, Set<string | null>> | undefined,
   date: Date,
@@ -848,10 +853,11 @@ const hasLeaveCoverage = (
 
   return Boolean(
     coveredShiftIds &&
-      (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
+    (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
   );
 };
 
+//tạo tên hiển thị cho ca làm việc
 const getShiftViolationLabel = (shift: {
   workShiftCode?: string | null;
   workShiftName?: string | null;
@@ -863,6 +869,7 @@ const getShiftViolationLabel = (shift: {
   return [code, name].filter(Boolean).join(" - ") || "Khong ro ca";
 };
 
+// Sắp xếp các vi phạm theo ngày xảy ra, tên ca làm việc và chi tiết vi phạm.
 const sortViolationItems = <
   T extends { occurredAt: Date; workShiftName: string; detail: string },
 >(
@@ -882,12 +889,14 @@ const sortViolationItems = <
     return first.detail.localeCompare(second.detail);
   });
 
+// kiểm tra một chi tiết chấm công có thuộc ca tăng ca hay không
 const isDetailOvertime = (detail: {
   shiftIsOvertime: boolean;
   workShift: { isOvertime: boolean };
 }) => detail.shiftIsOvertime || detail.workShift.isOvertime;
 
 export const payrollPolicyService = {
+  //Chính sách bảo hiểm
   insurancePolicies: {
     getAll(query: PolicyQuery) {
       return prisma.insurancePolicy.findMany({
@@ -1195,7 +1204,9 @@ export const payrollPolicyService = {
   holidays: {
     getAll(query: HolidayQuery) {
       const monthRange =
-        query.month && query.year ? getMonthRange(query.month, query.year) : null;
+        query.month && query.year
+          ? getMonthRange(query.month, query.year)
+          : null;
 
       return prisma.holiday.findMany({
         where: {
@@ -1636,7 +1647,10 @@ export const payrollPolicyService = {
       return item;
     },
 
-    getMine(user: AuthUser, query: Pick<PayrollBonusPenaltyQuery, "month" | "status">) {
+    getMine(
+      user: AuthUser,
+      query: Pick<PayrollBonusPenaltyQuery, "month" | "status">,
+    ) {
       if (!user.employeeId) {
         return [];
       }
@@ -1710,6 +1724,7 @@ export const payrollPolicyService = {
       });
     },
 
+    // Tự động tạo các khoản thưởng/phạt dựa trên chính sách auto penalty.
     async generateAuto(data: GenerateAutoPayrollBonusPenaltyInput) {
       ensureMonthYear(data.month, data.year);
       const { start, end } = getMonthRange(data.month, data.year);
@@ -1796,71 +1811,76 @@ export const payrollPolicyService = {
           );
           const attendanceDetailsByDate = new Map<
             string,
-            Array<(typeof employee.attendanceRecords)[number]["details"][number]>
+            Array<
+              (typeof employee.attendanceRecords)[number]["details"][number]
+            >
           >();
 
           employee.attendanceRecords.forEach((record) => {
-            attendanceDetailsByDate.set(getDateKey(record.date), record.details);
+            attendanceDetailsByDate.set(
+              getDateKey(record.date),
+              record.details,
+            );
           });
 
           const unauthorizedAbsenceViolations = sortViolationItems(
             employee.workSchedules.flatMap((schedule) => {
               const detailsByShiftId = new Map(
-                (attendanceDetailsByDate.get(getDateKey(schedule.date)) ?? []).map(
-                  (detail) => [detail.workShiftId, detail],
-                ),
+                (
+                  attendanceDetailsByDate.get(getDateKey(schedule.date)) ?? []
+                ).map((detail) => [detail.workShiftId, detail]),
               );
 
               return schedule.shiftLinks.flatMap((shiftLink) => {
-                  if (shiftLink.workShift.isOvertime) {
-                    return [];
-                  }
+                if (shiftLink.workShift.isOvertime) {
+                  return [];
+                }
 
-                  if (
-                    hasLeaveCoverage(
-                      leaveCoverage,
-                      schedule.date,
-                      shiftLink.workShiftId,
-                    )
-                  ) {
-                    return [];
-                  }
+                if (
+                  hasLeaveCoverage(
+                    leaveCoverage,
+                    schedule.date,
+                    shiftLink.workShiftId,
+                  )
+                ) {
+                  return [];
+                }
 
-                  const detail = detailsByShiftId.get(shiftLink.workShiftId);
-                  if (!detail) {
-                    return [
-                      {
-                        occurredAt: schedule.date,
-                        workShiftId: shiftLink.workShiftId,
-                        workShiftName: getShiftViolationLabel({
-                          workShift: shiftLink.workShift,
-                        }),
-                        detail: "vang khong cham cong",
-                      },
-                    ];
-                  }
-
-                  const isUnauthorized =
-                    detail.status === AttendanceStatus.ABSENT ||
-                    (!attendedStatuses.has(detail.status) &&
-                      !leaveStatuses.has(detail.status));
-
-                  if (!isUnauthorized) {
-                    return [];
-                  }
-
+                const detail = detailsByShiftId.get(shiftLink.workShiftId);
+                if (!detail) {
                   return [
                     {
                       occurredAt: schedule.date,
                       workShiftId: shiftLink.workShiftId,
-                      workShiftName: getShiftViolationLabel(detail),
-                      detail:
-                        detail.status === AttendanceStatus.ABSENT
-                          ? "vang mat"
-                          : `trang thai ${detail.status}`,
+                      workShiftName: getShiftViolationLabel({
+                        workShift: shiftLink.workShift,
+                      }),
+                      detail: "vang khong cham cong",
                     },
                   ];
-                });
+                }
+
+                const isUnauthorized =
+                  detail.status === AttendanceStatus.ABSENT ||
+                  (!attendedStatuses.has(detail.status) &&
+                    !leaveStatuses.has(detail.status));
+
+                if (!isUnauthorized) {
+                  return [];
+                }
+
+                return [
+                  {
+                    occurredAt: schedule.date,
+                    workShiftId: shiftLink.workShiftId,
+                    workShiftName: getShiftViolationLabel(detail),
+                    detail:
+                      detail.status === AttendanceStatus.ABSENT
+                        ? "vang mat"
+                        : `trang thai ${detail.status}`,
+                  },
+                ];
+              });
             }),
           );
           const unauthorizedAbsenceShiftCount =
@@ -1944,8 +1964,9 @@ export const payrollPolicyService = {
                 ? lateEarlyOccurrences
                 : unauthorizedAbsenceShiftCount;
             const occurrenceKeys = new Set(
-              Array.from({ length: violationCount }, (_, index) =>
-                `auto:${policy.type}:${index + 1}`,
+              Array.from(
+                { length: violationCount },
+                (_, index) => `auto:${policy.type}:${index + 1}`,
               ),
             );
             const existingItems = await prisma.payrollBonusPenalty.findMany({
@@ -1962,7 +1983,8 @@ export const payrollPolicyService = {
             const staleItems = existingItems.filter(
               (item) =>
                 item.status === PayrollBonusPenaltyStatus.ACTIVE &&
-                (!item.occurrenceKey || !occurrenceKeys.has(item.occurrenceKey)),
+                (!item.occurrenceKey ||
+                  !occurrenceKeys.has(item.occurrenceKey)),
             );
 
             if (staleItems.length > 0) {
@@ -2071,7 +2093,11 @@ export const payrollPolicyService = {
           },
         },
         include: standardWorkDayInclude,
-        orderBy: [{ year: "desc" }, { month: "desc" }, { employee: { name: "asc" } }],
+        orderBy: [
+          { year: "desc" },
+          { month: "desc" },
+          { employee: { name: "asc" } },
+        ],
       });
     },
 
@@ -2171,7 +2197,11 @@ export const payrollPolicyService = {
       });
     },
 
-    async deleteByEmployeeMonth(employeeId: string, month: number, year: number) {
+    async deleteByEmployeeMonth(
+      employeeId: string,
+      month: number,
+      year: number,
+    ) {
       await this.getByEmployeeMonth(employeeId, month, year);
 
       return prisma.employeeStandardWorkDay.delete({
@@ -2336,6 +2366,7 @@ export const payrollPolicyService = {
       return profile;
     },
 
+    // Gán các chính sách bảo hiểm, thuế, thưởng chuyên cần cho nhân viên.
     async assign(data: AssignPayrollPoliciesInput) {
       await Promise.all([
         ensureExists("insurancePolicy", data.insurancePolicyId),

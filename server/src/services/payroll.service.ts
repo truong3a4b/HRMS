@@ -4,6 +4,7 @@ import {
   AttendanceStatus,
   PayrollBonusPenaltySource,
   PayrollBonusPenaltyStatus,
+  PayrollCalculationJobStatus,
   PayrollPaymentMode,
   PayrollPeriodStatus,
   PayrollStatus,
@@ -100,6 +101,11 @@ type CreatePayrollByTargetsInput = {
   departmentIds: string[];
   positionIds: string[];
   skipExisting?: boolean;
+};
+
+type PayrollCalculationJobError = {
+  employeeId?: string;
+  message: string;
 };
 
 type CreatePayrollPaymentBatchInput = {
@@ -235,14 +241,40 @@ const payrollExportStatusLabel: Record<PayrollStatus, string> = {
   CANCELLED: "Da huy",
 };
 
-const buildPayrollExportFilename = (period: {
-  month: number;
-  year: number;
-}) =>
+//Xây dựng tên file xuất bảng lương theo định dạng: bang-luong-{năm}-{tháng}.xlsx
+const buildPayrollExportFilename = (period: { month: number; year: number }) =>
   `bang-luong-${period.year}-${String(period.month).padStart(2, "0")}.xlsx`;
 
+//Đặt chiều rộng cột cho worksheet trong file excel
 const setColumnWidths = (worksheet: XLSX.WorkSheet, widths: number[]) => {
   worksheet["!cols"] = widths.map((wch) => ({ wch }));
+};
+
+const PAYROLL_CALCULATION_CONCURRENCY = 3;
+const PAYROLL_WRITE_TRANSACTION_TIMEOUT_MS = 60_000;
+
+//Xử lý một danh sách bất đồng bộ nhưng giới hạn số lượng tác vụ chạy cùng lúc.
+const mapWithConcurrency = async <T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+) => {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+      }
+    },
+  );
+
+  await Promise.all(workers);
+  return results;
 };
 
 const payrollDetailInclude = {
@@ -408,6 +440,15 @@ type PayrollPeriodEmployeeInput = PayrollPeriodInput & {
   employeeId: string;
 };
 
+//Kiểm tra dữ liệu JSON của job có phải là mảng chuỗi ID hay không
+const parseJobIdArray = (value: Prisma.JsonValue, field: string) => {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw new Error(`Invalid payroll calculation job ${field}`);
+  }
+
+  return value as string[];
+};
+
 const hasAnyPermission = (user: AuthUser, permissions: PermissionKey[]) =>
   user.role === UserRole.ADMIN ||
   permissions.some((permission) => user.permissions.includes(permission));
@@ -470,6 +511,7 @@ const getDetailWorkUnits = (detail: {
   workShift: { workUnits: Prisma.Decimal };
 }) => toNumber(detail.shiftWorkUnits ?? detail.workShift.workUnits);
 
+//Hàm lấy hệ số làm thêm từ chi tiết chấm công, ưu tiên lấy hệ số làm thêm riêng nếu có, nếu không có thì lấy theo ca làm việc của lịch làm việc đã lên kế hoạch
 const getDetailOvertimeMultiplier = (detail: {
   shiftOvertimeMultiplier: Prisma.Decimal | null;
   workShift: { overtimeMultiplier: Prisma.Decimal };
@@ -511,6 +553,7 @@ const addUtcDays = (date: Date, days: number) =>
     ),
   );
 
+//Kiểm tra xem một khoảng thời gian có hiệu lực trong một tháng cụ thể hay không
 const isEffectiveInMonth = (
   effectiveFrom: Date,
   effectiveTo: Date | null,
@@ -518,16 +561,19 @@ const isEffectiveInMonth = (
   monthEnd: Date,
 ) => effectiveFrom < monthEnd && (!effectiveTo || effectiveTo >= monthStart);
 
+//Lấy số giờ làm việc từ thời gian bắt đầu và kết thúc, nếu thời gian kết thúc trước thời gian bắt đầu thì trả về 0
 const getShiftHours = (start: Date, end: Date) => {
   const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   return hours > 0 ? hours : 0;
 };
 
+//Lấy số phút dương từ thời gian bắt đầu và kết thúc, nếu thời gian kết thúc trước thời gian bắt đầu thì trả về 0
 const getPositiveMinutes = (start: Date, end: Date) =>
   Math.max(0, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60)));
 
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
+//Lấy các đơn nghỉ phép của nhân viên trong khoảng thời gian cần tính.
 const buildLeaveCoverage = async (
   employeeId: string,
   start: Date,
@@ -573,6 +619,7 @@ const buildLeaveCoverage = async (
   return coverage;
 };
 
+//Kiểm tra một ngày và một ca có nằm trong đơn nghỉ phép hay không.
 const hasLeaveCoverage = (
   coverage: Map<string, Set<string | null>>,
   date: Date,
@@ -582,10 +629,11 @@ const hasLeaveCoverage = (
 
   return Boolean(
     coveredShiftIds &&
-      (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
+    (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
   );
 };
 
+//Tạo tên hiển thị cho ca làm việc khi ghi nhận vi phạm.
 const getShiftViolationLabel = (shift: {
   workShiftCode?: string | null;
   workShiftName?: string | null;
@@ -596,7 +644,7 @@ const getShiftViolationLabel = (shift: {
 
   return [code, name].filter(Boolean).join(" - ") || "Khong ro ca";
 };
-
+//Sắp xếp danh sách vi phạm theo thời gian xảy ra, sau đó theo tên ca làm việc, sau đó theo chi tiết vi phạm.
 const sortViolationItems = <
   T extends { occurredAt: Date; workShiftName: string; detail: string },
 >(
@@ -616,12 +664,14 @@ const sortViolationItems = <
     return first.detail.localeCompare(second.detail);
   });
 
+//Kiểm tra xem một ngày có nằm trong khoảng thời gian hiệu lực hay không.
 const isSameOrAfterDate = (date: Date, compare: Date) =>
   getDateKey(date) >= getDateKey(compare);
 
 const isBeforeDate = (date: Date, compare: Date) =>
   getDateKey(date) < getDateKey(compare);
 
+//Kiểm tra xem một bản ghi lịch sử công việc có hiệu lực vào một ngày cụ thể hay không.
 const isJobHistoryActiveOnDate = (
   date: Date,
   history: { effectiveFrom: Date; effectiveTo: Date | null },
@@ -629,6 +679,7 @@ const isJobHistoryActiveOnDate = (
   isSameOrAfterDate(date, history.effectiveFrom) &&
   (!history.effectiveTo || isBeforeDate(date, history.effectiveTo));
 
+//Lấy bản ghi lịch sử công việc có hiệu lực vào một ngày cụ thể từ danh sách lịch sử công việc, nếu không có thì trả về null
 const getJobHistoryForDate = <
   T extends { effectiveFrom: Date; effectiveTo: Date | null },
 >(
@@ -644,6 +695,7 @@ const getJobHistoryForDate = <
   return null;
 };
 
+//Lấy mức lương có hiệu lực vào một ngày cụ thể từ danh sách lịch sử công việc, nếu không có thì trả về fallbackSalary
 const getSalaryForDate = (
   histories: Array<{
     salary: Prisma.Decimal | null;
@@ -657,6 +709,7 @@ const getSalaryForDate = (
   return toNumber(history?.salary ?? fallbackSalary);
 };
 
+//Tính thuế lũy tiến theo thu nhập chịu thuế và các bậc thuế
 const calculateProgressiveTax = (
   taxableIncome: number,
   brackets: Array<{
@@ -685,6 +738,7 @@ const calculateProgressiveTax = (
   }, 0);
 };
 
+//Kiểm tra xem nhân viên có tồn tại trong cơ sở dữ liệu hay không, nếu không tồn tại thì ném ra lỗi 404
 const ensureEmployeeExists = async (employeeId: string) => {
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
@@ -696,6 +750,7 @@ const ensureEmployeeExists = async (employeeId: string) => {
   }
 };
 
+//Tính số tiền phạt dựa trên số lần vi phạm và chính sách phạt tự động
 const calculatePenaltyOccurrenceAmount = (
   occurrence: number,
   policy: {
@@ -727,6 +782,7 @@ const calculatePenaltyOccurrenceAmount = (
   return tier ? toNumber(tier.amount) : toNumber(policy.amount) * occurrence;
 };
 
+//Kiểm tra dữ liệu đầu vào cho việc tạo lô thanh toán bảng lương, nếu không hợp lệ thì ném ra lỗi 400
 const assertValidPaymentInput = (data: CreatePayrollPaymentBatchInput) => {
   if (data.mode === PayrollPaymentMode.AMOUNT) {
     if (data.amount === undefined || toNumber(data.amount) <= 0) {
@@ -750,6 +806,7 @@ const assertValidPaymentInput = (data: CreatePayrollPaymentBatchInput) => {
   }
 };
 
+//Lấy bản ghi kỳ lương theo ID, nếu không tồn tại thì ném ra lỗi 404
 const getPayrollPeriodOrThrow = async (id: string) => {
   const period = await prisma.payrollPeriod.findUnique({
     where: { id },
@@ -766,6 +823,7 @@ const getPayrollPeriodOrThrow = async (id: string) => {
   return period;
 };
 
+//Xác định kỳ lương dựa trên dữ liệu đầu vào, nếu không có kỳ lương thì tạo mới, nếu có thì cập nhật thông tin
 const resolvePayrollPeriod = async (
   data: {
     periodId?: string;
@@ -813,6 +871,7 @@ const resolvePayrollPeriod = async (
   });
 };
 
+//Lấy bản ghi kỳ lương dựa trên dữ liệu đầu vào, nếu không tồn tại thì ném ra lỗi 404
 const findPayrollPeriodByInput = async (data: {
   periodId?: string;
   month?: number;
@@ -837,6 +896,7 @@ const findPayrollPeriodByInput = async (data: {
   return period;
 };
 
+//Kiểm tra trạng thái của kỳ lương, nếu không phải là DRAFT thì ném ra lỗi 400
 const assertDraftPeriod = (period: { status: PayrollPeriodStatus }) => {
   if (period.status !== PayrollPeriodStatus.DRAFT) {
     throw new ApiError(
@@ -847,6 +907,7 @@ const assertDraftPeriod = (period: { status: PayrollPeriodStatus }) => {
   }
 };
 
+//Kiểm tra trạng thái của kỳ lương, nếu không phải là DRAFT hoặc CANCELLED thì ném ra lỗi 400
 const assertDraftOrCancelledPeriod = (period: {
   status: PayrollPeriodStatus;
 }) => {
@@ -862,6 +923,7 @@ const assertDraftOrCancelledPeriod = (period: {
   }
 };
 
+//Kiểm tra trạng thái của kỳ lương, nếu không phải là DRAFT hoặc WAITING_APPROVAL thì ném ra lỗi 400
 const getPaymentDate = (value?: Date | string) => {
   if (!value) {
     return new Date();
@@ -875,6 +937,7 @@ const getPaymentDate = (value?: Date | string) => {
   return paymentDate;
 };
 
+//Tính số tiền thanh toán dựa trên số tiền còn lại và dữ liệu đầu vào, nếu chế độ là REMAINING thì trả về số tiền còn lại, nếu chế độ là PERCENT thì tính theo phần trăm, nếu chế độ là AMOUNT thì trả về số tiền đã nhập
 const calculatePaymentAmount = (
   remainingAmount: number,
   data: CreatePayrollPaymentBatchInput,
@@ -890,6 +953,7 @@ const calculatePaymentAmount = (
   return roundMoney(toNumber(data.amount));
 };
 
+//Kiểm tra xem một bản ghi bảng lương có thể được xem bởi người dùng hay không, nếu không thì ném ra lỗi 403
 const getPayrollOrThrow = async (id: string) => {
   const payroll = await prisma.payroll.findUnique({
     where: { id },
@@ -903,6 +967,7 @@ const getPayrollOrThrow = async (id: string) => {
   return payroll;
 };
 
+//Kiểm tra xem người dùng có thể xem bảng lương hay không, nếu không thì ném ra lỗi 403
 const assertCanViewPayroll = (
   user: AuthUser,
   payroll: { employeeId: string; status: PayrollStatus },
@@ -947,6 +1012,7 @@ const buildPayrollData = (data: PayrollCalculationResult) => ({
   paidAmount: 0,
 });
 
+//Hàm thay thế dữ liệu bảng lương đã tồn tại bằng dữ liệu mới, xóa các dòng phụ cấp, làm thêm giờ và thưởng/phạt cũ, sau đó cập nhật bảng lương với dữ liệu mới
 const replacePayrollCalculation = async (
   tx: Prisma.TransactionClient,
   payrollId: string,
@@ -978,6 +1044,46 @@ const replacePayrollCalculation = async (
   });
 };
 
+//Hàm ghi dữ liệu bảng lương vào cơ sở dữ liệu, nếu bảng lương đã tồn tại thì thay thế dữ liệu cũ bằng dữ liệu mới, nếu không tồn tại thì tạo mới
+const writePayrollCalculation = async (
+  tx: Prisma.TransactionClient,
+  periodId: string,
+  item: {
+    existing?: { id: string } | null;
+    calculated: PayrollCalculationResult;
+  },
+) => {
+  if (item.existing) {
+    await replacePayrollCalculation(
+      tx,
+      item.existing.id,
+      periodId,
+      item.calculated,
+    );
+    return "updated" as const;
+  }
+
+  await tx.payroll.create({
+    data: {
+      ...buildPayrollData(item.calculated),
+      periodId,
+      status: PayrollStatus.DRAFT,
+      overtimeLines: {
+        create: item.calculated.overtimeLines ?? [],
+      },
+      allowanceLines: {
+        create: item.calculated.allowanceLines ?? [],
+      },
+      bonusPenaltyLines: {
+        create: item.calculated.bonusPenaltyLines ?? [],
+      },
+    },
+  });
+
+  return "created" as const;
+};
+
+//Kiểm tra xem bảng lương có thể được cập nhật hay không, nếu không thì ném ra lỗi 400
 const assertUpdatablePayroll = (payroll: {
   status: PayrollStatus;
   paidAmount: unknown;
@@ -995,6 +1101,256 @@ const assertUpdatablePayroll = (payroll: {
   }
 };
 
+//Lấy danh sách nhân viên phù hợp với các mục tiêu bảng lương dựa trên phòng ban và vị trí, bao gồm cả nhân viên hiện tại và nhân viên đã từng làm việc trong khoảng thời gian tính lương
+const getPayrollTargetEmployees = (
+  data: Pick<CreatePayrollByTargetsInput, "departmentIds" | "positionIds">,
+  start: Date,
+  end: Date,
+) =>
+  prisma.employee.findMany({
+    where: {
+      OR: [
+        {
+          departmentId: { in: data.departmentIds },
+          positionId: { in: data.positionIds },
+        },
+        {
+          jobHistories: {
+            some: {
+              departmentId: { in: data.departmentIds },
+              positionId: { in: data.positionIds },
+              effectiveFrom: { lt: end },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gt: start } }],
+            },
+          },
+        },
+      ],
+    },
+    select: {
+      id: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
+const toJobErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+//Hàm xử lý một job tính lương, bao gồm việc xác nhận job, lấy danh sách nhân viên phù hợp, tính toán bảng lương cho từng nhân viên, ghi dữ liệu vào cơ sở dữ liệu và cập nhật trạng thái job
+const processPayrollCalculationJob = async (jobId: string) => {
+  // Cố gắng xác nhận job để tránh nhiều worker cùng xử lý một job
+  const claimed = await prisma.payrollCalculationJob.updateMany({
+    where: {
+      id: jobId,
+      status: PayrollCalculationJobStatus.PENDING,
+    },
+    data: {
+      status: PayrollCalculationJobStatus.PROCESSING,
+      startedAt: new Date(),
+      finishedAt: null,
+      errorMessage: null,
+      errors: Prisma.DbNull,
+    },
+  });
+
+  if (claimed.count === 0) {
+    return;
+  }
+
+  const errors: PayrollCalculationJobError[] = [];
+
+  try {
+    const job = await prisma.payrollCalculationJob.findUniqueOrThrow({
+      where: { id: jobId },
+      include: {
+        period: {
+          select: {
+            id: true,
+            month: true,
+            year: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    const departmentIds = parseJobIdArray(
+      job.targetDepartmentIds,
+      "targetDepartmentIds",
+    );
+    const positionIds = parseJobIdArray(
+      job.targetPositionIds,
+      "targetPositionIds",
+    );
+    const { start, end } = getMonthRange(job.period.month, job.period.year);
+    const employees = await getPayrollTargetEmployees(
+      { departmentIds, positionIds },
+      start,
+      end,
+    );
+
+    if (employees.length === 0) {
+      throw new ApiError(
+        404,
+        "No employees matched payroll target",
+        "NO_EMPLOYEE_MATCHED",
+      );
+    }
+
+    await prisma.payrollCalculationJob.update({
+      where: { id: jobId },
+      data: { totalEmployees: employees.length },
+    });
+
+    const employeeIds = employees.map((employee) => employee.id);
+    const existingPayrolls = await prisma.payroll.findMany({
+      where: {
+        employeeId: { in: employeeIds },
+        periodId: job.period.id,
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        status: true,
+        paidAmount: true,
+      },
+    });
+
+    if (!job.skipExisting) {
+      existingPayrolls.forEach(assertUpdatablePayroll);
+    }
+
+    const existingPayrollByEmployeeId = new Map(
+      existingPayrolls.map((payroll) => [payroll.employeeId, payroll]),
+    );
+
+    if (job.period.status === PayrollPeriodStatus.CANCELLED) {
+      await prisma.payrollPeriod.update({
+        where: { id: job.period.id },
+        data: {
+          status: PayrollPeriodStatus.DRAFT,
+          requestedAt: null,
+          approvedAt: null,
+          cancelledAt: null,
+        },
+      });
+    }
+
+    for (const employee of employees) {
+      const existing = existingPayrollByEmployeeId.get(employee.id);
+
+      if (job.skipExisting && existing) {
+        await prisma.payrollCalculationJob.update({
+          where: { id: jobId },
+          data: {
+            processedCount: { increment: 1 },
+            skippedCount: { increment: 1 },
+          },
+        });
+        continue;
+      }
+
+      try {
+        const calculated = await calculatePayrollForEmployee(
+          employee.id,
+          job.period.month,
+          job.period.year,
+        );
+        const action = await prisma.$transaction(
+          (tx) =>
+            writePayrollCalculation(tx, job.period.id, {
+              existing,
+              calculated,
+            }),
+          { timeout: PAYROLL_WRITE_TRANSACTION_TIMEOUT_MS },
+        );
+
+        await prisma.payrollCalculationJob.update({
+          where: { id: jobId },
+          data: {
+            processedCount: { increment: 1 },
+            ...(action === "created"
+              ? { createdCount: { increment: 1 } }
+              : { updatedCount: { increment: 1 } }),
+          },
+        });
+      } catch (error) {
+        errors.push({
+          employeeId: employee.id,
+          message: toJobErrorMessage(error),
+        });
+
+        await prisma.payrollCalculationJob.update({
+          where: { id: jobId },
+          data: {
+            processedCount: { increment: 1 },
+            failedCount: { increment: 1 },
+            errors: errors as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
+
+    await prisma.payrollCalculationJob.update({
+      where: { id: jobId },
+      data: {
+        status:
+          errors.length > 0
+            ? PayrollCalculationJobStatus.FAILED
+            : PayrollCalculationJobStatus.COMPLETED,
+        errorMessage:
+          errors.length > 0
+            ? `${errors.length} employee payroll calculations failed`
+            : null,
+        errors:
+          errors.length > 0 ? (errors as Prisma.InputJsonValue) : Prisma.DbNull,
+        finishedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    const message = toJobErrorMessage(error);
+    await prisma.payrollCalculationJob.update({
+      where: { id: jobId },
+      data: {
+        status: PayrollCalculationJobStatus.FAILED,
+        errorMessage: message,
+        errors: [{ message }] as Prisma.InputJsonValue,
+        finishedAt: new Date(),
+      },
+    });
+  }
+};
+
+//Hàm khởi động lại các job tính lương đang ở trạng thái PROCESSING khi server bị khởi động lại, đặt lại trạng thái của chúng thành PENDING và ghi nhận lỗi, sau đó tiếp tục xử lý các job PENDING theo thứ tự tạo
+export const resumePendingPayrollCalculationJobs = async () => {
+  await prisma.payrollCalculationJob.updateMany({
+    where: {
+      status: PayrollCalculationJobStatus.PROCESSING,
+      finishedAt: null,
+    },
+    data: {
+      status: PayrollCalculationJobStatus.PENDING,
+      errorMessage: "Job was resumed after server restart",
+    },
+  });
+
+  const jobs = await prisma.payrollCalculationJob.findMany({
+    where: { status: PayrollCalculationJobStatus.PENDING },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (jobs.length === 0) {
+    return;
+  }
+
+  setImmediate(async () => {
+    for (const job of jobs) {
+      await processPayrollCalculationJob(job.id);
+    }
+  });
+};
+
+//Hàm tính toán bảng lương cho một nhân viên trong một tháng cụ thể, bao gồm việc lấy dữ liệu liên quan, tính toán các khoản lương, phụ cấp, làm thêm giờ, thưởng/phạt, bảo hiểm và thuế
 const calculatePayrollForEmployee = async (
   employeeId: string,
   month: number,
@@ -1214,7 +1570,10 @@ const calculatePayrollForEmployee = async (
   }, 0);
 
   const schedulesByDate = new Map(
-    employee.workSchedules.map((schedule) => [getDateKey(schedule.date), schedule]),
+    employee.workSchedules.map((schedule) => [
+      getDateKey(schedule.date),
+      schedule,
+    ]),
   );
   const payableHolidays = holidays.filter((holiday) => {
     const schedule = schedulesByDate.get(getDateKey(holiday.date));
@@ -1289,55 +1648,51 @@ const calculatePayrollForEmployee = async (
       );
 
       return schedule.shiftLinks.flatMap((shiftLink) => {
-          if (shiftLink.workShift.isOvertime) {
-            return [];
-          }
+        if (shiftLink.workShift.isOvertime) {
+          return [];
+        }
 
-          if (
-            hasLeaveCoverage(
-              leaveCoverage,
-              schedule.date,
-              shiftLink.workShiftId,
-            )
-          ) {
-            return [];
-          }
+        if (
+          hasLeaveCoverage(leaveCoverage, schedule.date, shiftLink.workShiftId)
+        ) {
+          return [];
+        }
 
-          const detail = detailsByShiftId.get(shiftLink.workShiftId);
-          if (!detail) {
-            return [
-              {
-                occurredAt: schedule.date,
-                workShiftId: shiftLink.workShiftId,
-                workShiftName: getShiftViolationLabel({
-                  workShift: shiftLink.workShift,
-                }),
-                detail: "vang khong cham cong",
-              },
-            ];
-          }
-
-          const isUnauthorized =
-            detail.status === AttendanceStatus.ABSENT ||
-            (!attendedStatuses.has(detail.status) &&
-              !leaveStatuses.has(detail.status));
-
-          if (!isUnauthorized) {
-            return [];
-          }
-
+        const detail = detailsByShiftId.get(shiftLink.workShiftId);
+        if (!detail) {
           return [
             {
               occurredAt: schedule.date,
               workShiftId: shiftLink.workShiftId,
-              workShiftName: getShiftViolationLabel(detail),
-              detail:
-                detail.status === AttendanceStatus.ABSENT
-                  ? "vang mat"
-                  : `trang thai ${detail.status}`,
+              workShiftName: getShiftViolationLabel({
+                workShift: shiftLink.workShift,
+              }),
+              detail: "vang khong cham cong",
             },
           ];
-        });
+        }
+
+        const isUnauthorized =
+          detail.status === AttendanceStatus.ABSENT ||
+          (!attendedStatuses.has(detail.status) &&
+            !leaveStatuses.has(detail.status));
+
+        if (!isUnauthorized) {
+          return [];
+        }
+
+        return [
+          {
+            occurredAt: schedule.date,
+            workShiftId: shiftLink.workShiftId,
+            workShiftName: getShiftViolationLabel(detail),
+            detail:
+              detail.status === AttendanceStatus.ABSENT
+                ? "vang mat"
+                : `trang thai ${detail.status}`,
+          },
+        ];
+      });
     }),
   );
   const unauthorizedAbsenceShiftCount = unauthorizedAbsenceViolations.length;
@@ -1349,7 +1704,9 @@ const calculatePayrollForEmployee = async (
         return [];
       }
 
-      if (hasLeaveCoverage(leaveCoverage, detail.recordDate, detail.workShiftId)) {
+      if (
+        hasLeaveCoverage(leaveCoverage, detail.recordDate, detail.workShiftId)
+      ) {
         return [];
       }
 
@@ -1400,11 +1757,7 @@ const calculatePayrollForEmployee = async (
     (totals, detail) => {
       if (
         isDetailOvertime(detail) ||
-        hasLeaveCoverage(
-          leaveCoverage,
-          detail.recordDate,
-          detail.workShiftId,
-        )
+        hasLeaveCoverage(leaveCoverage, detail.recordDate, detail.workShiftId)
       ) {
         return totals;
       }
@@ -1481,6 +1834,7 @@ const calculatePayrollForEmployee = async (
     0,
   );
 
+  // Tính các khoản phụ cấp dựa trên chính sách phụ cấp của nhân viên, chỉ tính các chính sách đang hoạt động và có hiệu lực trong tháng tính lương
   const allowanceLines = employee.allowances
     .map((employeeAllowance) => employeeAllowance.allowancePolicy)
     .filter(
@@ -1513,128 +1867,130 @@ const calculatePayrollForEmployee = async (
       amount: roundMoney(Math.abs(toNumber(item.amount))),
     }));
 
-  const autoPenaltyVouchers = await Promise.all(
-    employee.autoPenaltyPolicies
-      .map((assignment) => assignment.autoPenaltyPolicy)
-      .filter((policy) => policy.isActive)
-      .map(async (policy) => {
-        const violations =
-          policy.type === AutoPenaltyType.LATE_EARLY ||
-          policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
-            ? lateEarlyViolations
-            : unauthorizedAbsenceViolations;
-        const violationCount =
-          policy.type === AutoPenaltyType.LATE_EARLY ||
-          policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
-            ? lateEarlyOccurrences
-            : unauthorizedAbsenceShiftCount;
+  const autoPenaltyVouchers = [];
+  const activeAutoPenaltyPolicies = employee.autoPenaltyPolicies
+    .map((assignment) => assignment.autoPenaltyPolicy)
+    .filter((policy) => policy.isActive);
 
-        const existingItems = await prisma.payrollBonusPenalty.findMany({
-          where: {
-            employeeId,
-            autoPenaltyPolicyId: policy.id,
-            source: PayrollBonusPenaltySource.AUTO,
-            month: {
-              gte: start,
-              lt: end,
-            },
+  for (const policy of activeAutoPenaltyPolicies) {
+    const violations =
+      policy.type === AutoPenaltyType.LATE_EARLY ||
+      policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
+        ? lateEarlyViolations
+        : unauthorizedAbsenceViolations;
+    const violationCount =
+      policy.type === AutoPenaltyType.LATE_EARLY ||
+      policy.type === AutoPenaltyType.LATE_EARLY_PROGRESSIVE
+        ? lateEarlyOccurrences
+        : unauthorizedAbsenceShiftCount;
+
+    const existingItems = await prisma.payrollBonusPenalty.findMany({
+      where: {
+        employeeId,
+        autoPenaltyPolicyId: policy.id,
+        source: PayrollBonusPenaltySource.AUTO,
+        month: {
+          gte: start,
+          lt: end,
+        },
+      },
+    });
+    const occurrenceKeys = new Set(
+      Array.from(
+        { length: violationCount },
+        (_, index) => `auto:${policy.type}:${index + 1}`,
+      ),
+    );
+    const staleItems = existingItems.filter(
+      (item) =>
+        item.status === PayrollBonusPenaltyStatus.ACTIVE &&
+        (!item.occurrenceKey || !occurrenceKeys.has(item.occurrenceKey)),
+    );
+
+    if (staleItems.length > 0) {
+      for (const item of staleItems) {
+        await prisma.payrollBonusPenalty.update({
+          where: { id: item.id },
+          data: {
+            status: PayrollBonusPenaltyStatus.CANCELLED,
+            cancelledAt: new Date(),
           },
         });
-        const occurrenceKeys = new Set(
-          Array.from(
-            { length: violationCount },
-            (_, index) => `auto:${policy.type}:${index + 1}`,
-          ),
-        );
-        const staleItems = existingItems.filter(
-          (item) =>
-            item.status === PayrollBonusPenaltyStatus.ACTIVE &&
-            (!item.occurrenceKey || !occurrenceKeys.has(item.occurrenceKey)),
-        );
+      }
+    }
+    const existing = existingItems[0];
 
-        if (staleItems.length > 0) {
-          await Promise.all(
-            staleItems.map((item) =>
-              prisma.payrollBonusPenalty.update({
-                where: { id: item.id },
-                data: {
-                  status: PayrollBonusPenaltyStatus.CANCELLED,
-                  cancelledAt: new Date(),
-                },
-              }),
-            ),
-          );
-        }
-        const existing = existingItems[0];
+    if (violationCount <= 0) {
+      if (existing?.status === PayrollBonusPenaltyStatus.ACTIVE) {
+        await prisma.payrollBonusPenalty.update({
+          where: { id: existing.id },
+          data: {
+            status: PayrollBonusPenaltyStatus.CANCELLED,
+            cancelledAt: new Date(),
+          },
+        });
+      }
 
-        if (violationCount <= 0) {
-          if (existing?.status === PayrollBonusPenaltyStatus.ACTIVE) {
-            await prisma.payrollBonusPenalty.update({
-              where: { id: existing.id },
-              data: {
-                status: PayrollBonusPenaltyStatus.CANCELLED,
-                cancelledAt: new Date(),
-              },
-            });
-          }
+      autoPenaltyVouchers.push(null);
+      continue;
+    }
 
-          return null;
-        }
+    const policyVouchers = [];
+    // Tạo hoặc cập nhật các bản ghi thưởng/phạt tự động dựa trên số lần vi phạm và chính sách áp dụng
+    for (let index = 0; index < violationCount; index += 1) {
+      const occurrenceNumber = index + 1;
+      const occurrenceKey = `auto:${policy.type}:${occurrenceNumber}`;
+      const violation = violations[index];
+      const existingOccurrence = existingItems.find(
+        (item) => item.occurrenceKey === occurrenceKey,
+      );
+      const amount = calculatePenaltyOccurrenceAmount(occurrenceNumber, policy);
 
-        return Promise.all(
-          Array.from({ length: violationCount }, async (_, index) => {
-            const occurrenceNumber = index + 1;
-            const occurrenceKey = `auto:${policy.type}:${occurrenceNumber}`;
-            const violation = violations[index];
-            const existingOccurrence = existingItems.find(
-              (item) => item.occurrenceKey === occurrenceKey,
-            );
-            const amount = calculatePenaltyOccurrenceAmount(
-              occurrenceNumber,
-              policy,
-            );
+      if (
+        amount <= 0 ||
+        existingOccurrence?.status === PayrollBonusPenaltyStatus.CANCELLED
+      ) {
+        policyVouchers.push(null);
+        continue;
+      }
 
-            if (
-              amount <= 0 ||
-              existingOccurrence?.status === PayrollBonusPenaltyStatus.CANCELLED
-            ) {
-              return null;
-            }
+      const data = {
+        employeeId,
+        month: start,
+        autoPenaltyPolicyId: policy.id,
+        isBonus: false,
+        source: PayrollBonusPenaltySource.AUTO,
+        status: PayrollBonusPenaltyStatus.ACTIVE,
+        violationCount: 1,
+        occurrenceKey,
+        occurredAt: start,
+        reason: `${policy.name} - lần ${occurrenceNumber}`,
+        amount: roundMoney(amount),
+        cancelledAt: null,
+      };
 
-            const data = {
+      data.occurredAt = violation?.occurredAt ?? start;
+      data.reason = `${policy.name} - ${violation?.detail ?? "vi pham"} - ngay ${getDateKey(violation?.occurredAt ?? start)}, ca ${violation?.workShiftName ?? "Khong ro ca"}`;
+
+      policyVouchers.push(
+        await prisma.payrollBonusPenalty.upsert({
+          where: {
+            employeeId_autoPenaltyPolicyId_occurrenceKey: {
               employeeId,
-              month: start,
               autoPenaltyPolicyId: policy.id,
-              isBonus: false,
-              source: PayrollBonusPenaltySource.AUTO,
-              status: PayrollBonusPenaltyStatus.ACTIVE,
-              violationCount: 1,
               occurrenceKey,
-              occurredAt: start,
-              reason: `${policy.name} - lần ${occurrenceNumber}`,
-              amount: roundMoney(amount),
-              cancelledAt: null,
-            };
+            },
+          },
+          update: data,
+          create: data,
+        }),
+      );
+    }
 
-            data.occurredAt = violation?.occurredAt ?? start;
-            data.reason = `${policy.name} - ${violation?.detail ?? "vi pham"} - ngay ${getDateKey(violation?.occurredAt ?? start)}, ca ${violation?.workShiftName ?? "Khong ro ca"}`;
+    autoPenaltyVouchers.push(policyVouchers);
+  }
 
-            return prisma.payrollBonusPenalty.upsert({
-              where: {
-                employeeId_autoPenaltyPolicyId_occurrenceKey: {
-                  employeeId,
-                  autoPenaltyPolicyId: policy.id,
-                  occurrenceKey,
-                },
-              },
-              update: data,
-              create: data,
-            });
-          }),
-        );
-      }),
-  );
-
+  // Gộp tất cả các bản ghi thưởng/phạt tự động đã tạo hoặc cập nhật vào mảng bonusPenaltyLines để tính toán tổng tiền thưởng/phạt
   autoPenaltyVouchers
     .flat()
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -1649,6 +2005,7 @@ const calculatePayrollForEmployee = async (
 
   const attendanceBonusPolicy = payrollProfile?.attendanceBonusPolicy;
 
+  // Kiểm tra điều kiện áp dụng thưởng chuyên cần dựa trên chính sách của nhân viên, số ngày công thực tế, số ngày vắng mặt và số phút đi muộn/về sớm
   if (
     payrollProfile?.isAttendanceBonusApplicable &&
     attendanceBonusPolicy?.isActive &&
@@ -1902,34 +2259,16 @@ export const payrollService = {
   //tạo bảng lương hàng loạt theo tiêu chí phòng ban, vị trí
   async createByTargets(user: AuthUser, data: CreatePayrollByTargetsInput) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+
+    // Xác định kỳ tính lương dựa trên dữ liệu đầu vào và quyền của người dùng
     const period = await resolvePayrollPeriod(data, user.id);
+
+    // Kiểm tra trạng thái của kỳ tính lương, chỉ cho phép tạo bảng lương nếu kỳ tính lương đang ở trạng thái DRAFT hoặc CANCELLED
     assertDraftOrCancelledPeriod(period);
     const { start, end } = getMonthRange(period.month, period.year);
 
-    const employees = await prisma.employee.findMany({
-      where: {
-        OR: [
-          {
-            departmentId: { in: data.departmentIds },
-            positionId: { in: data.positionIds },
-          },
-          {
-            jobHistories: {
-              some: {
-                departmentId: { in: data.departmentIds },
-                positionId: { in: data.positionIds },
-                effectiveFrom: { lt: end },
-                OR: [{ effectiveTo: null }, { effectiveTo: { gt: start } }],
-              },
-            },
-          },
-        ],
-      },
-      select: {
-        id: true,
-      },
-      orderBy: { name: "asc" },
-    });
+    // Lấy danh sách nhân viên phù hợp với tiêu chí phòng ban và vị trí trong khoảng thời gian của kỳ tính lương
+    const employees = await getPayrollTargetEmployees(data, start, end);
 
     if (employees.length === 0) {
       throw new ApiError(
@@ -1940,6 +2279,7 @@ export const payrollService = {
     }
 
     const employeeIds = employees.map((employee) => employee.id);
+    // Lấy danh sách bảng lương hiện có cho các nhân viên trong kỳ tính lương
     const existingPayrolls = await prisma.payroll.findMany({
       where: {
         employeeId: { in: employeeIds },
@@ -1953,67 +2293,54 @@ export const payrollService = {
       },
     });
 
+    // Kiểm tra các bảng lương hiện có để đảm bảo rằng chúng có thể được cập nhật (nếu cần thiết)
     existingPayrolls.forEach(assertUpdatablePayroll);
 
+    // Tạo một Map để tra cứu nhanh bảng lương hiện có theo employeeId, giúp việc so sánh và cập nhật dễ dàng hơn
     const existingPayrollByEmployeeId = new Map(
       existingPayrolls.map((payroll) => [payroll.employeeId, payroll]),
     );
 
-    const calculatedPayrolls = await Promise.all(
-      employees.map((employee) =>
-        calculatePayrollForEmployee(
+    // Tính toán bảng lương cho từng nhân viên trong danh sách, sử dụng concurrency để xử lý nhiều nhân viên cùng lúc mà không làm quá tải hệ thống
+    const calculatedPayrolls = await mapWithConcurrency(
+      employees,
+      PAYROLL_CALCULATION_CONCURRENCY,
+      async (employee) => {
+        const calculated = await calculatePayrollForEmployee(
           employee.id,
           period.month,
           period.year,
-        ).then((calculated) => ({
+        );
+
+        return {
           existing: existingPayrollByEmployeeId.get(employee.id),
           calculated,
-        })),
-      ),
+        };
+      },
     );
 
-    await prisma.$transaction(async (tx) => {
-      if (period.status === PayrollPeriodStatus.CANCELLED) {
-        await tx.payrollPeriod.update({
-          where: { id: period.id },
-          data: {
-            status: PayrollPeriodStatus.DRAFT,
-            requestedAt: null,
-            approvedAt: null,
-            cancelledAt: null,
-          },
-        });
-      }
-
-      for (const item of calculatedPayrolls) {
-        if (item.existing) {
-          await replacePayrollCalculation(
-            tx,
-            item.existing.id,
-            period.id,
-            item.calculated,
-          );
-          continue;
+    await prisma.$transaction(
+      // Thực hiện các thao tác ghi bảng lương trong một transaction để đảm bảo tính toàn vẹn dữ liệu
+      async (tx) => {
+        if (period.status === PayrollPeriodStatus.CANCELLED) {
+          await tx.payrollPeriod.update({
+            where: { id: period.id },
+            data: {
+              status: PayrollPeriodStatus.DRAFT,
+              requestedAt: null,
+              approvedAt: null,
+              cancelledAt: null,
+            },
+          });
         }
 
-        await tx.payroll.create({
-          data: {
-            ...buildPayrollData(item.calculated),
-            periodId: period.id,
-            status: PayrollStatus.DRAFT,
-            overtimeLines: {
-              create: item.calculated.overtimeLines ?? [],
-            },
-            allowanceLines: {
-              create: item.calculated.allowanceLines ?? [],
-            },
-            bonusPenaltyLines: {
-              create: item.calculated.bonusPenaltyLines ?? [],
-            },
-          },
-        });
-      }
-    });
+        // Ghi bảng lương đã tính toán vào cơ sở dữ liệu, nếu bảng lương đã tồn tại thì cập nhật, nếu chưa tồn tại thì tạo mới
+        for (const item of calculatedPayrolls) {
+          await writePayrollCalculation(tx, period.id, item);
+        }
+      },
+      { timeout: PAYROLL_WRITE_TRANSACTION_TIMEOUT_MS },
+    );
 
     const updatedEmployeeIds = new Set(
       existingPayrolls.map((payroll) => payroll.employeeId),
@@ -2035,12 +2362,103 @@ export const payrollService = {
   },
 
   //lấy chi tiết bảng lương, chỉ trả về nếu có quyền xem bảng lương đó
+  async createByTargetsJob(user: AuthUser, data: CreatePayrollByTargetsInput) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+    const period = await resolvePayrollPeriod(data, user.id);
+    assertDraftOrCancelledPeriod(period);
+    const { start, end } = getMonthRange(period.month, period.year);
+    const employees = await getPayrollTargetEmployees(data, start, end);
+
+    if (employees.length === 0) {
+      throw new ApiError(
+        404,
+        "No employees matched payroll target",
+        "NO_EMPLOYEE_MATCHED",
+      );
+    }
+
+    const job = await prisma.payrollCalculationJob.create({
+      data: {
+        periodId: period.id,
+        requestedById: user.id,
+        targetDepartmentIds: data.departmentIds as Prisma.InputJsonValue,
+        targetPositionIds: data.positionIds as Prisma.InputJsonValue,
+        skipExisting: data.skipExisting ?? false,
+        totalEmployees: employees.length,
+      },
+      include: {
+        period: {
+          select: {
+            id: true,
+            name: true,
+            month: true,
+            year: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    setImmediate(() => {
+      processPayrollCalculationJob(job.id).catch((error) => {
+        console.error(
+          "[PayrollJob] Failed to process payroll calculation job",
+          {
+            jobId: job.id,
+            error,
+          },
+        );
+      });
+    });
+
+    return job;
+  },
+
+  //lấy chi tiết bảng lương, chỉ trả về nếu có quyền xem bảng lương đó
+  async getCalculationJob(user: AuthUser, id: string) {
+    requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
+
+    const job = await prisma.payrollCalculationJob.findUnique({
+      where: { id },
+      include: {
+        period: {
+          select: {
+            id: true,
+            name: true,
+            month: true,
+            year: true,
+            status: true,
+          },
+        },
+        requestedBy: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!job) {
+      throw new ApiError(
+        404,
+        "Payroll calculation job not found",
+        "JOB_NOT_FOUND",
+      );
+    }
+
+    return job;
+  },
+
+  //lấy chi tiết bảng lương, chỉ trả về nếu có quyền xem bảng lương đó
   async getById(user: AuthUser, id: string) {
     const payroll = await getPayrollOrThrow(id);
     assertCanViewPayroll(user, payroll);
     return payroll;
   },
 
+  //cập nhật bảng lương, chỉ cập nhật khi bảng lương đang ở trạng thái DRAFT
   async update(user: AuthUser, id: string, data: UpdatePayrollInput) {
     requirePermission(user, [PERMISSIONS.PAYROLL_MANAGE]);
     const payroll = await getPayrollOrThrow(id);
@@ -2130,6 +2548,7 @@ export const payrollService = {
     });
   },
 
+  //lấy danh sách bảng lương theo tiêu chí lọc, chỉ trả về những bảng lương mà người dùng có quyền xem
   async getAll(user: AuthUser, query: PayrollQuery) {
     if (!canViewAllPayrolls(user)) {
       throw new ApiError(403, "Forbidden", "FORBIDDEN");
@@ -2224,6 +2643,7 @@ export const payrollService = {
     };
   },
 
+  //lấy bảng lương của chính mình, chỉ trả về những bảng lương đã được duyệt hoặc đã thanh toán
   async exportPeriodExcel(user: AuthUser, data: PayrollPeriodInput) {
     if (!canViewAllPayrolls(user)) {
       throw new ApiError(403, "Forbidden", "FORBIDDEN");
@@ -2251,7 +2671,7 @@ export const payrollService = {
         STT: index + 1,
         "Ma nhan vien": payroll.employee?.employeeId ?? "",
         "Ho ten": payroll.employee?.name ?? "",
-        "Email": payroll.employee?.email ?? "",
+        Email: payroll.employee?.email ?? "",
         "Phong ban": payroll.employee?.department?.name ?? "",
         "Chuc vu": payroll.employee?.position?.name ?? "",
         "Luong co ban": roundMoney(toNumber(payroll.baseSalary)),
@@ -2264,11 +2684,11 @@ export const payrollService = {
         "Gio tang ca": toNumber(payroll.totalOvertimeHours),
         "Tien tang ca": roundMoney(toNumber(payroll.totalOvertimePay)),
         "Phu cap": roundMoney(toNumber(payroll.totalAllowance)),
-        "Thuong": roundMoney(toNumber(payroll.totalBonus)),
-        "Phat": roundMoney(toNumber(payroll.totalPenalty)),
-        "BHXH": roundMoney(toNumber(payroll.socialInsurance)),
-        "BHYT": roundMoney(toNumber(payroll.healthInsurance)),
-        "BHTN": roundMoney(toNumber(payroll.unemploymentInsurance)),
+        Thuong: roundMoney(toNumber(payroll.totalBonus)),
+        Phat: roundMoney(toNumber(payroll.totalPenalty)),
+        BHXH: roundMoney(toNumber(payroll.socialInsurance)),
+        BHYT: roundMoney(toNumber(payroll.healthInsurance)),
+        BHTN: roundMoney(toNumber(payroll.unemploymentInsurance)),
         "Tong bao hiem": roundMoney(insuranceTotal),
         "Thue TNCN": roundMoney(toNumber(payroll.personalIncomeTax)),
         "Luong gross": roundMoney(toNumber(payroll.grossSalary)),
@@ -2276,7 +2696,8 @@ export const payrollService = {
         "Thuc nhan": netSalary,
         "Da tra": paidAmount,
         "Con lai": remainingAmount,
-        "Trang thai": payrollExportStatusLabel[payroll.status] ?? payroll.status,
+        "Trang thai":
+          payrollExportStatusLabel[payroll.status] ?? payroll.status,
       };
     });
 
@@ -2303,9 +2724,18 @@ export const payrollService = {
       { "Chi tieu": "Thang", "Gia tri": `${period.month}/${period.year}` },
       { "Chi tieu": "Trang thai ky", "Gia tri": period.status },
       { "Chi tieu": "So nhan vien", "Gia tri": payrollRows.length },
-      { "Chi tieu": "Tong luong gross", "Gia tri": roundMoney(summary.grossSalary) },
-      { "Chi tieu": "Tong khau tru", "Gia tri": roundMoney(summary.totalDeduction) },
-      { "Chi tieu": "Tong thuc nhan", "Gia tri": roundMoney(summary.netSalary) },
+      {
+        "Chi tieu": "Tong luong gross",
+        "Gia tri": roundMoney(summary.grossSalary),
+      },
+      {
+        "Chi tieu": "Tong khau tru",
+        "Gia tri": roundMoney(summary.totalDeduction),
+      },
+      {
+        "Chi tieu": "Tong thuc nhan",
+        "Gia tri": roundMoney(summary.netSalary),
+      },
       { "Chi tieu": "Da tra", "Gia tri": roundMoney(summary.paidAmount) },
       { "Chi tieu": "Con lai", "Gia tri": roundMoney(summary.remainingAmount) },
     ];
@@ -2314,10 +2744,13 @@ export const payrollService = {
     const payrollSheet = XLSX.utils.json_to_sheet(payrollRows);
     const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
 
-    setColumnWidths(payrollSheet, [
-      6, 14, 24, 28, 22, 22, 16, 12, 12, 16, 12, 16, 12, 12, 16, 16, 14, 14,
-      14, 14, 14, 16, 14, 16, 16, 16, 16, 16, 18,
-    ]);
+    setColumnWidths(
+      payrollSheet,
+      [
+        6, 14, 24, 28, 22, 22, 16, 12, 12, 16, 12, 16, 12, 12, 16, 16, 14, 14,
+        14, 14, 14, 16, 14, 16, 16, 16, 16, 16, 18,
+      ],
+    );
     setColumnWidths(summarySheet, [24, 24]);
 
     XLSX.utils.book_append_sheet(workbook, payrollSheet, "Bang luong");
@@ -2334,6 +2767,7 @@ export const payrollService = {
     };
   },
 
+  //lấy chi tiết bảng lương của một nhân viên trong kỳ tính lương, chỉ trả về nếu người dùng có quyền xem bảng lương đó
   async getPeriodEmployeeDetail(
     user: AuthUser,
     data: PayrollPeriodEmployeeInput,
@@ -2357,6 +2791,7 @@ export const payrollService = {
     return payroll;
   },
 
+  //xóa bảng lương của một nhân viên trong kỳ tính lương, chỉ xóa khi bảng lương đang ở trạng thái DRAFT và chưa có thanh toán
   async removeEmployeeFromPeriod(
     user: AuthUser,
     data: PayrollPeriodEmployeeInput,
@@ -2404,6 +2839,7 @@ export const payrollService = {
     return this.getPeriodOverview(user, { ...data, periodId: period.id });
   },
 
+  //gửi yêu cầu duyệt kỳ lương, chỉ gửi khi kỳ lương đang ở trạng thái DRAFT và chưa có yêu cầu duyệt nào đang chờ xử lý
   async requestPeriodApproval(
     user: AuthUser,
     data: PayrollPeriodInput,
@@ -2549,6 +2985,7 @@ export const payrollService = {
     return this.getPeriodOverview(user, { ...data, periodId: period.id });
   },
 
+  // duyệt kỳ lương, chỉ duyệt khi kỳ lương đang ở trạng thái WAITING_APPROVAL và tất cả bảng lương trong kỳ đều đang ở trạng thái WAITING_APPROVAL
   async approvePeriod(user: AuthUser, data: PayrollPeriodInput) {
     requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
     const period = await findPayrollPeriodByInput(data);
@@ -2608,6 +3045,7 @@ export const payrollService = {
     return this.getPeriodOverview(user, { ...data, periodId: period.id });
   },
 
+  //hủy kỳ lương, chỉ hủy khi kỳ lương đang ở trạng thái APPROVED và tất cả bảng lương trong kỳ đều chưa được thanh toán
   async cancelPeriod(user: AuthUser, data: PayrollPeriodInput) {
     requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
     const period = await findPayrollPeriodByInput(data);
@@ -2668,6 +3106,7 @@ export const payrollService = {
     return this.getPeriodOverview(user, { ...data, periodId: period.id });
   },
 
+  //lấy danh sách bảng lương của chính mình, chỉ trả về những bảng lương đã được duyệt hoặc đã thanh toán
   getMine(user: AuthUser, query: Pick<PayrollQuery, "month" | "year">) {
     if (!user.employeeId) {
       if (canViewAllPayrolls(user)) {
@@ -2681,10 +3120,14 @@ export const payrollService = {
       throw new ApiError(403, "Forbidden", "FORBIDDEN");
     }
 
+    const visibleStatusFilter = canViewAllPayrolls(user)
+      ? {}
+      : { status: { in: employeeVisibleStatuses } };
+
     return prisma.payroll.findMany({
       where: {
         employeeId: user.employeeId,
-        status: { in: employeeVisibleStatuses },
+        ...visibleStatusFilter,
         ...(query.month ? { month: query.month } : {}),
         ...(query.year ? { year: query.year } : {}),
       },
@@ -2693,6 +3136,7 @@ export const payrollService = {
     });
   },
 
+  //gửi yêu cầu duyệt bảng lương, chỉ gửi khi bảng lương đang ở trạng thái DRAFT và chưa có yêu cầu duyệt nào đang chờ xử lý
   async requestApproval(
     user: AuthUser,
     id: string,
@@ -2707,12 +3151,14 @@ export const payrollService = {
     );
   },
 
+  // duyệt bảng lương, chỉ duyệt khi bảng lương đang ở trạng thái WAITING_APPROVAL và kỳ lương đang ở trạng thái WAITING_APPROVAL
   async approve(user: AuthUser, id: string) {
     requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
     const payroll = await getPayrollOrThrow(id);
     return this.approvePeriod(user, { periodId: payroll.periodId });
   },
 
+  // duyệt nhiều bảng lương cùng lúc, chỉ duyệt khi tất cả bảng lương đều đang ở trạng thái WAITING_APPROVAL và kỳ lương đang ở trạng thái WAITING_APPROVAL
   async approveMany(user: AuthUser, ids: string[]) {
     requirePermission(user, [PERMISSIONS.PAYROLL_APPROVE]);
 
@@ -2744,6 +3190,7 @@ export const payrollService = {
     return this.approvePeriod(user, { periodId: period.periodId });
   },
 
+  //thanh toán bảng lương, chỉ thanh toán khi kỳ lương đang ở trạng thái APPROVED và bảng lương đang ở trạng thái APPROVED hoặc PARTIALLY_PAID
   async createPaymentBatch(
     user: AuthUser,
     data: CreatePayrollPaymentBatchInput,
@@ -2933,6 +3380,7 @@ export const payrollService = {
     });
   },
 
+  //lấy danh sách kỳ lương, chỉ trả về những kỳ lương mà người dùng có quyền xem
   async getPeriods(
     user: AuthUser,
     query: Pick<PayrollQuery, "month" | "year">,
@@ -2958,6 +3406,7 @@ export const payrollService = {
     });
   },
 
+  //lấy danh sách các lô thanh toán, chỉ trả về những lô thanh toán mà người dùng có quyền xem
   async getPaymentBatches(user: AuthUser, query: PayrollPaymentBatchQuery) {
     if (!canViewAllPayrolls(user)) {
       throw new ApiError(403, "Forbidden", "FORBIDDEN");
@@ -2993,6 +3442,7 @@ export const payrollService = {
     });
   },
 
+  //lấy chi tiết lô thanh toán theo id, chỉ trả về nếu người dùng có quyền xem lô thanh toán đó
   async getPaymentBatchById(user: AuthUser, id: string) {
     if (!canViewAllPayrolls(user)) {
       throw new ApiError(403, "Forbidden", "FORBIDDEN");
@@ -3033,6 +3483,7 @@ export const payrollService = {
     return batch;
   },
 
+  //thanh toán bảng lương của một nhân viên, chỉ thanh toán khi kỳ lương đang ở trạng thái APPROVED và bảng lương đang ở trạng thái APPROVED hoặc PARTIALLY_PAID
   async pay(user: AuthUser, id: string) {
     requirePermission(user, [PERMISSIONS.PAYROLL_PAY]);
     const payroll = await prisma.payroll.findUnique({
@@ -3053,6 +3504,7 @@ export const payrollService = {
     return getPayrollOrThrow(id);
   },
 
+  //thanh toán nhiều bảng lương cùng lúc, chỉ thanh toán khi tất cả bảng lương đều đang ở trạng thái APPROVED hoặc PARTIALLY_PAID và tất cả bảng lương đều thuộc cùng một kỳ lương
   async payMany(user: AuthUser, ids: string[]) {
     requirePermission(user, [PERMISSIONS.PAYROLL_PAY]);
 

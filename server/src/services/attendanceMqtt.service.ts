@@ -36,20 +36,6 @@ type DeviceCommandMessage = {
   payload?: JsonRecord | null;
 };
 
-type DeviceCommandResultMessage = {
-  commandId?: string;
-  status?: string;
-  result?: JsonRecord | null;
-  fingerId?: number;
-  employeeId?: string;
-  fingerName?: string;
-};
-
-type PunchMessage = {
-  fingerId: number;
-  recordedAt?: string;
-};
-
 type ShiftMatchWindow = {
   shiftStartMinutes: number;
   shiftEndMinutes: number;
@@ -340,7 +326,7 @@ const hasLeaveCoverage = (
 
   return Boolean(
     coveredShiftIds &&
-      (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
+    (coveredShiftIds.has(null) || coveredShiftIds.has(workShiftId)),
   );
 };
 
@@ -375,6 +361,7 @@ const getClockDistance = (left: number, right: number) => {
   return Math.min(rawDistance, MINUTES_PER_DAY - rawDistance);
 };
 
+//Tính toán khoảng thời gian khớp với ca làm việc dựa trên các thông tin về thời gian bắt đầu và kết thúc ca, thời gian bắt đầu và kết thúc chấm công vào và ra, và trả về một đối tượng ShiftMatchWindow chứa các giá trị tính toán được. Nếu có bất kỳ giá trị nào không hợp lệ, trả về null.
 const resolveShiftMatchWindow = (workShift: {
   startTime: string;
   endTime: string;
@@ -411,6 +398,7 @@ const resolveShiftMatchWindow = (workShift: {
   };
 };
 
+//Tìm kiếm các ca làm việc phù hợp với thời gian chấm công dựa trên lịch làm việc đã được lập trước đó và trả về một mảng các đối tượng ShiftMatchCandidate chứa thông tin về ca làm việc, thời gian chấm công, loại chấm công (CHECK_IN hoặc CHECK_OUT) và điểm số khớp. Nếu không tìm thấy ca làm việc phù hợp, trả về mảng rỗng.
 const resolveShiftMatchCandidates = (
   scheduledShift: {
     scheduleDate: Date;
@@ -461,6 +449,7 @@ const resolveShiftMatchCandidates = (
   return candidates;
 };
 
+//Tính toán mức độ ưu tiên của ca làm việc dựa trên ngày chấm công và ngày lập lịch, nếu ngày chấm công trùng với ngày lập lịch thì ưu tiên cao hơn (0), ngược lại thì ưu tiên thấp hơn (1). Nếu loại chấm công là CHECK_IN thì so sánh với ngày lập lịch, nếu loại chấm công là CHECK_OUT thì so sánh với thời gian kết thúc ca làm việc.
 const getPunchSchedulePreference = (
   candidate: ShiftMatchCandidate,
   attendanceDate: Date,
@@ -472,6 +461,7 @@ const getPunchSchedulePreference = (
   return candidate.scheduleDate.getTime() < attendanceDate.getTime() ? 0 : 1;
 };
 
+//Tính toán mức độ ưu tiên của loại chấm công dựa trên loại chấm công (CHECK_IN hoặc CHECK_OUT), nếu là CHECK_IN thì ưu tiên cao hơn (0), ngược lại thì ưu tiên thấp hơn (1).
 const getPunchTypePreference = (punchType: ShiftMatchCandidate["punchType"]) =>
   punchType === "CHECK_IN" ? 0 : 1;
 
@@ -647,171 +637,172 @@ export const createAbsentDetailsForExpiredSchedules = async () => {
   let createdCount = 0;
 
   try {
-  // Compare with the UTC+7 attendance clock and mark absent right after
-  // check-in closes, not after the check-out window closes.
-  const now = new Date();
-  const attendanceClockNow = toAttendanceClockTime(now);
-  const today = toUtcDateOnly(attendanceClockNow);
-  const fromDate = addUtcDays(today, -1);
-  const toDate = addUtcDays(today, 1);
+    // Compare with the UTC+7 attendance clock and mark absent right after
+    // check-in closes, not after the check-out window closes.
+    const now = new Date();
+    const attendanceClockNow = toAttendanceClockTime(now);
+    const today = toUtcDateOnly(attendanceClockNow);
+    const fromDate = addUtcDays(today, -1);
+    const toDate = addUtcDays(today, 1);
 
-  // Lấy lịch làm việc
-  const schedules = await prisma.workSchedule.findMany({
-    where: {
-      date: {
-        gte: fromDate,
-        lt: toDate,
-      },
-    },
-    include: {
-      shiftLinks: {
-        include: {
-          workShift: true,
+    // Lấy lịch làm việc
+    const schedules = await prisma.workSchedule.findMany({
+      where: {
+        date: {
+          gte: fromDate,
+          lt: toDate,
         },
       },
-    },
-    orderBy: {
-      date: "asc",
-    },
-  });
-
-  if (schedules.length === 0) {
-    return { createdCount, skipped: false };
-  }
-
-  const leaveCoverage = await buildLeaveCoverageMap(
-    [...new Set(schedules.map((schedule) => schedule.employeeId))],
-    fromDate,
-    toDate,
-  );
-
-  // Lấy trước toàn bộ attendance record trong khoảng thời gian này để đối chiếu
-  const attendanceRecords = await prisma.attendanceRecord.findMany({
-    where: {
-      date: {
-        gte: fromDate,
-        lt: toDate,
-      },
-    },
-    include: {
-      details: {
-        select: {
-          workShiftId: true,
-        },
-      },
-    },
-  });
-
-  const recordMap = new Map<string, Set<string>>();
-  for (const record of attendanceRecords) {
-    const key = `${record.employeeId}_${record.date.getTime()}`;
-    const shiftIds = new Set(record.details.map((d) => d.workShiftId));
-    recordMap.set(key, shiftIds);
-  }
-
-  for (const schedule of schedules) {
-    const key = `${schedule.employeeId}_${schedule.date.getTime()}`;
-    const existingWorkShiftIds = recordMap.get(key) || new Set<string>();
-
-    const expiredShiftLinks = schedule.shiftLinks.filter((shiftLink) => {
-      // Nếu ca làm việc đã có điểm danh thì bỏ qua, không tính là expired
-      if (existingWorkShiftIds.has(shiftLink.workShiftId)) {
-        return false;
-      }
-
-      if (
-        hasLeaveCoverage(
-          leaveCoverage,
-          schedule.employeeId,
-          schedule.date,
-          shiftLink.workShiftId,
-        )
-      ) {
-        return false;
-      }
-
-      const shift = shiftLink.workShift;
-      const attendanceDeadline = buildWindowDateTime(
-        schedule.date,
-        shift.checkInEndTime,
-        shift.startTime,
-      );
-
-      return attendanceDeadline.getTime() <= attendanceClockNow.getTime();
-    });
-
-    if (expiredShiftLinks.length === 0) {
-      continue;
-    }
-
-    await prisma.$transaction(async (tx) => {
-      const attendanceRecord = await tx.attendanceRecord.upsert({
-        where: {
-          employeeId_date: {
-            employeeId: schedule.employeeId,
-            date: schedule.date,
+      include: {
+        shiftLinks: {
+          include: {
+            workShift: true,
           },
         },
-        create: {
-          employeeId: schedule.employeeId,
-          date: schedule.date,
+      },
+      orderBy: {
+        date: "asc",
+      },
+    });
+
+    if (schedules.length === 0) {
+      return { createdCount, skipped: false };
+    }
+
+    const leaveCoverage = await buildLeaveCoverageMap(
+      [...new Set(schedules.map((schedule) => schedule.employeeId))],
+      fromDate,
+      toDate,
+    );
+
+    // Lấy trước toàn bộ attendance record trong khoảng thời gian này để đối chiếu
+    const attendanceRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        date: {
+          gte: fromDate,
+          lt: toDate,
         },
-        update: {},
+      },
+      include: {
+        details: {
+          select: {
+            workShiftId: true,
+          },
+        },
+      },
+    });
+
+    const recordMap = new Map<string, Set<string>>();
+    for (const record of attendanceRecords) {
+      const key = `${record.employeeId}_${record.date.getTime()}`;
+      const shiftIds = new Set(record.details.map((d) => d.workShiftId));
+      recordMap.set(key, shiftIds);
+    }
+
+    for (const schedule of schedules) {
+      const key = `${schedule.employeeId}_${schedule.date.getTime()}`;
+      const existingWorkShiftIds = recordMap.get(key) || new Set<string>();
+
+      const expiredShiftLinks = schedule.shiftLinks.filter((shiftLink) => {
+        // Nếu ca làm việc đã có điểm danh thì bỏ qua, không tính là expired
+        if (existingWorkShiftIds.has(shiftLink.workShiftId)) {
+          return false;
+        }
+
+        if (
+          hasLeaveCoverage(
+            leaveCoverage,
+            schedule.employeeId,
+            schedule.date,
+            shiftLink.workShiftId,
+          )
+        ) {
+          return false;
+        }
+
+        const shift = shiftLink.workShift;
+        const attendanceDeadline = buildWindowDateTime(
+          schedule.date,
+          shift.checkInEndTime,
+          shift.startTime,
+        );
+
+        return attendanceDeadline.getTime() <= attendanceClockNow.getTime();
       });
 
-      for (const shiftLink of expiredShiftLinks) {
-        const shift = shiftLink.workShift;
-        const shiftStartAt = buildDateTimeOnDate(
-          schedule.date,
-          shift.startTime,
-        );
-        const shiftEndAt = getShiftEndDateTime(
-          schedule.date,
-          shift.startTime,
-          shift.endTime,
-          shift.isOvernight,
-        );
-        const shiftSnapshot = buildAttendanceDetailShiftSnapshot(
-          shift,
-          shiftStartAt,
-          shiftEndAt,
-        );
+      if (expiredShiftLinks.length === 0) {
+        continue;
+      }
 
-        const existingShiftIds = recordMap.get(key) ?? new Set<string>();
-
-        await tx.attendanceRecordDetail.upsert({
+      await prisma.$transaction(async (tx) => {
+        const attendanceRecord = await tx.attendanceRecord.upsert({
           where: {
-            attendanceRecordId_workShiftId: {
-              attendanceRecordId: attendanceRecord.id,
-              workShiftId: shiftLink.workShiftId,
+            employeeId_date: {
+              employeeId: schedule.employeeId,
+              date: schedule.date,
             },
           },
           create: {
-            attendanceRecordId: attendanceRecord.id,
-            workShiftId: shiftLink.workShiftId,
-            ...shiftSnapshot,
-            checkInTime: null,
-            checkOutTime: null,
-            status: AttendanceStatus.ABSENT,
+            employeeId: schedule.employeeId,
+            date: schedule.date,
           },
           update: {},
         });
 
-        if (!existingShiftIds.has(shiftLink.workShiftId)) {
-          existingShiftIds.add(shiftLink.workShiftId);
-          recordMap.set(key, existingShiftIds);
-          createdCount += 1;
-        }
-      }
-    });
-  }
+        for (const shiftLink of expiredShiftLinks) {
+          const shift = shiftLink.workShift;
+          const shiftStartAt = buildDateTimeOnDate(
+            schedule.date,
+            shift.startTime,
+          );
+          const shiftEndAt = getShiftEndDateTime(
+            schedule.date,
+            shift.startTime,
+            shift.endTime,
+            shift.isOvernight,
+          );
+          const shiftSnapshot = buildAttendanceDetailShiftSnapshot(
+            shift,
+            shiftStartAt,
+            shiftEndAt,
+          );
 
-  return { createdCount, skipped: false };
+          const existingShiftIds = recordMap.get(key) ?? new Set<string>();
+
+          await tx.attendanceRecordDetail.upsert({
+            where: {
+              attendanceRecordId_workShiftId: {
+                attendanceRecordId: attendanceRecord.id,
+                workShiftId: shiftLink.workShiftId,
+              },
+            },
+            create: {
+              attendanceRecordId: attendanceRecord.id,
+              workShiftId: shiftLink.workShiftId,
+              ...shiftSnapshot,
+              checkInTime: null,
+              checkOutTime: null,
+              status: AttendanceStatus.ABSENT,
+            },
+            update: {},
+          });
+
+          if (!existingShiftIds.has(shiftLink.workShiftId)) {
+            existingShiftIds.add(shiftLink.workShiftId);
+            recordMap.set(key, existingShiftIds);
+            createdCount += 1;
+          }
+        }
+      });
+    }
+
+    return { createdCount, skipped: false };
   } finally {
     isAbsentSweepRunning = false;
   }
 };
 
+//Hàm này sẽ được gọi để tạo các bản ghi điểm danh với trạng thái vắng mặt cho tất cả các lịch làm việc trong một tháng cụ thể, giúp đảm bảo dữ liệu điểm danh đầy đủ và chính xác cho toàn bộ tháng đó. Nếu quá trình tạo bản ghi đang chạy, hàm sẽ trả về thông tin về việc bỏ qua và không thực hiện tạo bản ghi mới.
 export const createAbsentDetailsForMonth = async (month: string) => {
   if (isAbsentSweepRunning) {
     return {
@@ -1035,12 +1026,14 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
     return;
   }
 
+  // Validate dữ liệu cơ bản
   const fingerId = Number(payload.fingerId);
   if (!Number.isInteger(fingerId)) {
     console.warn(`Invalid punch fingerId from ${deviceCode}`);
     return;
   }
 
+  // Validate dữ liệu thời gian chấm công, nếu không hợp lệ thì log cảnh báo và bỏ qua
   const recordedAtValue =
     typeof payload.recordedAt === "string"
       ? new Date(payload.recordedAt)
@@ -1132,6 +1125,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       return;
     }
 
+    // Tìm các bản ghi điểm danh đã tồn tại trong ngày chấm công và ngày liền trước để tránh tạo trùng lặp và để cập nhật trạng thái điểm danh chính xác
     const attendanceRecords = await tx.attendanceRecord.findMany({
       where: {
         employeeId: fingerprint.employeeId,
@@ -1253,6 +1247,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       });
     }
 
+    // Hàm này sẽ đảm bảo rằng có một bản ghi điểm danh tồn tại cho ngày chấm công cụ thể, nếu chưa có thì sẽ tạo mới. Nó cũng lưu trữ trạng thái của bản ghi điểm danh trong một Map để tránh truy vấn lại cơ sở dữ liệu nhiều lần.
     const ensureAttendanceRecordState = async (scheduleDate: Date) => {
       const stateKey = scheduleDate.getTime();
       const existingState = attendanceRecordStates.get(stateKey);
@@ -1302,6 +1297,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
       return createdState;
     };
 
+    // Cập nhật bản ghi điểm danh dựa trên các ca làm việc phù hợp đã tìm thấy, nếu có. Nếu không có ca làm việc phù hợp, sẽ log cảnh báo và gửi thông báo đến thiết bị chấm công.
     for (const candidate of matchedCandidates) {
       const attendanceRecordDate = candidate.scheduleDate;
       const attendanceRecord =
@@ -1393,6 +1389,7 @@ const handlePunchMessage = async (deviceCode: string, message: Buffer) => {
         },
       });
 
+      // Cập nhật trạng thái trong Map để tránh truy vấn lại cơ sở dữ liệu nhiều lần
       attendanceRecord.detailsByShiftId.set(matchedShiftLink.workShiftId, {
         checkInTime: nextCheckInTime,
         checkOutTime: nextCheckOutTime,
@@ -1597,8 +1594,6 @@ export const attendanceMqttService = {
       clearInterval(offlineSweepTimer);
       offlineSweepTimer = null;
     }
-
-
 
     if (mqttClient) {
       mqttClient.end(true);

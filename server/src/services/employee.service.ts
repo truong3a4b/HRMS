@@ -20,6 +20,57 @@ type LookupValue = {
   name: string;
 };
 
+const vietnameseNameCollator = new Intl.Collator("vi-VN", {
+  sensitivity: "base",
+  numeric: true,
+});
+
+const getVietnameseNameSortParts = (name: string) =>
+  name.trim().split(/\s+/).reverse();
+
+const compareVietnameseNamesByGivenName = (left: string, right: string) => {
+  const leftParts = getVietnameseNameSortParts(left);
+  const rightParts = getVietnameseNameSortParts(right);
+  const maxLength = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftPart = leftParts[index] ?? "";
+    const rightPart = rightParts[index] ?? "";
+    const partComparison = vietnameseNameCollator.compare(leftPart, rightPart);
+
+    if (partComparison !== 0) {
+      return partComparison;
+    }
+  }
+
+  return 0;
+};
+
+const compareEmployeesByVietnameseName = (
+  left: { name: string; employeeId: string; createdAt: Date },
+  right: { name: string; employeeId: string; createdAt: Date },
+) => {
+  const nameComparison = compareVietnameseNamesByGivenName(
+    left.name,
+    right.name,
+  );
+
+  if (nameComparison !== 0) {
+    return nameComparison;
+  }
+
+  const employeeIdComparison = vietnameseNameCollator.compare(
+    left.employeeId,
+    right.employeeId,
+  );
+
+  if (employeeIdComparison !== 0) {
+    return employeeIdComparison;
+  }
+
+  return left.createdAt.getTime() - right.createdAt.getTime();
+};
+
 type CreateEmployeeInput = {
   name: string;
   email: string;
@@ -300,25 +351,41 @@ export const employeeService = {
             skip: (normalizedPage - 1) * limit,
             take: limit,
           };
+    const sortedEmployees = (
+      await prisma.employee.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          employeeId: true,
+          createdAt: true,
+        },
+      })
+    ).sort(compareEmployeesByVietnameseName);
+    const pageEmployeeIds = isFetchAll
+      ? sortedEmployees.map((employee) => employee.id)
+      : sortedEmployees
+          .slice(pagination.skip ?? 0, (pagination.skip ?? 0) + limit)
+          .map((employee) => employee.id);
+    const employeeOrder = new Map(
+      pageEmployeeIds.map((employeeId, index) => [employeeId, index]),
+    );
     const itemsPromise =
       filters.view === "summary"
         ? prisma.employee.findMany({
-            where,
+            where: { id: { in: pageEmployeeIds } },
             select: employeeSummarySelect,
-            ...pagination,
-            orderBy: { createdAt: "desc" },
           })
         : prisma.employee.findMany({
-            where,
+            where: { id: { in: pageEmployeeIds } },
             include: employeeInclude,
-            ...pagination,
-            orderBy: { createdAt: "desc" },
           });
 
-    const [items, total] = await Promise.all([
-      itemsPromise,
-      prisma.employee.count({ where }),
-    ]);
+    const items = (await itemsPromise).sort(
+      (left, right) =>
+        (employeeOrder.get(left.id) ?? 0) - (employeeOrder.get(right.id) ?? 0),
+    );
+    const total = sortedEmployees.length;
 
     return {
       items,
